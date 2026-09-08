@@ -1,0 +1,173 @@
+
+{  "name": "ElectricalPanel",
+  "type": "object",
+  "properties": {
+    "tag": {
+      "type": "string",
+      "description": "ID/Tag \u00fanico do quadro el\u00e9trico, gerado automaticamente (ex: POR_QUADRO_0001)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome descritivo do quadro"
+    },
+    "site": {
+      "type": "string",
+      "enum": [
+        "porto",
+        "pelotizacao",
+        "oficina"
+      ],
+      "description": "Site onde o quadro est\u00e1 instalado: Porto, Pelotiza\u00e7\u00e3o ou Oficina (define o prefixo da Tag)"
+    },
+    "installation_location": {
+      "type": "string",
+      "description": "Local de instala\u00e7\u00e3o (nome livre do local)"
+    },
+    "location_floor": {
+      "type": "string",
+      "description": "Andar onde o quadro est\u00e1 instalado (ex: 3\u00ba Andar)"
+    },
+    "location_room": {
+      "type": "string",
+      "description": "Sala onde o quadro est\u00e1 instalado (ex: Sala 305)"
+    },
+    "panel_type": {
+      "type": "string",
+      "enum": [
+        "QDL",
+        "QDF",
+        "QDC",
+        "QGBT",
+        "QTA",
+        "QF",
+        "outro"
+      ],
+      "description": "Tipo do quadro: QDL=Distribui\u00e7\u00e3o de Luz, QDF=Distribui\u00e7\u00e3o de For\u00e7a, QDC=Comando, QGBT=Geral Baixa Tens\u00e3o, QTA=Transfer\u00eancia Autom\u00e1tica"
+    },
+    "panel_type_custom": {
+      "type": "string",
+      "description": "Tipo personalizado (se 'outro' for selecionado)"
+    },
+    "voltage_nominal": {
+      "type": "string",
+      "description": "Tens\u00e3o nominal de opera\u00e7\u00e3o (ex: 220/127V, 380/220V)"
+    },
+    "current_nominal": {
+      "type": "string",
+      "description": "Corrente nominal do barramento ou disjuntor geral (ex: 100A)"
+    },
+    "main_breaker_type": {
+      "type": "string",
+      "description": "Tipo do disjuntor geral (ex: Termomagn\u00e9tico, Diferencial)"
+    },
+    "main_breaker_capacity": {
+      "type": "string",
+      "description": "Capacidade do disjuntor geral (ex: 100A, Curva C)"
+    },
+    "main_breaker_brand": {
+      "type": "string",
+      "description": "Marca/modelo do disjuntor geral (ex: ABB S203)"
+    },
+    "phases": {
+      "type": "string",
+      "enum": [
+        "monofasico",
+        "bifasico",
+        "trifasico"
+      ],
+      "description": "Sistema de fases"
+    },
+    "circuit_count": {
+      "type": "number",
+      "description": "N\u00famero total de circuitos"
+    },
+    "has_dr": {
+      "type": "boolean",
+      "default": false,
+      "description": "Possui Dispositivo Diferencial Residual (DR)"
+    },
+    "has_dps": {
+      "type": "boolean",
+      "default": false,
+      "description": "Possui Dispositivo de Prote\u00e7\u00e3o contra Surtos (DPS)"
+    },
+    "has_grounding": {
+      "type": "boolean",
+      "default": false,
+      "description": "Possui aterramento"
+    },
+    "diagram_status": {
+      "type": "string",
+      "enum": [
+        "atualizado",
+        "desatualizado",
+        "inexistente"
+      ],
+      "default": "inexistente",
+      "description": "Status do diagrama unifilar"
+    },
+    "diagram_url": {
+      "type": "string",
+      "description": "URL do diagrama unifilar"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "Foto do quadro el\u00e9trico"
+    },
+    "installation_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de instala\u00e7\u00e3o ou \u00faltima grande reforma"
+    },
+    "last_inspection_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da \u00faltima inspe\u00e7\u00e3o realizada"
+    },
+    "next_inspection_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data programada para a pr\u00f3xima inspe\u00e7\u00e3o"
+    },
+    "inspection_frequency": {
+      "type": "string",
+      "enum": [
+        "mensal",
+        "trimestral",
+        "semestral",
+        "anual"
+      ],
+      "description": "Frequ\u00eancia de inspe\u00e7\u00e3o definida para este quadro"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "Latitude da localiza\u00e7\u00e3o GPS"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "Longitude da localiza\u00e7\u00e3o GPS"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "inativo",
+        "manutencao"
+      ],
+      "default": "ativo",
+      "description": "Status operacional do quadro"
+    },
+    "responsible_engineer": {
+      "type": "string",
+      "description": "Engenheiro respons\u00e1vel"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "name",
+    "site"
+  ]
+}

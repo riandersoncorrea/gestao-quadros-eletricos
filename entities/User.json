@@ -1,0 +1,16 @@
+
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "editor",
+        "viewer"
+      ],
+      "default": "viewer"
+    }
+  }
+}

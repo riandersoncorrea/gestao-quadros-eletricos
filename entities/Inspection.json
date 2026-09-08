@@ -1,0 +1,166 @@
+
+{
+  "name": "Inspection",
+  "type": "object",
+  "properties": {
+    "panel_id": {
+      "type": "string",
+      "description": "ID do quadro el\u00e9trico inspecionado"
+    },
+    "panel_name": {
+      "type": "string",
+      "description": "Nome do quadro (desnormalizado para facilitar consultas)"
+    },
+    "inspection_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da inspe\u00e7\u00e3o"
+    },
+    "inspector_name": {
+      "type": "string",
+      "description": "Nome do respons\u00e1vel pela inspe\u00e7\u00e3o"
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "mensal",
+        "trimestral",
+        "semestral",
+        "anual"
+      ],
+      "description": "Frequ\u00eancia desta inspe\u00e7\u00e3o"
+    },
+    "next_inspection": {
+      "type": "string",
+      "format": "date",
+      "description": "Data programada para pr\u00f3xima inspe\u00e7\u00e3o"
+    },
+    "overall_result": {
+      "type": "string",
+      "enum": [
+        "aprovado",
+        "aprovado_ressalvas",
+        "reprovado"
+      ],
+      "description": "Resultado geral da inspe\u00e7\u00e3o"
+    },
+    "estado_geral_involucro": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Integridade f\u00edsica do inv\u00f3lucro (sem corros\u00e3o, amassados)"
+    },
+    "fechamento_portas_selos": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Fechamento de portas e selos"
+    },
+    "limpeza_interna_externa": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Limpeza interna e externa"
+    },
+    "ausencia_umidade_poeira": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Aus\u00eancia de umidade ou poeira excessiva"
+    },
+    "identificacao_circuitos": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Clareza e atualiza\u00e7\u00e3o das identifica\u00e7\u00f5es de circuitos e disjuntores"
+    },
+    "conexoes_superaquecimento": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Inspe\u00e7\u00e3o visual de pontos de conex\u00e3o para sinais de superaquecimento"
+    },
+    "dispositivos_dr_dps": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Teste funcional de DRs e inspe\u00e7\u00e3o visual de DPSs"
+    },
+    "fiacao_cabos": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Organiza\u00e7\u00e3o, isolamento e integridade dos cabos"
+    },
+    "sinalizacao_seguranca": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "nao_conforme",
+        "nao_aplicavel"
+      ],
+      "description": "Presen\u00e7a e visibilidade de placas de advert\u00eancia e seguran\u00e7a"
+    },
+    "termografia_realizada": {
+      "type": "boolean",
+      "default": false,
+      "description": "Inspe\u00e7\u00e3o termogr\u00e1fica realizada"
+    },
+    "termografia_resultado": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "pontos_quentes",
+        "nao_realizada"
+      ],
+      "description": "Resultado da termografia"
+    },
+    "diagrama_atualizado": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao",
+        "nao_aplicavel"
+      ],
+      "description": "Diagrama unifilar est\u00e1 atualizado"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es e n\u00e3o conformidades detalhadas"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "Foto da inspe\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "panel_id",
+    "inspection_date",
+    "inspector_name",
+    "overall_result"
+  ]
+}
