@@ -1,0 +1,285 @@
+HIERARQUIA DO INVENTÁRIO — revisão (fonte: Planos Quadros Elétricos Ser. Operacionais.xlsx)
+313 quadros | 2 localidades | 99 locais(prédios)
+================================================================================
+
+█ Oficina  (62 prédios, 171 quadros)
+  ├─ ABRIGO CAMINH  (1 quadro)
+  │    • LADO WC  [1]  OFC_QD_0018
+  ├─ AREA DE VIVENCIA  (2 quadros)
+  │    • AREA EXT  [1]  OFC_QD_0092
+  │    • PASSAREL  [1]  OFC_QD_0093
+  ├─ ARMAZEM F1  (14 quadros)
+  │    • GALPAO  [14]  OFC_QD_0057 … OFC_QD_0070
+  ├─ BASE DE EMERGENCIA  (1 quadro)
+  │    • ADM  [1]  OFC_QD_0044
+  ├─ CACP  (2 quadros)
+  │    • AREA EXT AO LADO WC  [2]  OFC_QD_0042, OFC_QD_0043
+  ├─ CANT SEOP  (2 quadros)
+  │    • CORREDOR EXT  [1]  OFC_QD_0071
+  │    • SALA ADM  [1]  OFC_QD_0072
+  ├─ CASA BATERIA  (1 quadro)
+  │    • SL BATERIA  [1]  OFC_QD_0156
+  ├─ CASA BRANCA  (2 quadros)
+  │    • LADO DA COPA  [2]  OFC_QD_0123, OFC_QD_0124
+  ├─ CASA DE RODAS  (4 quadros)
+  │    • LADO WC  [1]  OFC_QD_0165
+  │    • LD COPA  [1]  OFC_QD_0164
+  │    • ÁREA EXT  [2]  OFC_QD_0166, OFC_QD_0167
+  ├─ CASA VERDE  (1 quadro)
+  │    • SL DA ELETRICA  [1]  OFC_QD_0122
+  ├─ CCP/CMA  (5 quadros)
+  │    • LAT DO PRÉDIO  [5]  OFC_QD_0082, OFC_QD_0083, OFC_QD_0084, OFC_QD_0085, OFC_QD_0086
+  ├─ CELULA FISCAL  (2 quadros)
+  │    • AREA EXT  [2]  OFC_QD_0162, OFC_QD_0163
+  ├─ CENTR DE USINAGEM  (1 quadro)
+  │    • GALPAO  [1]  OFC_QD_0111
+  ├─ CLN  (2 quadros)
+  │    • CORREDOR INTERNO  [2]  OFC_QD_0009, OFC_QD_0010
+  ├─ CMD  (9 quadros)
+  │    • AREA EXTERNA  [1]  OFC_QD_0048
+  │    • GALPAO  [4]  OFC_QD_0049, OFC_QD_0050, OFC_QD_0051, OFC_QD_0052
+  │    • SALA DA BALANCA  [1]  OFC_QD_0053
+  │    • SALA ELETRICA  [3]  OFC_QD_0045, OFC_QD_0046, OFC_QD_0047
+  ├─ COMPON ELET  (1 quadro)
+  │    • AREA EXT  [1]  OFC_QD_0146
+  ├─ COMPON MEC  (3 quadros)
+  │    • AREA EXT  [3]  OFC_QD_0147, OFC_QD_0148, OFC_QD_0149
+  ├─ COMPOSICAO  (8 quadros)
+  │    • CORREDOR INT  [8]  OFC_QD_0022 … OFC_QD_0029
+  ├─ CTV  (1 quadro)
+  │    • ADM CORREDOR INT  [1]  OFC_QD_0008
+  ├─ ELEFANTE BRANCO  (1 quadro)
+  │    • AREA EXT  [1]  OFC_QD_0041
+  ├─ ELETROELETRONICA  (4 quadros)
+  │    • ADM  [1]  OFC_QD_0080
+  │    • LABORT  [1]  OFC_QD_0079
+  │    • SL ELET  [2]  OFC_QD_0077, OFC_QD_0078
+  ├─ EQUIP MOV  (1 quadro)
+  │    • GALPAO  [1]  OFC_QD_0158
+  ├─ ESPAÇO L  (1 quadro)
+  │    • SALAO PREDIO  [1]  OFC_QD_0134
+  ├─ ESTACAO  (7 quadros)
+  │    • AREA BAGAGEM  [1]  OFC_QD_0013
+  │    • CORREDOR INT  [3]  OFC_QD_0011, OFC_QD_0012, OFC_QD_0014
+  │    • SALA ADM  [2]  OFC_QD_0016, OFC_QD_0017
+  │    • SALA VIP  [1]  OFC_QD_0015
+  ├─ ESTACAO CARGAS  (1 quadro)
+  │    • AREA INT  [1]  OFC_QD_0128
+  ├─ ESTALEIRO DE SOLDA  (6 quadros)
+  │    • ADM  [1]  OFC_QD_0112
+  │    • GALP  [4]  OFC_QD_0113, OFC_QD_0114, OFC_QD_0115, OFC_QD_0117
+  │    • LINHA  [1]  OFC_QD_0116
+  ├─ ETA PORT SUL  (1 quadro)
+  │    • AREA EXT  [1]  OFC_QD_0104
+  ├─ GEMEG  (1 quadro)
+  │    • AO LADO DA COPA  [1]  OFC_QD_0091
+  ├─ GEST DE COMBUST  (1 quadro)
+  │    • LD COPA  [1]  OFC_QD_0076
+  ├─ GRV  (3 quadros)
+  │    • GALPAO  [3]  OFC_QD_0129, OFC_QD_0130, OFC_QD_0131
+  ├─ HP E TESTAGEM  (1 quadro)
+  │    • (sem sublocal)  [1]  OFC_QD_0088
+  ├─ INV COR  (1 quadro)
+  │    • LAT DO PRÉDIO  [1]  OFC_QD_0081
+  ├─ KIT ESTACIONÁRIO  (1 quadro)
+  │    • ENTRADA  [1]  OFC_QD_0136
+  ├─ LABORAT QUIM  (1 quadro)
+  │    • LABORAT  [1]  OFC_QD_0157
+  ├─ LAVADOR  (3 quadros)
+  │    • AREA EXT ADM  [1]  OFC_QD_0054
+  │    • AREA EXTERNA LAV  [2]  OFC_QD_0055, OFC_QD_0056
+  ├─ LAVADOR LOC  (2 quadros)
+  │    • GALPAO  [2]  OFC_QD_0109, OFC_QD_0110
+  ├─ LINHA 160  (1 quadro)
+  │    • CORR DE LINHA  [1]  OFC_QD_0143
+  ├─ LINHA 162  (1 quadro)
+  │    • AREA OFICINA  [1]  OFC_QD_0142
+  ├─ LINHA 163  (1 quadro)
+  │    • AREA EXTERNA  [1]  OFC_QD_0144
+  ├─ LINHA 165  (4 quadros)
+  │    • AREA EXTERNA  [3]  OFC_QD_0138, OFC_QD_0139, OFC_QD_0140
+  │    • LADO PRED REV1  [1]  OFC_QD_0141
+  ├─ MANUT VIA PERM  (4 quadros)
+  │    • ADM INT  [1]  OFC_QD_0107
+  │    • AREA EXT  [1]  OFC_QD_0105
+  │    • AUDITORIO  [1]  OFC_QD_0106
+  │    • FERRAMENT  [1]  OFC_QD_0108
+  ├─ MIFE  (1 quadro)
+  │    • AREA LATERAL  [1]  OFC_QD_0103
+  ├─ OFC COMP MAQ DE VIA  (4 quadros)
+  │    • ADM  [1]  OFC_QD_0118
+  │    • EXT  [1]  OFC_QD_0121
+  │    • GALP  [2]  OFC_QD_0119, OFC_QD_0120
+  ├─ OFICINA DE FREIO  (2 quadros)
+  │    • LD WC  [1]  OFC_QD_0133
+  │    • LINHA  [1]  OFC_QD_0132
+  ├─ OMTT  (2 quadros)
+  │    • AREA EXTERNA  [1]  OFC_QD_0154
+  │    • GALPAO  [1]  OFC_QD_0155
+  ├─ PARQUE BOTANICO  (11 quadros)
+  │    • ADM  [11]  OFC_QD_0030 … OFC_QD_0040
+  ├─ PCM LOCOMOTIVA  (1 quadro)
+  │    • ENTRADA  [1]  OFC_QD_0135
+  ├─ POSTO DE ABAST  (1 quadro)
+  │    • GALPAO  [1]  OFC_QD_0073
+  ├─ POSTO MEDICO  (3 quadros)
+  │    • AREA EXT  [2]  OFC_QD_0020, OFC_QD_0021
+  │    • AREA EXT WC  [1]  OFC_QD_0019
+  ├─ PT ANJO GUARDA  (6 quadros)
+  │    • AREA EXT  [2]  OFC_QD_0005, OFC_QD_0006
+  │    • SL ELETR  [4]  OFC_QD_0001, OFC_QD_0002, OFC_QD_0003, OFC_QD_0004
+  ├─ RD ANJO GUARDA  (1 quadro)
+  │    • AREA EXT  [1]  OFC_QD_0007
+  ├─ ROF  (7 quadros)
+  │    • AREA EXTERNA  [3]  OFC_QD_0094, OFC_QD_0095, OFC_QD_0099
+  │    • CORREDOR EXTERNO  [1]  OFC_QD_0096
+  │    • PANERIA  [1]  OFC_QD_0100
+  │    • SAIDA EXTERNA  [1]  OFC_QD_0098
+  │    • SALAO  [1]  OFC_QD_0097
+  ├─ S11D LOGISTICA  (1 quadro)
+  │    • AREA EXT  [1]  OFC_QD_0087
+  ├─ SESMT OFICINA  (2 quadros)
+  │    • AREA INT  [2]  OFC_QD_0089, OFC_QD_0090
+  ├─ TANCAGEM  (2 quadros)
+  │    • GALPAO LUBRIFIC  [2]  OFC_QD_0074, OFC_QD_0075
+  ├─ TERMINAL NIQUEL  (3 quadros)
+  │    • ADM  [1]  OFC_QD_0125
+  │    • GUARITA  [1]  OFC_QD_0126
+  │    • (sem sublocal)  [1]  OFC_QD_0127
+  ├─ TORNO SUBSOLO  (4 quadros)
+  │    • GALPÃO  [4]  OFC_QD_0168, OFC_QD_0169, OFC_QD_0170, OFC_QD_0171
+  ├─ TRUCK  (4 quadros)
+  │    • AREA EXTERNA  [4]  OFC_QD_0150, OFC_QD_0151, OFC_QD_0152, OFC_QD_0153
+  ├─ USINAGEM  (1 quadro)
+  │    • GALPAO  [1]  OFC_QD_0145
+  ├─ VAGÕES  (3 quadros)
+  │    • LINHA 122 B  [2]  OFC_QD_0159, OFC_QD_0160
+  │    • LINHA 132  [1]  OFC_QD_0161
+  ├─ VEST OFC  (2 quadros)
+  │    • AREA EXTERNA  [2]  OFC_QD_0101, OFC_QD_0102
+  ├─ ÁREA INDUSTRIAL  (1 quadro)
+  │    • ENTRADA  [1]  OFC_QD_0137
+
+█ Porto  (37 prédios, 142 quadros)
+  ├─ AREA 1 INT ESTR  (1 quadro)
+  │    • FERRAMENT  [1]  PRT_QD_0082
+  ├─ AREA 2 OFC SUB  (14 quadros)
+  │    • FERRAMENT  [3]  PRT_QD_0083, PRT_QD_0085, PRT_QD_0092
+  │    • OFICINA  [9]  PRT_QD_0084 … PRT_QD_0095
+  │    • SALAO ADM  [1]  PRT_QD_0093
+  │    • SL TREINAMT  [1]  PRT_QD_0096
+  ├─ AREA 3 EQUIP MOV  (3 quadros)
+  │    • DEP MANG  [1]  PRT_QD_0099
+  │    • OFC TERC  [1]  PRT_QD_0098
+  │    • SL ADM  [1]  PRT_QD_0097
+  ├─ AREA 4 TRANSICAO  (1 quadro)
+  │    • GALPAO  [1]  PRT_QD_0100
+  ├─ AREA DE VIVENCIA  (9 quadros)
+  │    • ADM  [1]  PRT_QD_0050
+  │    • AREA EXT  [3]  PRT_QD_0047, PRT_QD_0048, PRT_QD_0049
+  │    • EXTERNA  [1]  PRT_QD_0043
+  │    • LANCHONT  [1]  PRT_QD_0051
+  │    • QG  [2]  PRT_QD_0044, PRT_QD_0045
+  │    • SALAS ADM  [1]  PRT_QD_0046
+  ├─ BRIGADA  (5 quadros)
+  │    • AREA DE VIVENCIA  [1]  PRT_QD_0026
+  │    • ATRAS DO PREDIO  [3]  PRT_QD_0027, PRT_QD_0028, PRT_QD_0029
+  │    • SALA ADM  [1]  PRT_QD_0025
+  ├─ CANT SEOP  (1 quadro)
+  │    • LADO WC MASC  [1]  PRT_QD_0107
+  ├─ CASA DE MADEIRA  (2 quadros)
+  │    • RECEPÇÃO  [1]  PRT_QD_0124
+  │    • VESTIARIO  [1]  PRT_QD_0125
+  ├─ CCO  (16 quadros)
+  │    • ENTRADA DO CCO  [2]  PRT_QD_0014, PRT_QD_0015
+  │    • SALA ADM  [2]  PRT_QD_0012, PRT_QD_0013
+  │    • SALA CTO  [1]  PRT_QD_0018
+  │    • SALA DE BATERIAS  [2]  PRT_QD_0022, PRT_QD_0023
+  │    • SALA DE CONTROLE  [2]  PRT_QD_0009, PRT_QD_0010
+  │    • SALA DE MAQUINA  [1]  PRT_QD_0011
+  │    • SALA DE TI  [1]  PRT_QD_0024
+  │    • SALA NOBREAK  [2]  PRT_QD_0020, PRT_QD_0021
+  │    • SALA RECEPCAO  [2]  PRT_QD_0016, PRT_QD_0017
+  │    • SALA SGF  [1]  PRT_QD_0019
+  ├─ EMBARQUE  (3 quadros)
+  │    • SALA DE ELETRICA  [2]  PRT_QD_0108, PRT_QD_0109
+  │    • SALAO ADM  [1]  PRT_QD_0110
+  ├─ ENG/PREDITIVA  (4 quadros)
+  │    • AREA EXT  [2]  PRT_QD_0054, PRT_QD_0055
+  │    • LADO WC FEM  [2]  PRT_QD_0052, PRT_QD_0053
+  ├─ FORCA E ENERGIA  (4 quadros)
+  │    • ENTRADA  [2]  PRT_QD_0101, PRT_QD_0102
+  │    • PCM  [1]  PRT_QD_0103
+  │    • VEST MASC  [1]  PRT_QD_0104
+  ├─ GADUN  (1 quadro)
+  │    • GADUN  [1]  PRT_QD_0061
+  ├─ GEPEG  (5 quadros)
+  │    • AREA EXTERNA  [3]  PRT_QD_0058, PRT_QD_0059, PRT_QD_0060
+  │    • COPA  [1]  PRT_QD_0057
+  │    • SALAO ADM  [1]  PRT_QD_0056
+  ├─ GER MEIO AMBIENTE  (1 quadro)
+  │    • (sem sublocal)  [1]  PRT_QD_0142
+  ├─ INSPETORIA PIER I  (1 quadro)
+  │    • SL ADM  [1]  PRT_QD_0112
+  ├─ INSPETORIA PIER IV  (1 quadro)
+  │    • SL ADM  [1]  PRT_QD_0113
+  ├─ LAB FIS-QUIM  (8 quadros)
+  │    • LABORATÓRIO  [5]  PRT_QD_0076, PRT_QD_0077, PRT_QD_0078, PRT_QD_0079, PRT_QD_0080
+  │    • SALA TI  [1]  PRT_QD_0081
+  │    • SL NOBREAK  [1]  PRT_QD_0074
+  │    • SL RECEBIMENT  [1]  PRT_QD_0075
+  ├─ MIRANTE  (2 quadros)
+  │    • RECEPÇÃO  [1]  PRT_QD_0122
+  │    • SALA DOS RACKS  [1]  PRT_QD_0123
+  ├─ NOVO EMBARQUE  (1 quadro)
+  │    • PREDIO  [1]  PRT_QD_0111
+  ├─ NUCLEO DE APOIO  (2 quadros)
+  │    • SL ADM  [2]  PRT_QD_0126, PRT_QD_0127
+  ├─ PORT BOQUEIRAO  (2 quadros)
+  │    • PORTARIA  [1]  PRT_QD_0001
+  │    • SALA DE TI  [1]  PRT_QD_0002
+  ├─ RDV BOQUEIRAO  (2 quadros)
+  │    • RDV 2 PISO  [1]  PRT_QD_0003
+  │    • RDV1 PISO  [1]  PRT_QD_0004
+  ├─ RDV DILN  (1 quadro)
+  │    • AO LADO WC FEM  [1]  PRT_QD_0008
+  ├─ REST JUCARA  (13 quadros)
+  │    • SALA DA ELET  [13]  PRT_QD_0030 … PRT_QD_0042
+  ├─ RVV  (12 quadros)
+  │    • AREA DA COZINHA  [5]  PRT_QD_0135, PRT_QD_0136, PRT_QD_0137, PRT_QD_0138, PRT_QD_0139
+  │    • COZINHA  [2]  PRT_QD_0128, PRT_QD_0129
+  │    • LADO VESTIARIO FEM  [3]  PRT_QD_0132, PRT_QD_0133, PRT_QD_0134
+  │    • SALA DE MAQUINA  [2]  PRT_QD_0130, PRT_QD_0131
+  ├─ SERV OPER  (3 quadros)
+  │    • ATRAS DO PREDIO  [2]  PRT_QD_0006, PRT_QD_0007
+  │    • LADO DO PREDIO  [1]  PRT_QD_0005
+  ├─ SESMT PORTO  (2 quadros)
+  │    • ENTRADA  [1]  PRT_QD_0106
+  │    • SALAO  [1]  PRT_QD_0105
+  ├─ TERREO LAB FIS-QUIM  (3 quadros)
+  │    • ALMOX  [2]  PRT_QD_0072, PRT_QD_0073
+  │    • SL ADM  [1]  PRT_QD_0071
+  ├─ VALER  (9 quadros)
+  │    • AUDITORIO  [1]  PRT_QD_0068
+  │    • ESP DE APRENDIZAGEM  [1]  PRT_QD_0067
+  │    • SALA ADM  [1]  PRT_QD_0066
+  │    • SALA DE MAQUINA  [1]  PRT_QD_0065
+  │    • SALAO ADM  [1]  PRT_QD_0062
+  │    • SALAO PCM  [1]  PRT_QD_0064
+  │    • SIMULADOR 2  [1]  PRT_QD_0069
+  │    • SIMULADOR 3  [1]  PRT_QD_0063
+  │    • SL REALIDADE VISTRAL  [1]  PRT_QD_0070
+  ├─ VIRADOR DE VAGOES 2  (2 quadros)
+  │    • ADM  [2]  PRT_QD_0116, PRT_QD_0117
+  ├─ VIRADOR DE VAGOES 3  (1 quadro)
+  │    • ADM  [1]  PRT_QD_0118
+  ├─ VIRADOR DE VAGOES 4  (1 quadro)
+  │    • ADM  [1]  PRT_QD_0119
+  ├─ VIRADOR DE VAGOES 5  (1 quadro)
+  │    • ADM  [1]  PRT_QD_0120
+  ├─ VIRADOR DE VAGOES 6  (1 quadro)
+  │    • ADM  [1]  PRT_QD_0121
+  ├─ VIRADOR DE VAGOES I  (2 quadros)
+  │    • ADM  [2]  PRT_QD_0114, PRT_QD_0115
+  ├─ VULCA  (2 quadros)
+  │    • SALA DA ELETRICA  [2]  PRT_QD_0140, PRT_QD_0141
