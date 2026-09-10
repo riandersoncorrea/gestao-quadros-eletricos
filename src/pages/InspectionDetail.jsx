@@ -140,7 +140,7 @@ export default function InspectionDetail() {
           <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><FileWarning className="h-4 w-4 text-destructive" />Não conformidades geradas</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {nonconformities.map((nc) => (
-              <div key={nc.id} className="rounded-lg border border-border p-3">
+              <Link key={nc.id} to={`/nao-conformidades/${nc.id}`} className="block rounded-lg border border-border p-3 hover:border-primary/30 transition-colors">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <Badge variant="outline" className="text-[10px]">{SEV[nc.severidade] || nc.severidade}</Badge>
                   {nc.categoria && <span className="text-xs text-muted-foreground">{nc.categoria}</span>}
@@ -148,7 +148,7 @@ export default function InspectionDetail() {
                 </div>
                 <p className="text-sm">{nc.descricao}</p>
                 {nc.recomendacao && <p className="text-xs text-muted-foreground mt-1">Recomendação: {nc.recomendacao}</p>}
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

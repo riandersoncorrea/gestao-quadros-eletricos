@@ -28,6 +28,9 @@ import SapImportList from '@/pages/SapImportList';
 import SapImportWizard from '@/pages/SapImportWizard';
 import SapBatchDetail from '@/pages/SapBatchDetail';
 import HealthConfig from '@/pages/HealthConfig';
+import NonconformityList from '@/pages/NonconformityList';
+import NonconformityDetail from '@/pages/NonconformityDetail';
+import ActionList from '@/pages/ActionList';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -65,6 +68,9 @@ const AuthenticatedApp = () => {
           <Route path="/importacao-sap" element={<SapImportList />} />
           <Route path="/importacao-sap/nova" element={<SapImportWizard />} />
           <Route path="/importacao-sap/:id" element={<SapBatchDetail />} />
+          <Route path="/nao-conformidades" element={<NonconformityList />} />
+          <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
+          <Route path="/acoes" element={<ActionList />} />
           <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
           <Route path="/usuarios" element={<UserManagement />} />

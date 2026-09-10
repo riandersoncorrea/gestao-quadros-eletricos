@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { supabase } from "@/lib/supabaseClient";
 import { getPanelFlags } from "@/api/analysis";
+import { ncSummaryForPanel } from "@/api/nc";
 import { panelAdherence } from "@/lib/adherence";
 import { appUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -19,7 +20,7 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowLeft, Pencil, Trash2, MapPin, Zap, Calendar,
   Download, QrCode, ExternalLink, Image, FileText, Building2, Layers,
-  ShieldCheck, Database, Gauge, Activity, Siren, ClipboardCheck,
+  ShieldCheck, Database, Gauge, Activity, Siren, ClipboardCheck, FileWarning,
 } from "lucide-react";
 
 const FLAG_SEV = {
@@ -81,6 +82,11 @@ export default function PanelDetail() {
   const { data: flags = [] } = useQuery({
     queryKey: ["panel-flags", id],
     queryFn: () => getPanelFlags(id),
+  });
+
+  const { data: ncSummary } = useQuery({
+    queryKey: ["panel-nc-summary", id],
+    queryFn: () => ncSummaryForPanel(id),
   });
 
   const { data: adherenceData } = useQuery({
@@ -195,7 +201,7 @@ export default function PanelDetail() {
       </div>
 
       {/* Índice de Saúde + Aderência */}
-      {(panel.health_index != null || adherenceData?.due > 0) && (
+      {(panel.health_index != null || adherenceData?.due > 0 || ncSummary?.abertas > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {panel.health_index != null && (
             <Card>
@@ -225,6 +231,23 @@ export default function PanelDetail() {
                 </div>
               </CardContent>
             </Card>
+          )}
+          {ncSummary?.abertas > 0 && (
+            <Link to={`/nao-conformidades?panel=${id}`}>
+              <Card className="hover:border-primary/30 transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <FileWarning className="h-8 w-8 text-destructive/70 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Não conformidades abertas</p>
+                    <p className="text-2xl font-bold text-destructive">{ncSummary.abertas}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {ncSummary.criticas > 0 && `${ncSummary.criticas} crítica(s) · `}
+                      {ncSummary.total} no histórico
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           )}
         </div>
       )}
