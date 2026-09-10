@@ -75,20 +75,39 @@ export async function recomputeInspectionAnalysis(inspectionId) {
 
   const panelId = inspection.panel_ref_id || inspection.panel_id;
   if (panelId) {
-    const { data: latest } = await supabase
-      .from("inspections")
-      .select("id, inspection_date")
-      .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`)
-      .neq("status", "cancelada")
-      .order("inspection_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: latest }, { data: panel }, { data: ncs }, { data: acts }] = await Promise.all([
+      supabase.from("inspections").select("id, inspection_date")
+        .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`)
+        .neq("status", "cancelada")
+        .order("inspection_date", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("electrical_panels").select("status, criticality, latitude, longitude, localidade_id").eq("id", panelId).maybeSingle(),
+      supabase.from("nonconformities").select("status, severidade").eq("panel_id", panelId),
+      supabase.from("v_actions").select("status, atrasada").eq("panel_id", panelId),
+    ]);
+
     if (latest?.id === inspectionId) {
       await supabase
         .from("electrical_panels")
         .update({ health_index: index, health_index_updated_at: new Date().toISOString() })
         .eq("id", panelId);
     }
+
+    const ncAbertas = (ncs || []).filter((n) => ["aberta", "em_tratamento"].includes(n.status));
+    await supabase.from("panel_condition_history").insert({
+      panel_id: panelId,
+      health_index: index,
+      status: panel?.status ?? null,
+      criticality: panel?.criticality ?? null,
+      nc_abertas: ncAbertas.length,
+      nc_criticas: ncAbertas.filter((n) => n.severidade === "critica").length,
+      nc_altas: ncAbertas.filter((n) => n.severidade === "alta").length,
+      acoes_abertas: (acts || []).filter((a) => ["aberta", "em_andamento"].includes(a.status)).length,
+      acoes_atrasadas: (acts || []).filter((a) => a.atrasada).length,
+      latitude: panel?.latitude ?? null,
+      longitude: panel?.longitude ?? null,
+      localidade_id: panel?.localidade_id ?? null,
+      source: "inspecao_validada",
+    });
   }
 
   return { index, flags, scores };

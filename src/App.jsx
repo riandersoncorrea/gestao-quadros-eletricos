@@ -32,6 +32,7 @@ import NonconformityList from '@/pages/NonconformityList';
 import NonconformityDetail from '@/pages/NonconformityDetail';
 import ActionList from '@/pages/ActionList';
 import ExecutiveReport from '@/pages/ExecutiveReport';
+import AuditLog from '@/pages/AuditLog';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -77,6 +78,7 @@ const AuthenticatedApp = () => {
           <Route path="/informacoes" element={<InfoFundamentais />} />
           <Route path="/usuarios" element={<UserManagement />} />
           <Route path="/config/indice-saude" element={<HealthConfig />} />
+          <Route path="/auditoria" element={<AuditLog />} />
         </Route>
       </Route>
 

@@ -18,7 +18,8 @@ import {
   FileSpreadsheet,
   Gauge,
   FileWarning,
-  ListChecks
+  ListChecks,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin", "editor"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
   { path: "/config/indice-saude", icon: Gauge, label: "Índice de Saúde", roles: ["admin"] },
+  { path: "/auditoria", icon: ShieldCheck, label: "Auditoria", roles: ["admin"] },
   { path: "/usuarios", icon: Users, label: "Usuários", roles: ["admin"] },
 ];
 

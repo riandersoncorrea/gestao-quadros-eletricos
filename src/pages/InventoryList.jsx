@@ -110,6 +110,13 @@ export default function InventoryList() {
     return matchSearch && matchStatus && matchLocalidade && matchHealth && matchCrit;
   });
 
+  const PAGE_SIZE = 40;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart = page * PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  React.useEffect(() => { setPage(0); }, [search, statusFilter, localidadeFilter, healthFilter, critFilter]);
+
 
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -186,7 +193,10 @@ export default function InventoryList() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map(panel => (
+          <p className="text-xs text-muted-foreground">
+            Mostrando {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} de {filtered.length}
+          </p>
+          {pageItems.map(panel => (
             <Card key={panel.id} className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -270,6 +280,16 @@ export default function InventoryList() {
               </CardContent>
             </Card>
           ))}
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <span className="text-muted-foreground">Página {page + 1} de {pageCount}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(p => p - 1); window.scrollTo(0, 0); }}>Anterior</Button>
+                <Button variant="outline" size="sm" disabled={page >= pageCount - 1} onClick={() => { setPage(p => p + 1); window.scrollTo(0, 0); }}>Próxima</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

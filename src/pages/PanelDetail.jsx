@@ -3,6 +3,8 @@ import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { supabase } from "@/lib/supabaseClient";
 import { getPanelFlags } from "@/api/analysis";
 import { ncSummaryForPanel } from "@/api/nc";
+import { panelLocationHistory, panelConditionHistory } from "@/api/audit";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { panelAdherence } from "@/lib/adherence";
 import { appUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -87,6 +89,15 @@ export default function PanelDetail() {
   const { data: ncSummary } = useQuery({
     queryKey: ["panel-nc-summary", id],
     queryFn: () => ncSummaryForPanel(id),
+  });
+
+  const { data: locHistory = [] } = useQuery({
+    queryKey: ["panel-loc-history", id],
+    queryFn: () => panelLocationHistory(id),
+  });
+  const { data: condHistory = [] } = useQuery({
+    queryKey: ["panel-cond-history", id],
+    queryFn: () => panelConditionHistory(id),
   });
 
   const { data: adherenceData } = useQuery({
@@ -267,6 +278,44 @@ export default function PanelDetail() {
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {/* Histórico */}
+      {(condHistory.length > 0 || locHistory.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {condHistory.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-primary" />Evolução do Índice de Saúde</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={condHistory.map((c) => ({ d: fmtDate(c.snapshot_at), hi: c.health_index == null ? null : Math.round(c.health_index), nc: c.nc_abertas }))}>
+                    <XAxis dataKey="d" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={28} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="hi" stroke="#2E9E6B" strokeWidth={2} name="Índice de Saúde" connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+                <p className="text-[11px] text-muted-foreground mt-1">{condHistory.length} registro(s) · atualizado a cada inspeção</p>
+              </CardContent>
+            </Card>
+          )}
+          {locHistory.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" />Histórico de localização</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {locHistory.map((h) => (
+                  <div key={h.id} className="text-xs border-b border-border/60 pb-1.5 last:border-0">
+                    <span className="text-muted-foreground">{fmtDate(h.changed_at)}</span>
+                    {" — mudou de "}
+                    {h.latitude != null && h.longitude != null
+                      ? <span className="font-mono">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)}</span>
+                      : <span className="text-muted-foreground">sem coordenada</span>}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
