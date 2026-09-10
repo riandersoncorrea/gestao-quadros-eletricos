@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { appUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +27,7 @@ export default function Register() {
     try {
       const { error: signUpError } = await supabase.auth.signUp({ email, password });
       if (signUpError) throw signUpError;
-      window.location.href = "/";
+      window.location.href = import.meta.env.BASE_URL;
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
@@ -37,7 +38,7 @@ export default function Register() {
   const handleGoogle = () => {
     supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo: `${appUrl}/` },
     });
   };
 

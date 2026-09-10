@@ -35,7 +35,7 @@ export default function ResetPassword() {
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
       await supabase.auth.signOut();
-      window.location.href = "/login";
+      window.location.href = `${import.meta.env.BASE_URL}login`;
     } catch (err) {
       setError(err.message || "Failed to reset password");
     } finally {

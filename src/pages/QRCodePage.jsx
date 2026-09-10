@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { ElectricalPanel } from "@/api/entities";
+import { appUrl } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ export default function QRCodePage() {
     queryFn: () => ElectricalPanel.list("name"),
   });
 
-  const appUrl = window.location.origin;
 
   const downloadQR = (panel) => {
     const url = getQRCodeDataUrl(`${appUrl}/quadro/${panel.id}`, 600);

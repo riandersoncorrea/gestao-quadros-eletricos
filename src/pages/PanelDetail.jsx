@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ElectricalPanel } from "@/api/entities";
+import { appUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +55,6 @@ export default function PanelDetail() {
     },
   });
 
-  const appUrl = window.location.origin;
   const qrValue = `${appUrl}/quadro/${id}`;
 
   const downloadQR = () => {

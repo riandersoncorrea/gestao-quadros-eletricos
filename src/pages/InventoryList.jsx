@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ElectricalPanel } from "@/api/entities";
+import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,7 +65,6 @@ export default function InventoryList() {
     return matchSearch && matchStatus;
   });
 
-  const appUrl = window.location.origin;
 
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
