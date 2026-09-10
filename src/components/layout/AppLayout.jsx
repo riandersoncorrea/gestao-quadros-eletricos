@@ -14,7 +14,8 @@ import {
   Zap,
   ChevronRight,
   BookOpen,
-  Users
+  Users,
+  FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { path: "/mapa", icon: Map, label: "Mapa", roles: ["admin", "editor", "viewer"] },
   { path: "/inventario", icon: ClipboardList, label: "Inventário", roles: ["admin", "editor", "viewer"] },
   { path: "/inspecoes", icon: ClipboardCheck, label: "Checklists", roles: ["admin", "editor", "viewer"] },
+  { path: "/importacao-sap", icon: FileSpreadsheet, label: "Importação SAP", roles: ["admin", "editor"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin", "editor"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
   { path: "/usuarios", icon: Users, label: "Usuários", roles: ["admin"] },

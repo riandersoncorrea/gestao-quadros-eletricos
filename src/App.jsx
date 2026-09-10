@@ -24,6 +24,9 @@ import InspectionForm from '@/pages/InspectionForm';
 import InspectionDetail from '@/pages/InspectionDetail';
 import InfoFundamentais from '@/pages/InfoFundamentais';
 import UserManagement from '@/pages/UserManagement';
+import SapImportList from '@/pages/SapImportList';
+import SapImportWizard from '@/pages/SapImportWizard';
+import SapBatchDetail from '@/pages/SapBatchDetail';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -58,6 +61,9 @@ const AuthenticatedApp = () => {
           <Route path="/inspecoes" element={<InspectionList />} />
           <Route path="/inspecoes/nova" element={<InspectionForm />} />
           <Route path="/inspecoes/:id" element={<InspectionDetail />} />
+          <Route path="/importacao-sap" element={<SapImportList />} />
+          <Route path="/importacao-sap/nova" element={<SapImportWizard />} />
+          <Route path="/importacao-sap/:id" element={<SapBatchDetail />} />
           <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
           <Route path="/usuarios" element={<UserManagement />} />
