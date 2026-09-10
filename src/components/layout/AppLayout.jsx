@@ -13,7 +13,8 @@ import {
   LogOut,
   Zap,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { path: "/inspecoes", icon: ClipboardCheck, label: "Checklists", roles: ["admin", "editor", "viewer"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin", "editor"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
+  { path: "/usuarios", icon: Users, label: "Usuários", roles: ["admin"] },
 ];
 
 export default function AppLayout() {

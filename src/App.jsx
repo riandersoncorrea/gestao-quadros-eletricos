@@ -23,6 +23,7 @@ import InspectionList from '@/pages/InspectionList';
 import InspectionForm from '@/pages/InspectionForm';
 import InspectionDetail from '@/pages/InspectionDetail';
 import InfoFundamentais from '@/pages/InfoFundamentais';
+import UserManagement from '@/pages/UserManagement';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -59,6 +60,7 @@ const AuthenticatedApp = () => {
           <Route path="/inspecoes/:id" element={<InspectionDetail />} />
           <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
+          <Route path="/usuarios" element={<UserManagement />} />
         </Route>
       </Route>
 

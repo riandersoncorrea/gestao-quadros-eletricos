@@ -21,6 +21,20 @@ create policy "Users can view own profile"
   to authenticated
   using (auth.uid() = id);
 
+-- Admins manage roles from the app's "Usuários" page. They can see everyone
+-- and change anyone's role except their own (self-demotion is blocked here to
+-- avoid lockout — do it in the SQL editor if ever needed).
+create policy "Admins can view all profiles"
+  on public.profiles for select
+  to authenticated
+  using (public.current_role() = 'admin');
+
+create policy "Admins can update other profiles"
+  on public.profiles for update
+  to authenticated
+  using (public.current_role() = 'admin' and id <> auth.uid())
+  with check (public.current_role() = 'admin' and id <> auth.uid());
+
 -- Cria automaticamente um profile (role 'viewer') a cada novo usuário do Supabase Auth.
 create or replace function public.handle_new_user()
 returns trigger
