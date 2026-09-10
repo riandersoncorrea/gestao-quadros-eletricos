@@ -104,6 +104,7 @@ export default function InventoryForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["panels"] });
       queryClient.invalidateQueries({ queryKey: ["panel", id] });
+      queryClient.invalidateQueries({ queryKey: ["spatial"] });
       toast.success(isEditing ? "Quadro atualizado!" : "Quadro cadastrado no inventário!");
       navigate("/inventario");
     },
