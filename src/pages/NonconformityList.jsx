@@ -41,7 +41,9 @@ export default function NonconformityList() {
   const panelParam = searchParams.get("panel");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("abertas");
-  const [sevFilter, setSevFilter] = useState("all");
+  const [sevFilter, setSevFilter] = useState(
+    ["baixa", "media", "alta", "critica"].includes(searchParams.get("sev")) ? searchParams.get("sev") : "all"
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
 

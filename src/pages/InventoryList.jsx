@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,11 +51,20 @@ function healthStyle(hi) {
 export default function InventoryList() {
   const { canEdit, canDelete } = useUserRole();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
   const [qrPanel, setQrPanel] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+
+  const healthFilter = searchParams.get("health") || "all";  // bom | atencao | critico
+  const critFilter = searchParams.get("crit") || "all";       // A | B | C | D
+  const setParam = (key, val) => setSearchParams((sp) => {
+    if (val === "all") sp.delete(key); else sp.set(key, val);
+    return sp;
+  }, { replace: true });
+  const bandOf = (hi) => hi == null ? "sem" : hi >= 80 ? "bom" : hi >= 50 ? "atencao" : "critico";
 
   const { data: panels = [], isLoading } = useQuery({
     queryKey: ["panels"],
@@ -96,7 +105,9 @@ export default function InventoryList() {
     const matchSearch = !s || hay.includes(s);
     const matchStatus = statusFilter === "all" || p.status === statusFilter;
     const matchLocalidade = localidadeFilter === "all" || p.localidade_id === localidadeFilter;
-    return matchSearch && matchStatus && matchLocalidade;
+    const matchHealth = healthFilter === "all" || bandOf(p.health_index) === healthFilter;
+    const matchCrit = critFilter === "all" || p.criticality === critFilter;
+    return matchSearch && matchStatus && matchLocalidade && matchHealth && matchCrit;
   });
 
 
@@ -141,6 +152,22 @@ export default function InventoryList() {
             <SelectItem value="inativo">Inativo</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={healthFilter} onValueChange={(v) => setParam("health", v)}>
+          <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Índice de Saúde" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todo Índice de Saúde</SelectItem>
+            <SelectItem value="bom">Bom (≥ 80)</SelectItem>
+            <SelectItem value="atencao">Atenção (50–79)</SelectItem>
+            <SelectItem value="critico">Crítico (&lt; 50)</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={critFilter} onValueChange={(v) => setParam("crit", v)}>
+          <SelectTrigger className="w-full sm:w-36"><SelectValue placeholder="Criticidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toda criticidade</SelectItem>
+            {["A", "B", "C", "D"].map((c) => <SelectItem key={c} value={c}>Crit. {c}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
@@ -150,9 +177,9 @@ export default function InventoryList() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <Zap className="h-10 w-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm">
-              {search || statusFilter !== "all" || localidadeFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhum quadro no inventário"}
+              {search || statusFilter !== "all" || localidadeFilter !== "all" || healthFilter !== "all" || critFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhum quadro no inventário"}
             </p>
-            {canEdit && !search && statusFilter === "all" && localidadeFilter === "all" && (
+            {canEdit && !search && statusFilter === "all" && localidadeFilter === "all" && healthFilter === "all" && critFilter === "all" && (
               <Link to="/inventario/novo"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Cadastrar primeiro quadro</Button></Link>
             )}
           </CardContent>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listActions, updateAction } from "@/api/nc";
 import { ElectricalPanel } from "@/api/entities";
@@ -24,8 +24,12 @@ const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—";
 export default function ActionList() {
   const { canEdit } = useUserRole();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("pendentes");
+  const [filter, setFilter] = useState(
+    ["pendentes", "atrasadas", "all", "concluida", "cancelada"].includes(searchParams.get("f"))
+      ? searchParams.get("f") : "pendentes"
+  );
 
   const { data: actions = [], isLoading } = useQuery({ queryKey: ["actions"], queryFn: listActions });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });

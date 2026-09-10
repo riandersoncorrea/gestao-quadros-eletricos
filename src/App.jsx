@@ -31,6 +31,7 @@ import HealthConfig from '@/pages/HealthConfig';
 import NonconformityList from '@/pages/NonconformityList';
 import NonconformityDetail from '@/pages/NonconformityDetail';
 import ActionList from '@/pages/ActionList';
+import ExecutiveReport from '@/pages/ExecutiveReport';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
           <Route path="/nao-conformidades" element={<NonconformityList />} />
           <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
           <Route path="/acoes" element={<ActionList />} />
+          <Route path="/relatorio" element={<ExecutiveReport />} />
           <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
           <Route path="/usuarios" element={<UserManagement />} />
