@@ -35,7 +35,9 @@ export async function parseSpreadsheet(file) {
   const sheets = {};
   for (const name of wb.SheetNames) {
     const ws = wb.Sheets[name];
-    const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+    // dateNF: força células de data a saírem já em ISO (yyyy-mm-dd),
+    // evitando ambiguidade dd/mm x mm/dd na exportação do SAP/Excel.
+    const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false, dateNF: "yyyy-mm-dd" });
     const columns = json.length
       ? Object.keys(json[0])
       : (XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" })[0] || []).map(String);
@@ -62,18 +64,32 @@ export function suggestMapping(columns) {
   return mapping;
 }
 
-function toISODate(value) {
-  if (!value) return null;
-  if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0, 10);
+/** Monta yyyy-mm-dd só se ano/mês/dia forem válidos e o Date bater. Senão null. */
+function isoFromParts(y, mo, d) {
+  y = Number(y); mo = Number(mo); d = Number(d);
+  if (!y || !mo || !d || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  if (y < 100) y += 2000;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Converte um valor de data (Date, ISO, dd/mm/yyyy, mm/dd/yyyy) para yyyy-mm-dd. null se inválido. */
+export function toISODate(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return isNaN(value) ? null : value.toISOString().slice(0, 10);
+
   const s = String(value).trim();
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/); // dd/mm/yyyy
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return isoFromParts(m[1], m[2], m[3]);
+
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); // d/m/y ou m/d/y
   if (m) {
-    const [, d, mo, y] = m;
-    const yyyy = y.length === 2 ? `20${y}` : y;
-    return `${yyyy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const [, a, b, y] = m;
+    // Preferência brasileira: d/m/y. Se o mês não couber em 1..12, tenta m/d/y.
+    return isoFromParts(y, b, a) || isoFromParts(y, a, b);
   }
+
   const dt = new Date(s);
   return isNaN(dt) ? null : dt.toISOString().slice(0, 10);
 }

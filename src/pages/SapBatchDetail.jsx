@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+
+const fmtD = (d, withTime) => { try { return d ? format(parseISO(d), withTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy") : "—"; } catch { return String(d); } };
 import { ArrowLeft, Search, Link2, Link2Off, AlertTriangle, FileSpreadsheet, Ban } from "lucide-react";
 
 const LINK = {
@@ -31,6 +33,8 @@ export default function SapBatchDetail() {
   const [search, setSearch] = useState("");
   const [linkFilter, setLinkFilter] = useState("all");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
 
   const { data: batch, isLoading } = useQuery({ queryKey: ["sap-batch", id], queryFn: () => getBatch(id) });
   const { data: orders = [] } = useQuery({ queryKey: ["sap-orders", id], queryFn: () => listOrders(id) });
@@ -68,6 +72,9 @@ export default function SapBatchDetail() {
     const matchLink = linkFilter === "all" || o.link_status === linkFilter;
     return matchSearch && matchLink;
   });
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  React.useEffect(() => { setPage(0); }, [search, linkFilter]);
 
   if (isLoading) {
     return <div className="p-8 max-w-5xl mx-auto"><Skeleton className="h-8 w-64 mb-4" /><Skeleton className="h-64 w-full" /></div>;
@@ -95,7 +102,7 @@ export default function SapBatchDetail() {
             </div>
             <p className="text-sm text-muted-foreground">
               {batch.total_rows} linhas
-              {batch.imported_at && ` · importado em ${format(parseISO(batch.imported_at), "dd/MM/yyyy HH:mm")}`}
+              {batch.imported_at && ` · importado em ${fmtD(batch.imported_at, true)}`}
               {batch.status === "cancelado" && " · CANCELADO"}
             </p>
             {batch.notes && <p className="text-xs text-muted-foreground mt-1">{batch.notes}</p>}
@@ -143,14 +150,14 @@ export default function SapBatchDetail() {
                 </tr>
               </thead>
               <tbody className="[&>tr]:border-t [&>tr>td]:px-3 [&>tr>td]:py-2">
-                {filtered.map((o) => {
+                {pageItems.map((o) => {
                   const lk = LINK[o.link_status] || LINK.pendente;
                   return (
                     <tr key={o.id}>
                       <td className="font-mono">{o.ordem || "—"}</td>
                       <td className="font-mono">{o.tag || "—"}</td>
                       <td className="max-w-[160px] truncate" title={o.local_texto}>{o.local_texto || "—"}</td>
-                      <td>{o.data_planejada ? format(parseISO(o.data_planejada), "dd/MM/yyyy") : "—"}</td>
+                      <td>{fmtD(o.data_planejada)}</td>
                       <td>{o.frequencia || "—"}</td>
                       <td><Badge variant="outline" className={`text-[10px] ${lk.cls}`}>{lk.label}</Badge></td>
                       <td className="min-w-[220px]">
@@ -176,6 +183,15 @@ export default function SapBatchDetail() {
             </table>
             {filtered.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">Nenhuma ordem para o filtro atual.</p>}
           </div>
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm">
+              <span className="text-muted-foreground">Página {page + 1} de {pageCount}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+                <Button variant="outline" size="sm" disabled={page >= pageCount - 1} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

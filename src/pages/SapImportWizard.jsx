@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+
+const fmtD = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return String(d); } };
 import { ArrowLeft, ArrowRight, Upload, Loader2, FileSpreadsheet, CheckCircle2, AlertTriangle, Link2, Link2Off } from "lucide-react";
 
 const STEPS = ["Arquivo", "Mapeamento", "Validação"];
@@ -224,7 +226,7 @@ export default function SapImportWizard() {
                         <td className="font-mono">{o.ordem || "—"}</td>
                         <td className="font-mono">{o.tag || "—"}</td>
                         <td>{o.panel_tag ? <span className="font-mono text-secondary">{o.panel_tag}</span> : <span className="text-muted-foreground">—</span>}</td>
-                        <td>{o.data_planejada ? format(parseISO(o.data_planejada), "dd/MM/yyyy") : "—"}</td>
+                        <td>{fmtD(o.data_planejada)}</td>
                         <td>{o.frequencia || "—"}</td>
                         <td>
                           {o.errors.length ? (
