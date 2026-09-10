@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
+import { supabase } from "@/lib/supabaseClient";
+import { getPanelFlags } from "@/api/analysis";
+import { panelAdherence } from "@/lib/adherence";
 import { appUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,8 +19,17 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowLeft, Pencil, Trash2, MapPin, Zap, Calendar,
   Download, QrCode, ExternalLink, Image, FileText, Building2, Layers,
-  ShieldCheck, Database, Gauge,
+  ShieldCheck, Database, Gauge, Activity, Siren, ClipboardCheck,
 } from "lucide-react";
+
+const FLAG_SEV = {
+  info: "bg-muted text-muted-foreground border-border",
+  baixa: "bg-muted text-muted-foreground border-border",
+  media: "bg-amber-100 text-amber-800 border-amber-200",
+  alta: "bg-orange-100 text-orange-800 border-orange-200",
+  critica: "bg-destructive/10 text-destructive border-destructive/20",
+};
+const SEV_LABEL = { info: "Info", baixa: "Baixa", media: "Média", alta: "Alta", critica: "Crítica" };
 
 const TYPE_LABEL = {
   QDL: "QDL – Distribuição de Luz", QDF: "QDF – Distribuição de Força", QDC: "QDC – Comando",
@@ -64,6 +76,24 @@ export default function PanelDetail() {
   const { data: hierarchy } = useQuery({
     queryKey: ["hierarchy"],
     queryFn: fetchHierarchy,
+  });
+
+  const { data: flags = [] } = useQuery({
+    queryKey: ["panel-flags", id],
+    queryFn: () => getPanelFlags(id),
+  });
+
+  const { data: adherenceData } = useQuery({
+    queryKey: ["panel-adherence", id],
+    queryFn: async () => {
+      const [orders, inspections] = await Promise.all([
+        supabase.from("sap_orders").select("ordem, data_planejada").eq("panel_id", id),
+        supabase.from("inspections")
+          .select("inspection_date, status")
+          .or(`panel_ref_id.eq.${id},panel_id.eq.${id}`),
+      ]);
+      return panelAdherence(orders.data || [], inspections.data || []);
+    },
   });
 
   const panel = panels?.[0];
@@ -163,6 +193,58 @@ export default function PanelDetail() {
           </div>
         )}
       </div>
+
+      {/* Índice de Saúde + Aderência */}
+      {(panel.health_index != null || adherenceData?.due > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {panel.health_index != null && (
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <Activity className="h-8 w-8 text-primary/70 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Índice de Saúde</p>
+                  <p className="text-2xl font-bold">{Math.round(panel.health_index)}<span className="text-sm text-muted-foreground">/100</span></p>
+                  {panel.health_index_updated_at && (
+                    <p className="text-[11px] text-muted-foreground">atualizado em {fmtDate(panel.health_index_updated_at)}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {adherenceData?.due > 0 && (
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <ClipboardCheck className="h-8 w-8 text-primary/70 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Aderência ao plano</p>
+                  <p className="text-2xl font-bold">{adherenceData.percent}%</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {adherenceData.cumpridas}/{adherenceData.due} ordens no prazo
+                    {adherenceData.atrasadas > 0 && ` · ${adherenceData.atrasadas} atrasada(s)`}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Flags de análise abertas */}
+      {flags.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><Siren className="h-4 w-4 text-destructive" />Pontos de atenção ({flags.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {flags.map((fl) => (
+              <div key={fl.id} className="flex items-start gap-2 text-sm">
+                <Badge variant="outline" className={`text-[10px] shrink-0 ${FLAG_SEV[fl.severidade] || ""}`}>{SEV_LABEL[fl.severidade] || fl.severidade}</Badge>
+                <span>{fl.mensagem}{fl.categoria && <span className="text-muted-foreground"> · {fl.categoria}</span>}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Identificação e localização */}

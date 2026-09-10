@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, User, Calendar, Trash2, Gauge, Thermometer, FileWarning } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, User, Calendar, Trash2, Gauge, Thermometer, FileWarning, Activity, Siren } from "lucide-react";
 
 const RESULT = {
   aprovado: { label: "Aprovado", cls: "bg-secondary/15 text-secondary border-secondary/20", icon: CheckCircle2 },
@@ -25,6 +25,20 @@ const RESP = {
   nao_verificado: { label: "Não Verificado", cls: "bg-amber-100 text-amber-800" },
 };
 const SEV = { baixa: "Baixa", media: "Média", alta: "Alta", critica: "Crítica" };
+const FLAG_SEV = {
+  info: "bg-muted text-muted-foreground border-border",
+  baixa: "bg-muted text-muted-foreground border-border",
+  media: "bg-amber-100 text-amber-800 border-amber-200",
+  alta: "bg-orange-100 text-orange-800 border-orange-200",
+  critica: "bg-destructive/10 text-destructive border-destructive/20",
+};
+
+function healthCls(hi) {
+  if (hi == null) return "bg-muted text-muted-foreground border-border";
+  if (hi >= 80) return "bg-secondary/15 text-secondary border-secondary/20";
+  if (hi >= 50) return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-destructive/10 text-destructive border-destructive/20";
+}
 
 function fmt(d) { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } }
 
@@ -56,7 +70,7 @@ export default function InspectionDetail() {
     );
   }
 
-  const { inspection: insp, responses, measurements, thermography, nonconformities } = data;
+  const { inspection: insp, responses, measurements, thermography, nonconformities, flags = [] } = data;
   const res = RESULT[insp.overall_result] || RESULT.aprovado;
   const ResIcon = res.icon;
 
@@ -77,6 +91,11 @@ export default function InspectionDetail() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight">{insp.panel_name || "Inspeção"}</h1>
               <Badge variant="outline" className={`text-xs ${res.cls}`}><ResIcon className="h-3 w-3 mr-1" />{res.label}</Badge>
+              {insp.health_index_resultado != null && (
+                <Badge variant="outline" className={`text-xs ${healthCls(insp.health_index_resultado)}`}>
+                  <Activity className="h-3 w-3 mr-1" />Índice de Saúde {Math.round(insp.health_index_resultado)}
+                </Badge>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
               <span><Calendar className="h-3 w-3 inline mr-1" />{fmt(insp.inspection_date)}</span>
@@ -99,6 +118,21 @@ export default function InspectionDetail() {
         <Kpi icon={Gauge} label="Medições" value={measurements.length} />
         <Kpi icon={Thermometer} label="Termografia" value={thermography.length} />
       </div>
+
+      {/* Flags de análise */}
+      {flags.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Siren className="h-4 w-4 text-destructive" />Análise automática</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {flags.map((fl) => (
+              <div key={fl.id} className="flex items-start gap-2 text-sm">
+                <Badge variant="outline" className={`text-[10px] shrink-0 ${FLAG_SEV[fl.severidade] || ""}`}>{SEV[fl.severidade] || fl.severidade}</Badge>
+                <span>{fl.mensagem}{fl.categoria && <span className="text-muted-foreground"> · {fl.categoria}</span>}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Não conformidades */}
       {nonconformities.length > 0 && (

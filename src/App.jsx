@@ -27,6 +27,7 @@ import UserManagement from '@/pages/UserManagement';
 import SapImportList from '@/pages/SapImportList';
 import SapImportWizard from '@/pages/SapImportWizard';
 import SapBatchDetail from '@/pages/SapBatchDetail';
+import HealthConfig from '@/pages/HealthConfig';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
           <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
           <Route path="/usuarios" element={<UserManagement />} />
+          <Route path="/config/indice-saude" element={<HealthConfig />} />
         </Route>
       </Route>
 

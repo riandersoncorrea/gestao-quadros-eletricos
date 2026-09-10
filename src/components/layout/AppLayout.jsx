@@ -15,7 +15,8 @@ import {
   ChevronRight,
   BookOpen,
   Users,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Gauge
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { path: "/importacao-sap", icon: FileSpreadsheet, label: "Importação SAP", roles: ["admin", "editor"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin", "editor"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
+  { path: "/config/indice-saude", icon: Gauge, label: "Índice de Saúde", roles: ["admin"] },
   { path: "/usuarios", icon: Users, label: "Usuários", roles: ["admin"] },
 ];
 

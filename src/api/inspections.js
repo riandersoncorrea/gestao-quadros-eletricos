@@ -36,14 +36,15 @@ export async function ordersForPanel(panelId) {
 }
 
 export async function getInspectionFull(id) {
-  const [insp, responses, measurements, thermo, ncs] = await Promise.all([
+  const [insp, responses, measurements, thermo, ncs, flags] = await Promise.all([
     supabase.from("inspections").select("*").eq("id", id).single(),
     supabase.from("inspection_responses").select("*").eq("inspection_id", id),
     supabase.from("measurements").select("*").eq("inspection_id", id),
     supabase.from("thermography_points").select("*").eq("inspection_id", id),
     supabase.from("nonconformities").select("*").eq("inspection_id", id).order("created_at", { ascending: true }),
+    supabase.from("analysis_flags").select("*").eq("inspection_id", id).order("severidade", { ascending: true }),
   ]);
-  const err = insp.error || responses.error || measurements.error || thermo.error || ncs.error;
+  const err = insp.error || responses.error || measurements.error || thermo.error || ncs.error || flags.error;
   if (err) throw err;
   return {
     inspection: insp.data,
@@ -51,6 +52,7 @@ export async function getInspectionFull(id) {
     measurements: measurements.data,
     thermography: thermo.data,
     nonconformities: ncs.data,
+    flags: flags.data,
   };
 }
 
@@ -195,6 +197,13 @@ export async function createInspection({ header, responses, measurements, thermo
       ...(header.next_inspection ? { next_inspection_date: header.next_inspection } : {}),
     })
     .eq("id", header.panel_id);
+
+  try {
+    const { recomputeInspectionAnalysis } = await import("@/api/analysis");
+    await recomputeInspectionAnalysis(insp.id);
+  } catch (e) {
+    console.error("Falha ao calcular Índice de Saúde da inspeção:", e);
+  }
 
   return insp;
 }
