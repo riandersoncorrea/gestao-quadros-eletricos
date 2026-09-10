@@ -51,3 +51,26 @@ function makeEntity(table) {
 
 export const ElectricalPanel = makeEntity("electrical_panels");
 export const Inspection = makeEntity("inspections");
+export const Localidade = makeEntity("localidades");
+export const Local = makeEntity("locais");
+export const Sublocal = makeEntity("sublocais");
+
+const hierarchyCollator = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+const byNome = (a, b) => hierarchyCollator.compare(a.nome, b.nome);
+
+// Hierarquia LOCALIDADE -> LOCAL -> SUBLOCAL, em ordem crescente natural
+// ("AREA 2" antes de "AREA 10"), em uma chamada.
+export async function fetchHierarchy() {
+  const [localidades, locais, sublocais] = await Promise.all([
+    supabase.from("localidades").select("id, nome"),
+    supabase.from("locais").select("id, localidade_id, nome"),
+    supabase.from("sublocais").select("id, local_id, nome"),
+  ]);
+  const err = localidades.error || locais.error || sublocais.error;
+  if (err) throw err;
+  return {
+    localidades: [...localidades.data].sort(byNome),
+    locais: [...locais.data].sort(byNome),
+    sublocais: [...sublocais.data].sort(byNome),
+  };
+}

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { ElectricalPanel } from "@/api/entities";
+import React, { useState, useMemo } from "react";
+import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -12,8 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format, parseISO } from "date-fns";
 import {
-  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2,
-  FileText, CheckCircle2, AlertCircle, Clock, QrCode
+  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode
 } from "lucide-react";
 import { toast } from "sonner";
 import QRCodeGenerator from "@/components/panels/QRCodeGenerator";
@@ -35,11 +34,26 @@ const DIAGRAM_LABEL = { atualizado: "Unifilar OK", desatualizado: "Desatualizado
 
 const TYPE_LABEL = { QDL: "QDL", QDF: "QDF", QDC: "QDC", QGBT: "QGBT", QTA: "QTA", QF: "QF", outro: "Outro" };
 
+const CRITICALITY_STYLE = {
+  A: "bg-destructive/10 text-destructive border-destructive/20",
+  B: "bg-amber-100 text-amber-800 border-amber-200",
+  C: "bg-primary/10 text-primary border-primary/20",
+  D: "bg-muted text-muted-foreground border-border",
+};
+
+function healthStyle(hi) {
+  if (hi == null) return "bg-muted text-muted-foreground border-border";
+  if (hi >= 80) return "bg-secondary/15 text-secondary border-secondary/20";
+  if (hi >= 50) return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-destructive/10 text-destructive border-destructive/20";
+}
+
 export default function InventoryList() {
   const { canEdit, canDelete } = useUserRole();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [localidadeFilter, setLocalidadeFilter] = useState("all");
   const [qrPanel, setQrPanel] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
 
@@ -47,6 +61,21 @@ export default function InventoryList() {
     queryKey: ["panels"],
     queryFn: () => ElectricalPanel.list("-created_date"),
   });
+
+  const { data: hierarchy } = useQuery({
+    queryKey: ["hierarchy"],
+    queryFn: fetchHierarchy,
+  });
+
+  const { locName, locaName, subName, localidades } = useMemo(() => {
+    const localidades = hierarchy?.localidades || [];
+    return {
+      localidades,
+      locName: new Map(localidades.map((l) => [l.id, l.nome])),
+      locaName: new Map((hierarchy?.locais || []).map((l) => [l.id, l.nome])),
+      subName: new Map((hierarchy?.sublocais || []).map((s) => [s.id, s.nome])),
+    };
+  }, [hierarchy]);
 
   const deleteMutation = useMutation({
     mutationFn: (id) => ElectricalPanel.delete(id),
@@ -59,10 +88,15 @@ export default function InventoryList() {
 
   const filtered = panels.filter(p => {
     const s = search.toLowerCase();
-    const matchSearch = !s || p.tag?.toLowerCase().includes(s) || p.name?.toLowerCase().includes(s)
-      || p.location_sector?.toLowerCase().includes(s) || p.building?.toLowerCase().includes(s);
+    const hay = [
+      p.tag, p.name, p.nomenclatura_oficial, p.installation_location, p.location_room,
+      p.sap_functional_location, p.sap_equipment_number,
+      locName.get(p.localidade_id), locaName.get(p.local_id), subName.get(p.sublocal_id),
+    ].filter(Boolean).join(" ").toLowerCase();
+    const matchSearch = !s || hay.includes(s);
     const matchStatus = statusFilter === "all" || p.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchLocalidade = localidadeFilter === "all" || p.localidade_id === localidadeFilter;
+    return matchSearch && matchStatus && matchLocalidade;
   });
 
 
@@ -89,6 +123,15 @@ export default function InventoryList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por tag, nome, setor..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
+        <Select value={localidadeFilter} onValueChange={setLocalidadeFilter}>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Localidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas Localidades</SelectItem>
+            {localidades.map((l) => (
+              <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
@@ -107,9 +150,9 @@ export default function InventoryList() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <Zap className="h-10 w-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm">
-              {search || statusFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhum quadro no inventário"}
+              {search || statusFilter !== "all" || localidadeFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhum quadro no inventário"}
             </p>
-            {canEdit && !search && statusFilter === "all" && (
+            {canEdit && !search && statusFilter === "all" && localidadeFilter === "all" && (
               <Link to="/inventario/novo"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Cadastrar primeiro quadro</Button></Link>
             )}
           </CardContent>
@@ -129,21 +172,40 @@ export default function InventoryList() {
                         <span className="font-mono text-xs font-bold text-primary">{panel.tag}</span>
                         <span className="font-semibold text-sm truncate">{panel.name}</span>
                         <Badge variant="outline" className={`text-xs ${STATUS_STYLE[panel.status]}`}>{STATUS_LABEL[panel.status]}</Badge>
+                        {panel.criticality && (
+                          <Badge variant="outline" className={`text-xs ${CRITICALITY_STYLE[panel.criticality]}`}>
+                            Crit. {panel.criticality}
+                          </Badge>
+                        )}
+                        {panel.health_index != null && (
+                          <Badge variant="outline" className={`text-xs ${healthStyle(panel.health_index)}`}>
+                            IS {Math.round(panel.health_index)}
+                          </Badge>
+                        )}
                         {panel.panel_type && <Badge variant="outline" className="text-xs">{TYPE_LABEL[panel.panel_type] || panel.panel_type}</Badge>}
                         {panel.diagram_status && (
                           <Badge variant="outline" className={`text-xs ${DIAGRAM_STYLE[panel.diagram_status]}`}>
                             {DIAGRAM_LABEL[panel.diagram_status]}
                           </Badge>
                         )}
-                        {panel.requires_pie && <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">PIE</Badge>}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        {(panel.location_floor || panel.location_room || panel.location_sector) && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {[panel.location_floor, panel.location_room, panel.location_sector].filter(Boolean).join(", ")}
-                          </span>
-                        )}
+                        {(() => {
+                          const path = [
+                            locName.get(panel.localidade_id),
+                            locaName.get(panel.local_id),
+                            subName.get(panel.sublocal_id),
+                          ].filter(Boolean);
+                          const parts = path.length
+                            ? path
+                            : [panel.installation_location, panel.location_room].filter(Boolean);
+                          return parts.length ? (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {parts.join(" › ")}
+                            </span>
+                          ) : null;
+                        })()}
                         {panel.voltage_nominal && <span><Zap className="h-3 w-3 inline mr-0.5" />{panel.voltage_nominal}</span>}
                         {panel.current_nominal && <span>{panel.current_nominal}</span>}
                         {panel.next_inspection_date && (
