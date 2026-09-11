@@ -15,6 +15,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
+import { addMonths, format, parseISO } from "date-fns";
 import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle } from "lucide-react";
 
 const RESP = [
@@ -33,6 +34,7 @@ const MEAS_CAT = [
   { v: "outro", label: "Outro", units: ["V", "A", "°C", "%"] },
 ];
 const CRIT = ["A", "B", "C", "D"];
+const FREQ_MONTHS = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
 const SEV = [
   { v: "baixa", label: "Baixa" },
   { v: "media", label: "Média" },
@@ -110,6 +112,18 @@ export default function InspectionForm() {
     const p = panels.find((x) => x.id === id);
     setHeader((s) => ({ ...s, panel_id: id, panel_tag: p?.tag || "", panel_name: p ? `${p.tag} — ${p.name}` : "", sap_order_id: "" }));
   };
+  const nextInspectionFor = (dateStr, freq) => {
+    const months = FREQ_MONTHS[freq];
+    if (!months || !dateStr) return "";
+    try {
+      return format(addMonths(parseISO(dateStr), months), "yyyy-MM-dd");
+    } catch {
+      return "";
+    }
+  };
+  const setFrequency = (freq) => setHeader((s) => ({ ...s, frequency: freq, next_inspection: nextInspectionFor(s.inspection_date, freq) }));
+  const setInspectionDate = (date) =>
+    setHeader((s) => ({ ...s, inspection_date: date, next_inspection: s.frequency ? nextInspectionFor(date, s.frequency) : s.next_inspection }));
   const setResp = (itemId, patch) => setResponses((s) => ({ ...s, [itemId]: { ...s[itemId], ...patch } }));
 
   const uploadEvidence = async (e, key, apply) => {
@@ -195,7 +209,7 @@ export default function InspectionForm() {
               </div>
               <div className="space-y-2">
                 <Label>Data *</Label>
-                <Input type="date" value={header.inspection_date} onChange={(e) => h("inspection_date", e.target.value)} />
+                <Input type="date" value={header.inspection_date} onChange={(e) => setInspectionDate(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Inspetor *</Label>
@@ -203,7 +217,7 @@ export default function InspectionForm() {
               </div>
               <div className="space-y-2">
                 <Label>Frequência</Label>
-                <Select value={header.frequency} onValueChange={(v) => h("frequency", v)}>
+                <Select value={header.frequency} onValueChange={setFrequency}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mensal">Mensal</SelectItem>
