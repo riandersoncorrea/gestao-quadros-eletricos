@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
 import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine } from "lucide-react";
@@ -65,6 +66,7 @@ export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit } = useUserRole();
+  const { user } = useAuth();
 
   const [header, setHeader] = useState({
     panel_id: "", panel_name: "", panel_tag: "",
@@ -80,6 +82,10 @@ export default function InspectionForm() {
   const [hasSignature, setHasSignature] = useState(false);
   const sigCanvasRef = useRef(null);
   const sigDrawing = useRef(false);
+
+  useEffect(() => {
+    if (user) setHeader((s) => (s.inspector_name ? s : { ...s, inspector_name: user.full_name || user.email }));
+  }, [user]);
 
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
   const { data: hierarchy } = useQuery({ queryKey: ["hierarchy"], queryFn: fetchHierarchy });
@@ -162,14 +168,6 @@ export default function InspectionForm() {
   if (!canEdit) { navigate("/inspecoes"); return null; }
 
   const h = (k, v) => setHeader((s) => ({ ...s, [k]: v }));
-  const setPanel = (id) => {
-    const p = panels.find((x) => x.id === id);
-    setHeader((s) => ({ ...s, panel_id: id, panel_tag: p?.tag || "", panel_name: p ? `${p.tag} — ${p.name}` : "", sap_order_id: "" }));
-  };
-  const clearPanelSelection = () => setHeader((s) => ({ ...s, panel_id: "", panel_tag: "", panel_name: "", sap_order_id: "" }));
-  const setLocalidadeFilter = (v) => { setLocFilter({ localidade_id: v, local_id: "", sublocal_id: "" }); clearPanelSelection(); };
-  const setLocalFilter = (v) => { setLocFilter((f) => ({ ...f, local_id: v, sublocal_id: "" })); clearPanelSelection(); };
-  const setSublocalFilter = (v) => { setLocFilter((f) => ({ ...f, sublocal_id: v })); clearPanelSelection(); };
   const nextInspectionFor = (dateStr, freq) => {
     const months = FREQ_MONTHS[freq];
     if (!months || !dateStr) return "";
@@ -179,6 +177,20 @@ export default function InspectionForm() {
       return "";
     }
   };
+  const setPanel = (id) => {
+    const p = panels.find((x) => x.id === id);
+    setHeader((s) => {
+      const frequency = FREQ_MONTHS[p?.inspection_frequency] ? p.inspection_frequency : s.frequency;
+      return {
+        ...s, panel_id: id, panel_tag: p?.tag || "", panel_name: p ? `${p.tag} — ${p.name}` : "", sap_order_id: "",
+        frequency, next_inspection: nextInspectionFor(s.inspection_date, frequency),
+      };
+    });
+  };
+  const clearPanelSelection = () => setHeader((s) => ({ ...s, panel_id: "", panel_tag: "", panel_name: "", sap_order_id: "" }));
+  const setLocalidadeFilter = (v) => { setLocFilter({ localidade_id: v, local_id: "", sublocal_id: "" }); clearPanelSelection(); };
+  const setLocalFilter = (v) => { setLocFilter((f) => ({ ...f, local_id: v, sublocal_id: "" })); clearPanelSelection(); };
+  const setSublocalFilter = (v) => { setLocFilter((f) => ({ ...f, sublocal_id: v })); clearPanelSelection(); };
   const setFrequency = (freq) => setHeader((s) => ({ ...s, frequency: freq, next_inspection: nextInspectionFor(s.inspection_date, freq) }));
   const setInspectionDate = (date) =>
     setHeader((s) => ({ ...s, inspection_date: date, next_inspection: s.frequency ? nextInspectionFor(date, s.frequency) : s.next_inspection }));
@@ -255,11 +267,6 @@ export default function InspectionForm() {
     if (answeredCount === 0) {
       setTab("checklist");
       toast.error("Responda ao menos um item do checklist");
-      return false;
-    }
-    if (!hasSignature) {
-      setTab("finalizar");
-      toast.error("Assinatura do inspetor é obrigatória");
       return false;
     }
     return true;
@@ -622,7 +629,7 @@ export default function InspectionForm() {
 
           <Card>
             <CardHeader className="pb-3 flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><PenLine className="h-4 w-4 text-primary" />Assinatura do inspetor *</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2"><PenLine className="h-4 w-4 text-primary" />Assinatura</CardTitle>
               <Button size="sm" variant="outline" className="gap-1" onClick={clearSignature}>
                 <Eraser className="h-3.5 w-3.5" />Limpar
               </Button>

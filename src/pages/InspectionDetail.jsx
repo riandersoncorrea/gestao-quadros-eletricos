@@ -254,9 +254,9 @@ export default function InspectionDetail() {
 
       {insp.assinatura_url && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Assinatura do inspetor</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Assinatura</CardTitle></CardHeader>
           <CardContent>
-            <img src={insp.assinatura_url} alt="Assinatura do inspetor" className="h-32 rounded-md border border-border bg-white" />
+            <img src={insp.assinatura_url} alt="Assinatura" className="h-32 rounded-md border border-border bg-white" />
           </CardContent>
         </Card>
       )}
