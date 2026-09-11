@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ElectricalPanel } from "@/api/entities";
+import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { getActiveTemplate, ordersForPanel, createInspection, computeOverall } from "@/api/inspections";
 import { uploadFile } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
-import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine } from "lucide-react";
 
 const RESP = [
   { v: "conforme", label: "Conforme", cls: "bg-secondary text-white border-secondary" },
@@ -41,8 +41,24 @@ const SEV = [
   { v: "alta", label: "Alta" },
   { v: "critica", label: "Crítica" },
 ];
+const PARAM_OPTIONS = ["R-N", "S-N", "T-N", "R-S", "S-T", "R-T"];
+const RESULT_BADGE = {
+  conforme: { label: "Conforme", cls: "bg-secondary/15 text-secondary border-secondary/20" },
+  fora_limite: { label: "Fora do limite", cls: "bg-destructive/10 text-destructive border-destructive/20" },
+  nao_aplicavel: { label: "N/A", cls: "bg-muted text-muted-foreground border-border" },
+};
 
-const emptyMeas = () => ({ categoria: "", parametro: "", fase: "", valor: "", unidade: "", instrumento: "", limite_min: "", limite_max: "", resultado: "", observacao: "" });
+function autoResultado(valor, min, max) {
+  if (valor === "" || valor == null) return "";
+  const v = Number(valor);
+  if (Number.isNaN(v)) return "";
+  if ((min === "" || min == null) && (max === "" || max == null)) return "nao_aplicavel";
+  const lo = min === "" || min == null ? -Infinity : Number(min);
+  const hi = max === "" || max == null ? Infinity : Number(max);
+  return v >= lo && v <= hi ? "conforme" : "fora_limite";
+}
+
+const emptyMeas = () => ({ categoria: "", parametro: "", valor: "", unidade: "", instrumento: "", limite_min: "", limite_max: "", resultado: "", observacao: "" });
 const emptyThermo = () => ({ equipamento: "", ponto: "", temperatura: "", temperatura_ambiente: "", instrumento: "", criticidade: "", diagnostico: "", observacao: "", imagem_url: "", imagem_termografica_url: "" });
 
 export default function InspectionForm() {
@@ -60,8 +76,13 @@ export default function InspectionForm() {
   const [thermography, setThermography] = useState([]);
   const [tab, setTab] = useState("dados");
   const [uploadingKey, setUploadingKey] = useState(null);
+  const [locFilter, setLocFilter] = useState({ localidade_id: "", local_id: "", sublocal_id: "" });
+  const [hasSignature, setHasSignature] = useState(false);
+  const sigCanvasRef = useRef(null);
+  const sigDrawing = useRef(false);
 
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
+  const { data: hierarchy } = useQuery({ queryKey: ["hierarchy"], queryFn: fetchHierarchy });
   const { data: tpl } = useQuery({ queryKey: ["active-template"], queryFn: getActiveTemplate });
   const { data: sapOrders = [] } = useQuery({
     queryKey: ["orders-for-panel", header.panel_id],
@@ -79,9 +100,35 @@ export default function InspectionForm() {
     return [...m.values()];
   }, [items]);
 
+  const localidadeOptions = useMemo(
+    () => (hierarchy?.localidades || []).map((l) => ({ value: l.id, label: l.nome })),
+    [hierarchy]
+  );
+  const localOptions = useMemo(
+    () => (hierarchy?.locais || [])
+      .filter((l) => l.localidade_id === locFilter.localidade_id)
+      .map((l) => ({ value: l.id, label: l.nome })),
+    [hierarchy, locFilter.localidade_id]
+  );
+  const sublocalOptions = useMemo(
+    () => (hierarchy?.sublocais || [])
+      .filter((s) => s.local_id === locFilter.local_id)
+      .map((s) => ({ value: s.id, label: s.nome })),
+    [hierarchy, locFilter.local_id]
+  );
+
+  const filteredPanels = useMemo(
+    () => panels.filter((p) =>
+      (!locFilter.localidade_id || p.localidade_id === locFilter.localidade_id) &&
+      (!locFilter.local_id || p.local_id === locFilter.local_id) &&
+      (!locFilter.sublocal_id || p.sublocal_id === locFilter.sublocal_id)
+    ),
+    [panels, locFilter]
+  );
+
   const panelOptions = useMemo(
-    () => panels.map((p) => ({ value: p.id, label: p.tag ? `${p.tag} — ${p.name}` : p.name })),
-    [panels]
+    () => filteredPanels.map((p) => ({ value: p.id, label: p.tag ? `${p.tag} — ${p.name}` : p.name })),
+    [filteredPanels]
   );
 
   const answeredList = useMemo(
@@ -93,8 +140,15 @@ export default function InspectionForm() {
   const overall = computeOverall(answeredList, items);
 
   const create = useMutation({
-    mutationFn: () =>
-      createInspection({ header, responses: answeredList, measurements, thermography, template: tpl?.template, items }),
+    mutationFn: async () => {
+      let assinatura_url = null;
+      if (hasSignature) {
+        const blob = await new Promise((resolve) => sigCanvasRef.current.toBlob(resolve, "image/png"));
+        const file = new File([blob], `assinatura-${Date.now()}.png`, { type: "image/png" });
+        ({ file_url: assinatura_url } = await uploadFile({ file }));
+      }
+      return createInspection({ header: { ...header, assinatura_url }, responses: answeredList, measurements, thermography, template: tpl?.template, items });
+    },
     onSuccess: (insp) => {
       queryClient.invalidateQueries({ queryKey: ["inspections"] });
       queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
@@ -112,6 +166,10 @@ export default function InspectionForm() {
     const p = panels.find((x) => x.id === id);
     setHeader((s) => ({ ...s, panel_id: id, panel_tag: p?.tag || "", panel_name: p ? `${p.tag} — ${p.name}` : "", sap_order_id: "" }));
   };
+  const clearPanelSelection = () => setHeader((s) => ({ ...s, panel_id: "", panel_tag: "", panel_name: "", sap_order_id: "" }));
+  const setLocalidadeFilter = (v) => { setLocFilter({ localidade_id: v, local_id: "", sublocal_id: "" }); clearPanelSelection(); };
+  const setLocalFilter = (v) => { setLocFilter((f) => ({ ...f, local_id: v, sublocal_id: "" })); clearPanelSelection(); };
+  const setSublocalFilter = (v) => { setLocFilter((f) => ({ ...f, sublocal_id: v })); clearPanelSelection(); };
   const nextInspectionFor = (dateStr, freq) => {
     const months = FREQ_MONTHS[freq];
     if (!months || !dateStr) return "";
@@ -124,6 +182,41 @@ export default function InspectionForm() {
   const setFrequency = (freq) => setHeader((s) => ({ ...s, frequency: freq, next_inspection: nextInspectionFor(s.inspection_date, freq) }));
   const setInspectionDate = (date) =>
     setHeader((s) => ({ ...s, inspection_date: date, next_inspection: s.frequency ? nextInspectionFor(date, s.frequency) : s.next_inspection }));
+
+  const sigPoint = (e) => {
+    const canvas = sigCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (p.clientX - rect.left) * scaleX, y: (p.clientY - rect.top) * scaleY };
+  };
+  const sigStart = (e) => {
+    e.preventDefault();
+    sigDrawing.current = true;
+    const { x, y } = sigPoint(e);
+    const ctx = sigCanvasRef.current.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+  const sigMove = (e) => {
+    if (!sigDrawing.current) return;
+    e.preventDefault();
+    const { x, y } = sigPoint(e);
+    const ctx = sigCanvasRef.current.getContext("2d");
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    setHasSignature(true);
+  };
+  const sigEnd = () => { sigDrawing.current = false; };
+  const clearSignature = () => {
+    const canvas = sigCanvasRef.current;
+    canvas?.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignature(false);
+  };
   const setResp = (itemId, patch) => setResponses((s) => ({ ...s, [itemId]: { ...s[itemId], ...patch } }));
 
   const uploadEvidence = async (e, key, apply) => {
@@ -164,6 +257,11 @@ export default function InspectionForm() {
       toast.error("Responda ao menos um item do checklist");
       return false;
     }
+    if (!hasSignature) {
+      setTab("finalizar");
+      toast.error("Assinatura do inspetor é obrigatória");
+      return false;
+    }
     return true;
   };
 
@@ -202,10 +300,32 @@ export default function InspectionForm() {
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">Dados da inspeção</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2 grid gap-4 sm:grid-cols-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="space-y-2">
+                  <Label>Site (Localidade)</Label>
+                  <Combobox options={localidadeOptions} value={locFilter.localidade_id} onChange={setLocalidadeFilter}
+                    placeholder="Todas" searchPlaceholder="Buscar localidade..." />
+                </div>
+                <div className="space-y-2">
+                  <Label>Local (Prédio)</Label>
+                  <Combobox options={localOptions} value={locFilter.local_id} onChange={setLocalFilter}
+                    placeholder={locFilter.localidade_id ? "Todos" : "Selecione o site primeiro"}
+                    searchPlaceholder="Buscar prédio..." disabled={!locFilter.localidade_id} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sublocal</Label>
+                  <Combobox options={sublocalOptions} value={locFilter.sublocal_id} onChange={setSublocalFilter}
+                    placeholder={locFilter.local_id ? "Todos" : "Selecione o prédio primeiro"}
+                    searchPlaceholder="Buscar sublocal..." disabled={!locFilter.local_id} />
+                </div>
+              </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Quadro elétrico *</Label>
                 <Combobox options={panelOptions} value={header.panel_id} onChange={setPanel}
                   placeholder="Selecione o quadro" searchPlaceholder="Buscar por TAG ou nome..." />
+                {(locFilter.localidade_id || locFilter.local_id || locFilter.sublocal_id) && (
+                  <p className="text-xs text-muted-foreground">{panelOptions.length} quadro(s) na localização filtrada</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Data *</Label>
@@ -357,41 +477,42 @@ export default function InspectionForm() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
                       <Select value={m.categoria} onValueChange={(v) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, categoria: v, unidade: "" } : x))}>
                         <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
                         <SelectContent>{MEAS_CAT.map((c) => <SelectItem key={c.v} value={c.v}>{c.label}</SelectItem>)}</SelectContent>
                       </Select>
-                      <Input placeholder="Parâmetro (ex: F-N, F-F)" value={m.parametro}
-                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, parametro: e.target.value } : x))} />
-                      <Input placeholder="Fase (ex: L1, L2, L3)" value={m.fase}
-                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, fase: e.target.value } : x))} />
+                      <Select value={m.parametro} onValueChange={(v) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, parametro: v } : x))}>
+                        <SelectTrigger><SelectValue placeholder="Parâmetro" /></SelectTrigger>
+                        <SelectContent>{PARAM_OPTIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                      </Select>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-4">
                       <Input type="number" step="any" placeholder="Valor" value={m.valor}
-                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, valor: e.target.value } : x))} />
+                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, valor: e.target.value, resultado: autoResultado(e.target.value, x.limite_min, x.limite_max) } : x))} />
                       <Select value={m.unidade} onValueChange={(v) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, unidade: v } : x))}>
                         <SelectTrigger><SelectValue placeholder="Unidade" /></SelectTrigger>
                         <SelectContent>{(cat?.units || []).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                       </Select>
                       <Input type="number" step="any" placeholder="Limite mín." value={m.limite_min}
-                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, limite_min: e.target.value } : x))} />
+                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, limite_min: e.target.value, resultado: autoResultado(x.valor, e.target.value, x.limite_max) } : x))} />
                       <Input type="number" step="any" placeholder="Limite máx." value={m.limite_max}
-                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, limite_max: e.target.value } : x))} />
+                        onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, limite_max: e.target.value, resultado: autoResultado(x.valor, x.limite_min, e.target.value) } : x))} />
                     </div>
                     {m.categoria === "corrente_fuga" && (
                       <p className="text-[11px] text-muted-foreground">Corrente de fuga sempre em A, mA ou µA — nunca em Volts.</p>
                     )}
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Select value={m.resultado || "__none__"} onValueChange={(v) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, resultado: v === "__none__" ? "" : v } : x))}>
-                        <SelectTrigger><SelectValue placeholder="Resultado" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">—</SelectItem>
-                          <SelectItem value="conforme">Conforme</SelectItem>
-                          <SelectItem value="fora_limite">Fora do limite</SelectItem>
-                          <SelectItem value="nao_aplicavel">N/A</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid gap-2 sm:grid-cols-2 items-center">
+                      <div className="flex items-center gap-2 h-9">
+                        <span className="text-xs text-muted-foreground">Resultado:</span>
+                        {m.resultado ? (
+                          <Badge variant="outline" className={`text-[10px] ${RESULT_BADGE[m.resultado]?.cls || ""}`}>
+                            {RESULT_BADGE[m.resultado]?.label || m.resultado}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">preencha valor e limites</span>
+                        )}
+                      </div>
                       <Input placeholder="Instrumento" value={m.instrumento}
                         onChange={(e) => setMeasurements((arr) => arr.map((x, xi) => xi === i ? { ...x, instrumento: e.target.value } : x))} />
                     </div>
@@ -496,6 +617,26 @@ export default function InspectionForm() {
                 <Textarea rows={3} value={header.observacoes} onChange={(e) => h("observacoes", e.target.value)}
                   placeholder="Resumo, diagnóstico geral, recomendações..." />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3 flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2"><PenLine className="h-4 w-4 text-primary" />Assinatura do inspetor *</CardTitle>
+              <Button size="sm" variant="outline" className="gap-1" onClick={clearSignature}>
+                <Eraser className="h-3.5 w-3.5" />Limpar
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <canvas
+                ref={sigCanvasRef}
+                width={600}
+                height={160}
+                className="w-full h-40 rounded-md border border-border bg-white touch-none cursor-crosshair"
+                onMouseDown={sigStart} onMouseMove={sigMove} onMouseUp={sigEnd} onMouseLeave={sigEnd}
+                onTouchStart={sigStart} onTouchMove={sigMove} onTouchEnd={sigEnd}
+              />
+              <p className="text-xs text-muted-foreground">Assine com o mouse ou o dedo (tela sensível ao toque).</p>
             </CardContent>
           </Card>
 

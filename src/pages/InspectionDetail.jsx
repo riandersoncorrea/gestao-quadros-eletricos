@@ -252,6 +252,15 @@ export default function InspectionDetail() {
         </Card>
       )}
 
+      {insp.assinatura_url && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Assinatura do inspetor</CardTitle></CardHeader>
+          <CardContent>
+            <img src={insp.assinatura_url} alt="Assinatura do inspetor" className="h-32 rounded-md border border-border bg-white" />
+          </CardContent>
+        </Card>
+      )}
+
       <Dialog open={delOpen} onOpenChange={setDelOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Excluir inspeção</DialogTitle></DialogHeader>
