@@ -60,9 +60,9 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border">
+      <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border print:hidden">
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-sidebar-primary/20 flex items-center justify-center">
@@ -126,8 +126,8 @@ export default function AppLayout() {
       </aside>
 
       {/* Mobile Header */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="lg:hidden flex items-center justify-between px-4 h-14 bg-card border-b border-border">
+      <div className="flex flex-col flex-1 overflow-hidden print:flex-none print:overflow-visible">
+        <header className="lg:hidden flex items-center justify-between px-4 h-14 bg-card border-b border-border print:hidden">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
             <span className="text-sm font-bold">Quadros Elétricos</span>
@@ -182,7 +182,7 @@ export default function AppLayout() {
             </div>
           </div>
         )}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto print:overflow-visible print:h-auto">
           <Outlet />
         </main>
       </div>

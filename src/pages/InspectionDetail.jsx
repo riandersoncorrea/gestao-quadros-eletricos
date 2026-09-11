@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, User, Calendar, Trash2, Gauge, Thermometer, FileWarning, Activity, Siren } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, User, Calendar, Trash2, Gauge, Thermometer, FileWarning, Activity, Siren, Printer } from "lucide-react";
 
 const RESULT = {
   aprovado: { label: "Aprovado", cls: "bg-secondary/15 text-secondary border-secondary/20", icon: CheckCircle2 },
@@ -74,6 +74,15 @@ export default function InspectionDetail() {
   const res = RESULT[insp.overall_result] || RESULT.aprovado;
   const ResIcon = res.icon;
 
+  const exportPdf = () => {
+    const prevTitle = document.title;
+    const tag = (insp.panel_name || "inspecao").split(" — ")[0];
+    document.title = `Inspecao_${tag}_${insp.inspection_date || ""}`.replace(/\s+/g, "_");
+    const restore = () => { document.title = prevTitle; window.removeEventListener("afterprint", restore); };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
+
   const byModule = new Map();
   for (const r of responses) {
     const k = r.modulo ?? 0;
@@ -86,7 +95,7 @@ export default function InspectionDetail() {
     <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/inspecoes")}><ArrowLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="print:hidden" onClick={() => navigate("/inspecoes")}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight">{insp.panel_name || "Inspeção"}</h1>
@@ -101,15 +110,20 @@ export default function InspectionDetail() {
               <span><Calendar className="h-3 w-3 inline mr-1" />{fmt(insp.inspection_date)}</span>
               <span><User className="h-3 w-3 inline mr-1" />{insp.inspector_name}</span>
               {insp.frequency && <span>{insp.frequency}</span>}
-              {insp.panel_ref_id && <Link to={`/quadro/${insp.panel_ref_id}`} className="text-primary hover:underline">ver quadro</Link>}
+              {insp.panel_ref_id && <Link to={`/quadro/${insp.panel_ref_id}`} className="text-primary hover:underline print:hidden">ver quadro</Link>}
             </div>
           </div>
         </div>
-        {canDelete && (
-          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive/10" onClick={() => setDelOpen(true)}>
-            <Trash2 className="h-3 w-3" />Excluir
+        <div className="flex gap-2 print:hidden">
+          <Button variant="outline" size="sm" className="gap-2" onClick={exportPdf}>
+            <Printer className="h-3 w-3" />Exportar PDF
           </Button>
-        )}
+          {canDelete && (
+            <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive/10" onClick={() => setDelOpen(true)}>
+              <Trash2 className="h-3 w-3" />Excluir
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
