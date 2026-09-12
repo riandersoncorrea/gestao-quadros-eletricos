@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { Switch } from "@/components/ui/switch";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { Save, ArrowLeft, Upload, MapPin, Loader2, Zap, Hash, Database } from "lucide-react";
@@ -24,26 +23,37 @@ const CRITICALITY_LABEL = {
   D: "D – Baixo",
 };
 
+const VOLTAGE_OPTIONS = ["440V", "380V", "220V"];
+
+const BREAKER_TYPE_OPTIONS = [
+  "Termomagnético (MCB)", "Caixa moldada (MCCB)", "Aberto (ACB)", "Disjuntor-motor", "DR/IDR", "Outro", "Não identificado",
+];
+
+const BRAND_OPTIONS = [
+  "Schneider Electric", "Siemens", "ABB", "WEG", "Eaton", "GE", "Legrand", "Steck", "Tramontina", "Soprano",
+  "Lorenzetti", "Siemens/ITE", "Merlin Gerin", "Square D", "Outra", "Não identificado",
+];
+
 const EMPTY_FORM = {
   name: "", nomenclatura_oficial: "", criticality: "", site: "",
   localidade_id: "", local_id: "", sublocal_id: "",
   installation_location: "", location_floor: "", location_room: "", coordinate: "",
   panel_type: "", panel_type_custom: "", voltage_nominal: "", current_nominal: "",
-  frequency_hz: "", power_supply: "", manufacturer: "", model: "", serial_number: "",
-  main_breaker_type: "", main_breaker_capacity: "", main_breaker_brand: "", phases: "",
+  frequency_hz: "60hz", power_supply: "", main_breaker_type: "", main_breaker_capacity: "", main_breaker_brand: "", phases: "",
   circuit_count: "", has_dr: false, has_dps: false, has_grounding: false,
   diagram_status: "inexistente", diagram_url: "", photo_url: "", installation_date: "",
   last_inspection_date: "", next_inspection_date: "", inspection_frequency: "",
   sap_functional_location: "", sap_equipment_number: "",
-  latitude: "", longitude: "", status: "ativo", responsible_engineer: "", notes: "",
+  latitude: "", longitude: "", status: "ativo", responsible_engineer: "Francisco Josadack", notes: "",
 };
 
 export default function InventoryForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit } = useUserRole();
+  const { canEdit, isAdmin } = useUserRole();
   const isEditing = !!id;
+  const criticidadeLocked = !isEditing && !isAdmin;
   const [form, setForm] = useState(EMPTY_FORM);
   const [uploading, setUploading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -52,6 +62,11 @@ export default function InventoryForm() {
     queryKey: ["panel", id],
     queryFn: () => ElectricalPanel.filter({ id }),
     enabled: !!id,
+  });
+
+  const { data: allPanels = [] } = useQuery({
+    queryKey: ["panels"],
+    queryFn: () => ElectricalPanel.list("tag"),
   });
 
   const { data: hierarchy } = useQuery({
@@ -68,15 +83,9 @@ export default function InventoryForm() {
     }
   }, [panels]);
 
-  const localidadeOptions = useMemo(
-    () => (hierarchy?.localidades || []).map(l => ({ value: l.id, label: l.nome })),
-    [hierarchy]
-  );
   const localOptions = useMemo(
-    () => (hierarchy?.locais || [])
-      .filter(l => l.localidade_id === form.localidade_id)
-      .map(l => ({ value: l.id, label: l.nome })),
-    [hierarchy, form.localidade_id]
+    () => (hierarchy?.locais || []).map(l => ({ value: l.id, label: l.nome })),
+    [hierarchy]
   );
   const sublocalOptions = useMemo(
     () => (hierarchy?.sublocais || [])
@@ -84,22 +93,42 @@ export default function InventoryForm() {
       .map(s => ({ value: s.id, label: s.nome })),
     [hierarchy, form.local_id]
   );
+  const powerSupplyOptions = useMemo(
+    () => allPanels
+      .filter(p => p.id !== id && p.tag)
+      .map(p => ({ value: `Alimentado pelo ${p.tag}`, label: `Alimentado pelo ${p.tag}` })),
+    [allPanels, id]
+  );
+
+  const localName = useMemo(() => (hierarchy?.locais || []).find(l => l.id === form.local_id)?.nome || "", [hierarchy, form.local_id]);
+  const sublocalName = useMemo(() => (hierarchy?.sublocais || []).find(s => s.id === form.sublocal_id)?.nome || "", [hierarchy, form.sublocal_id]);
+  const nameSuffix = localName && sublocalName ? `${localName}_${sublocalName}` : "";
 
   const mutation = useMutation({
     mutationFn: async (data) => {
       const clean = { ...data };
+      // Placeholder até sabermos a tag real (gerada pelo banco no insert);
+      // a coluna name é not-null, então não dá pra mandar vazia.
+      clean.name = `${tagPreview || "QD"} / ${nameSuffix}`;
       if (clean.latitude) clean.latitude = parseFloat(clean.latitude);
       if (clean.longitude) clean.longitude = parseFloat(clean.longitude);
       if (clean.circuit_count) clean.circuit_count = parseInt(clean.circuit_count);
+      const selectedLocal = (hierarchy?.locais || []).find(l => l.id === clean.local_id);
+      clean.localidade_id = selectedLocal?.localidade_id || "";
       Object.keys(clean).forEach(k => {
         if (clean[k] === "") clean[k] = isEditing ? null : undefined;
       });
       Object.keys(clean).forEach(k => { if (clean[k] === undefined) delete clean[k]; });
 
       // A Tag é gerada automaticamente pelo banco (trigger) com base no Site.
-      return isEditing
-        ? ElectricalPanel.update(id, clean)
-        : ElectricalPanel.create(clean);
+      // O Nome Descritivo depende da Tag, então para um cadastro novo só dá
+      // para calcular o nome final depois que o insert retorna a tag real.
+      if (isEditing) {
+        const tag = panels?.[0]?.tag;
+        return ElectricalPanel.update(id, { ...clean, name: `${tag} / ${nameSuffix}` });
+      }
+      const created = await ElectricalPanel.create(clean);
+      return ElectricalPanel.update(created.id, { name: `${created.tag} / ${nameSuffix}` });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["panels"] });
@@ -140,9 +169,45 @@ export default function InventoryForm() {
 
   const f = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
   const tagPreview = form.site ? `${SITE_PREFIX[form.site]}_QD_XXXX` : "";
+  const namePreview = isEditing
+    ? (panels?.[0]?.tag ? `${panels[0].tag} / ${nameSuffix || "…"}` : "—")
+    : (tagPreview ? `${tagPreview} / ${nameSuffix || "…"}` : "Selecione o Site, o Prédio e o Sublocal");
 
-  const setLocalidade = (v) => setForm(prev => ({ ...prev, localidade_id: v, local_id: "", sublocal_id: "" }));
   const setLocal = (v) => setForm(prev => ({ ...prev, local_id: v, sublocal_id: "" }));
+
+  const validate = () => {
+    if (isEditing) return true; // campos obrigatórios valem só para novos cadastros
+    const required = [
+      [form.nomenclatura_oficial, "Nomenclatura Oficial"],
+      [criticidadeLocked || form.criticality, "Criticidade do Ativo"],
+      [form.panel_type, "Tipo de Quadro"],
+      [form.panel_type !== "outro" || form.panel_type_custom, "Tipo Personalizado"],
+      [form.status, "Status Operacional"],
+      [form.responsible_engineer, "Engenheiro Responsável"],
+      [form.site, "Site"],
+      [form.local_id, "Local (Prédio)"],
+      [form.sublocal_id, "Sublocal"],
+      [form.location_floor, "Andar / Pavimento"],
+      [form.coordinate, "Coordenada (referência)"],
+      [form.voltage_nominal, "Tensão Nominal"],
+      [form.current_nominal, "Corrente Nominal"],
+      [form.frequency_hz, "Frequência"],
+      [form.power_supply, "Alimentação"],
+      [form.main_breaker_type, "Tipo de Disjuntor Geral"],
+      [form.main_breaker_capacity, "Capacidade do Disjuntor"],
+      [form.main_breaker_brand, "Marca / Modelo Disjuntor"],
+      [form.phases, "Fases"],
+      [form.circuit_count, "Número de Circuitos"],
+      [form.diagram_status, "Status do Diagrama Unifilar"],
+      [form.photo_url, "Foto do Quadro"],
+    ];
+    const missing = required.find(([v]) => !v);
+    if (missing) {
+      toast.error(`Campo obrigatório: ${missing[1]}`);
+      return false;
+    }
+    return true;
+  };
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -158,7 +223,7 @@ export default function InventoryForm() {
 
       <form onSubmit={(e) => {
         e.preventDefault();
-        if (!form.name || !form.site) { toast.error("Nome e Site são obrigatórios"); return; }
+        if (!validate()) return;
         mutation.mutate(form);
       }} className="space-y-6">
 
@@ -183,26 +248,34 @@ export default function InventoryForm() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Nome Descritivo *</Label>
-              <Input value={form.name} onChange={e => f("name", e.target.value)} placeholder="Ex: Quadro Distribuição Administração" />
+              <Label>Nome Descritivo</Label>
+              <div className="flex items-center gap-2 px-3 h-9 rounded-md border border-dashed border-border bg-muted/40 text-sm text-muted-foreground">
+                <span className="font-mono truncate">{namePreview}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Gerado automaticamente: Tag / Prédio_Sublocal.
+              </p>
             </div>
             <div className="space-y-2">
-              <Label>Nomenclatura Oficial</Label>
+              <Label>Nomenclatura Oficial{isEditing ? "" : " *"}</Label>
               <Input value={form.nomenclatura_oficial} onChange={e => f("nomenclatura_oficial", e.target.value)} placeholder="Identificação oficial do ativo" />
             </div>
             <div className="space-y-2">
-              <Label>Criticidade do Ativo</Label>
-              <Select value={form.criticality} onValueChange={v => f("criticality", v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <Label>Criticidade do Ativo {!isEditing && !criticidadeLocked && "*"}</Label>
+              <Select value={form.criticality} onValueChange={v => f("criticality", v)} disabled={criticidadeLocked}>
+                <SelectTrigger disabled={criticidadeLocked}><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(CRITICALITY_LABEL).map(([v, label]) => (
                     <SelectItem key={v} value={v}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {criticidadeLocked && (
+                <p className="text-xs text-muted-foreground">Somente um administrador pode definir a criticidade.</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Tipo de Quadro</Label>
+              <Label>Tipo de Quadro{isEditing ? "" : " *"}</Label>
               <Select value={form.panel_type} onValueChange={v => f("panel_type", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -218,12 +291,12 @@ export default function InventoryForm() {
             </div>
             {form.panel_type === "outro" && (
               <div className="space-y-2">
-                <Label>Tipo Personalizado</Label>
+                <Label>Tipo Personalizado{isEditing ? "" : " *"}</Label>
                 <Input value={form.panel_type_custom} onChange={e => f("panel_type_custom", e.target.value)} placeholder="Descreva o tipo" />
               </div>
             )}
             <div className="space-y-2">
-              <Label>Status Operacional</Label>
+              <Label>Status Operacional{isEditing ? "" : " *"}</Label>
               <Select value={form.status} onValueChange={v => f("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -234,7 +307,7 @@ export default function InventoryForm() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Engenheiro Responsável</Label>
+              <Label>Engenheiro Responsável{isEditing ? "" : " *"}</Label>
               <Input value={form.responsible_engineer} onChange={e => f("responsible_engineer", e.target.value)} placeholder="Nome do engenheiro" />
             </div>
           </CardContent>
@@ -245,7 +318,7 @@ export default function InventoryForm() {
           <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" />Localização</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Site *</Label>
+              <Label>Site{isEditing ? "" : " *"}</Label>
               <Select value={form.site} onValueChange={v => f("site", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione o site" /></SelectTrigger>
                 <SelectContent>
@@ -257,28 +330,17 @@ export default function InventoryForm() {
             </div>
             <div className="hidden sm:block" />
             <div className="space-y-2">
-              <Label>Localidade</Label>
-              <Combobox
-                options={localidadeOptions}
-                value={form.localidade_id}
-                onChange={setLocalidade}
-                placeholder="Selecione a localidade"
-                searchPlaceholder="Buscar localidade..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Local (Prédio)</Label>
+              <Label>Local (Prédio){isEditing ? "" : " *"}</Label>
               <Combobox
                 options={localOptions}
                 value={form.local_id}
                 onChange={setLocal}
-                placeholder={form.localidade_id ? "Selecione o prédio" : "Selecione a localidade primeiro"}
+                placeholder="Selecione o prédio"
                 searchPlaceholder="Buscar prédio..."
-                disabled={!form.localidade_id}
               />
             </div>
             <div className="space-y-2">
-              <Label>Sublocal</Label>
+              <Label>Sublocal{isEditing ? "" : " *"}</Label>
               <Combobox
                 options={sublocalOptions}
                 value={form.sublocal_id}
@@ -289,24 +351,16 @@ export default function InventoryForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Detalhe do Local</Label>
-              <Input value={form.installation_location} onChange={e => f("installation_location", e.target.value)} placeholder="Complemento (opcional)" />
-            </div>
-            <div className="space-y-2">
-              <Label>Andar / Pavimento</Label>
+              <Label>Andar / Pavimento{isEditing ? "" : " *"}</Label>
               <Input value={form.location_floor} onChange={e => f("location_floor", e.target.value)} placeholder="Ex: 3º Andar, Térreo" />
             </div>
             <div className="space-y-2">
-              <Label>Sala</Label>
-              <Input value={form.location_room} onChange={e => f("location_room", e.target.value)} placeholder="Ex: Sala 305" />
-            </div>
-            <div className="space-y-2">
-              <Label>Coordenada (referência)</Label>
+              <Label>Coordenada (referência){isEditing ? "" : " *"}</Label>
               <Input value={form.coordinate} onChange={e => f("coordinate", e.target.value)} placeholder="Ex: eixo/coluna, cota" />
             </div>
             <div className="sm:col-span-2 space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Coordenadas GPS</Label>
+                <Label>Coordenadas GPS (opcional)</Label>
                 <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={getMyLocation}>
                   <MapPin className="h-3 w-3" />Usar minha localização
                 </Button>
@@ -315,6 +369,7 @@ export default function InventoryForm() {
                 <Input value={form.latitude} onChange={e => f("latitude", e.target.value)} placeholder="Latitude" type="number" step="any" />
                 <Input value={form.longitude} onChange={e => f("longitude", e.target.value)} placeholder="Longitude" type="number" step="any" />
               </div>
+              <p className="text-xs text-muted-foreground">Pode ser preenchida depois direto pelo mapa (posicionar quadro).</p>
             </div>
           </CardContent>
         </Card>
@@ -324,47 +379,61 @@ export default function InventoryForm() {
           <CardHeader className="pb-3"><CardTitle className="text-base">Dados Técnicos</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Tensão Nominal</Label>
-              <Input value={form.voltage_nominal} onChange={e => f("voltage_nominal", e.target.value)} placeholder="Ex: 220/127V, 380/220V" />
+              <Label>Tensão Nominal{isEditing ? "" : " *"}</Label>
+              <Select value={form.voltage_nominal} onValueChange={v => f("voltage_nominal", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {VOLTAGE_OPTIONS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Corrente Nominal</Label>
+              <Label>Corrente Nominal{isEditing ? "" : " *"}</Label>
               <Input value={form.current_nominal} onChange={e => f("current_nominal", e.target.value)} placeholder="Ex: 100A" />
             </div>
             <div className="space-y-2">
-              <Label>Frequência</Label>
-              <Input value={form.frequency_hz} onChange={e => f("frequency_hz", e.target.value)} placeholder="Ex: 60 Hz" />
+              <Label>Frequência{isEditing ? "" : " *"}</Label>
+              <Select value={form.frequency_hz} onValueChange={v => f("frequency_hz", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="60hz">60 Hz (padrão)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Alimentação (fonte)</Label>
-              <Input value={form.power_supply} onChange={e => f("power_supply", e.target.value)} placeholder="Ex: alimentado pelo QGBT-01" />
+              <Label>Alimentação (fonte){isEditing ? "" : " *"}</Label>
+              <Combobox
+                options={powerSupplyOptions}
+                value={form.power_supply}
+                onChange={v => f("power_supply", v)}
+                placeholder="Selecione o quadro de origem"
+                searchPlaceholder="Buscar por TAG..."
+              />
             </div>
             <div className="space-y-2">
-              <Label>Fabricante</Label>
-              <Input value={form.manufacturer} onChange={e => f("manufacturer", e.target.value)} placeholder="Ex: Schneider, ABB, WEG" />
+              <Label>Tipo de Disjuntor Geral{isEditing ? "" : " *"}</Label>
+              <Select value={form.main_breaker_type} onValueChange={v => f("main_breaker_type", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {BREAKER_TYPE_OPTIONS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Modelo</Label>
-              <Input value={form.model} onChange={e => f("model", e.target.value)} placeholder="Modelo do quadro" />
-            </div>
-            <div className="space-y-2">
-              <Label>Nº de Série</Label>
-              <Input value={form.serial_number} onChange={e => f("serial_number", e.target.value)} placeholder="Número de série" />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo do Disjuntor Geral</Label>
-              <Input value={form.main_breaker_type} onChange={e => f("main_breaker_type", e.target.value)} placeholder="Ex: Termomagnético, Diferencial" />
-            </div>
-            <div className="space-y-2">
-              <Label>Capacidade do Disjuntor</Label>
+              <Label>Capacidade do Disjuntor{isEditing ? "" : " *"}</Label>
               <Input value={form.main_breaker_capacity} onChange={e => f("main_breaker_capacity", e.target.value)} placeholder="Ex: 100A, Curva C" />
             </div>
             <div className="space-y-2">
-              <Label>Marca / Modelo Disjuntor</Label>
-              <Input value={form.main_breaker_brand} onChange={e => f("main_breaker_brand", e.target.value)} placeholder="Ex: ABB S203" />
+              <Label>Marca / Modelo Disjuntor{isEditing ? "" : " *"}</Label>
+              <Select value={form.main_breaker_brand} onValueChange={v => f("main_breaker_brand", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {BRAND_OPTIONS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Fases</Label>
+              <Label>Fases{isEditing ? "" : " *"}</Label>
               <Select value={form.phases} onValueChange={v => f("phases", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -375,23 +444,28 @@ export default function InventoryForm() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Número de Circuitos</Label>
+              <Label>Número de Circuitos{isEditing ? "" : " *"}</Label>
               <Input value={form.circuit_count} onChange={e => f("circuit_count", e.target.value)} placeholder="Ex: 24" type="number" />
             </div>
           </CardContent>
         </Card>
 
         {/* Dados SAP */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Database className="h-4 w-4 text-primary" />Dados SAP (Plano de Manutenção)</CardTitle></CardHeader>
+        <Card className={!isAdmin ? "opacity-60" : ""}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" />Dados SAP (Plano de Manutenção)</span>
+              {!isAdmin && <span className="text-xs font-normal text-muted-foreground">Somente administrador</span>}
+            </CardTitle>
+          </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Local de Instalação SAP</Label>
-              <Input value={form.sap_functional_location} onChange={e => f("sap_functional_location", e.target.value)} placeholder="TAG do local funcional SAP" />
+              <Input value={form.sap_functional_location} onChange={e => f("sap_functional_location", e.target.value)} placeholder="TAG do local funcional SAP" disabled={!isAdmin} />
             </div>
             <div className="space-y-2">
               <Label>Nº do Equipamento SAP</Label>
-              <Input value={form.sap_equipment_number} onChange={e => f("sap_equipment_number", e.target.value)} placeholder="Nº SAP do ativo" />
+              <Input value={form.sap_equipment_number} onChange={e => f("sap_equipment_number", e.target.value)} placeholder="Nº SAP do ativo" disabled={!isAdmin} />
             </div>
           </CardContent>
         </Card>
@@ -410,7 +484,23 @@ export default function InventoryForm() {
                   <p className="text-sm font-medium">{label}</p>
                   <p className="text-xs text-muted-foreground">{desc}</p>
                 </div>
-                <Switch checked={!!form[field]} onCheckedChange={v => f(field, v)} />
+                <div className="flex gap-2">
+                  <Button
+                    type="button" size="sm"
+                    variant={form[field] ? "default" : "outline"}
+                    className={form[field] ? "bg-secondary hover:bg-secondary/90" : ""}
+                    onClick={() => f(field, true)}
+                  >
+                    Sim
+                  </Button>
+                  <Button
+                    type="button" size="sm"
+                    variant={!form[field] ? "default" : "outline"}
+                    onClick={() => f(field, false)}
+                  >
+                    Não
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -457,7 +547,7 @@ export default function InventoryForm() {
           <CardHeader className="pb-3"><CardTitle className="text-base">Documentação</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Status do Diagrama Unifilar</Label>
+              <Label>Status do Diagrama Unifilar{isEditing ? "" : " *"}</Label>
               <Select value={form.diagram_status} onValueChange={v => f("diagram_status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -477,7 +567,7 @@ export default function InventoryForm() {
               {form.diagram_url && <p className="text-xs text-secondary font-medium">✓ Diagrama enviado</p>}
             </div>
             <div className="space-y-2">
-              <Label>Foto do Quadro</Label>
+              <Label>Foto do Quadro{isEditing ? "" : " *"}</Label>
               <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
                 {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 <span className="text-sm text-muted-foreground">{uploadingPhoto ? "Enviando..." : "Selecionar foto"}</span>

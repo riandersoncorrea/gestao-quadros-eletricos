@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
 import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,11 +13,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format, parseISO } from "date-fns";
 import {
-  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode
+  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode, FileSpreadsheet
 } from "lucide-react";
 import { toast } from "sonner";
 import QRCodeGenerator from "@/components/panels/QRCodeGenerator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+const YES_NO = (v) => (v ? "Sim" : "Não");
 
 const STATUS_STYLE = {
   ativo: "bg-secondary/15 text-secondary border-secondary/20",
@@ -117,6 +120,46 @@ export default function InventoryList() {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
   React.useEffect(() => { setPage(0); }, [search, statusFilter, localidadeFilter, healthFilter, critFilter]);
 
+  const exportExcel = () => {
+    const rows = panels.map(p => ({
+      "Tag": p.tag || "",
+      "Nome Descritivo": p.name || "",
+      "Nomenclatura Oficial": p.nomenclatura_oficial || "",
+      "Criticidade": p.criticality || "",
+      "Tipo de Quadro": p.panel_type === "outro" ? (p.panel_type_custom || "Outro") : (p.panel_type || ""),
+      "Status Operacional": STATUS_LABEL[p.status] || p.status || "",
+      "Engenheiro Responsável": p.responsible_engineer || "",
+      "Site": p.site || "",
+      "Localidade": locName.get(p.localidade_id) || "",
+      "Local (Prédio)": locaName.get(p.local_id) || "",
+      "Sublocal": subName.get(p.sublocal_id) || "",
+      "Andar / Pavimento": p.location_floor || "",
+      "Coordenada (referência)": p.coordinate || "",
+      "Latitude": p.latitude ?? "",
+      "Longitude": p.longitude ?? "",
+      "Tensão Nominal": p.voltage_nominal || "",
+      "Corrente Nominal": p.current_nominal || "",
+      "Frequência": p.frequency_hz || "",
+      "Alimentação": p.power_supply || "",
+      "Tipo de Disjuntor Geral": p.main_breaker_type || "",
+      "Capacidade do Disjuntor": p.main_breaker_capacity || "",
+      "Marca / Modelo Disjuntor": p.main_breaker_brand || "",
+      "Fases": p.phases || "",
+      "Número de Circuitos": p.circuit_count ?? "",
+      "Possui DR": YES_NO(p.has_dr),
+      "Possui DPS": YES_NO(p.has_dps),
+      "Possui Aterramento": YES_NO(p.has_grounding),
+      "Local de Instalação SAP": p.sap_functional_location || "",
+      "Nº do Equipamento SAP": p.sap_equipment_number || "",
+      "Status do Diagrama Unifilar": DIAGRAM_LABEL[p.diagram_status] || p.diagram_status || "",
+      "Índice de Saúde": p.health_index ?? "",
+      "Observações": p.notes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventário");
+    XLSX.writeFile(wb, `inventario_quadros_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
 
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -127,13 +170,18 @@ export default function InventoryList() {
             {panels.length} quadro{panels.length !== 1 ? "s" : ""} cadastrado{panels.length !== 1 ? "s" : ""} — base do processo de gerenciamento
           </p>
         </div>
-        {canEdit && (
-          <Link to="/inventario/novo">
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />Cadastrar Quadro
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-2" onClick={exportExcel} disabled={!panels.length}>
+            <FileSpreadsheet className="h-4 w-4" />Exportar Excel
+          </Button>
+          {canEdit && (
+            <Link to="/inventario/novo">
+              <Button size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />Cadastrar Quadro
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
