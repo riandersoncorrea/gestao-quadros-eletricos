@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listNonconformities, createNonconformity } from "@/api/nc";
+import { listNonconformities, createNonconformity, deleteNonconformity } from "@/api/nc";
 import { ElectricalPanel } from "@/api/entities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { Plus, Search, FileWarning, Calendar, Zap } from "lucide-react";
+import { Plus, Search, FileWarning, Calendar, Zap, Trash2 } from "lucide-react";
 
 export const SEV = {
   baixa: { label: "Baixa", cls: "bg-muted text-muted-foreground border-border" },
@@ -35,7 +35,7 @@ export const ORIGEM = { inspecao: "Inspeção", termografia: "Termografia", medi
 const EMPTY = { panel_id: "", descricao: "", severidade: "media", recomendacao: "", categoria: "" };
 
 export default function NonconformityList() {
-  const { canEdit } = useUserRole();
+  const { canEdit, canDelete } = useUserRole();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const panelParam = searchParams.get("panel");
@@ -46,6 +46,7 @@ export default function NonconformityList() {
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [deleteId, setDeleteId] = useState(null);
 
   const { data: ncs = [], isLoading } = useQuery({ queryKey: ["nonconformities"], queryFn: listNonconformities });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
@@ -66,6 +67,17 @@ export default function NonconformityList() {
       setDialogOpen(false);
       setForm(EMPTY);
       toast.success("Não-conformidade registrada");
+    },
+    onError: (e) => toast.error(`Falha: ${e.message}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteNonconformity(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
+      queryClient.invalidateQueries({ queryKey: ["actions"] });
+      setDeleteId(null);
+      toast.success("Não-conformidade removida");
     },
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
@@ -140,23 +152,35 @@ export default function NonconformityList() {
             const sev = SEV[n.severidade] || SEV.media;
             const st = NC_STATUS[n.status] || NC_STATUS.aberta;
             return (
-              <Link key={n.id} to={`/nao-conformidades/${n.id}`}>
-                <Card className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
-                  <CardContent className="p-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <Badge variant="outline" className={`text-xs ${sev.cls}`}>{sev.label}</Badge>
-                      <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>
-                      {n.categoria && <span className="text-xs text-muted-foreground">{n.categoria}</span>}
-                      <span className="text-[11px] text-muted-foreground">· {ORIGEM[n.origem] || n.origem}</span>
-                    </div>
-                    <p className="text-sm font-medium">{n.descricao}</p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
-                      {n.panel_id && <span className="flex items-center gap-1"><Zap className="h-3 w-3" />{panelName.get(n.panel_id) || n.tag || "quadro"}</span>}
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(parseISO(n.created_at), "dd/MM/yyyy")}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+              <div key={n.id} className="relative">
+                <Link to={`/nao-conformidades/${n.id}`}>
+                  <Card className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
+                    <CardContent className="p-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-1 pr-8">
+                        <Badge variant="outline" className={`text-xs ${sev.cls}`}>{sev.label}</Badge>
+                        <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>
+                        {n.categoria && <span className="text-xs text-muted-foreground">{n.categoria}</span>}
+                        <span className="text-[11px] text-muted-foreground">· {ORIGEM[n.origem] || n.origem}</span>
+                      </div>
+                      <p className="text-sm font-medium">{n.descricao}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                        {n.panel_id && <span className="flex items-center gap-1"><Zap className="h-3 w-3" />{panelName.get(n.panel_id) || n.tag || "quadro"}</span>}
+                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(parseISO(n.created_at), "dd/MM/yyyy")}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+                {canDelete && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="absolute top-3 right-3 h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(n.id); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -199,6 +223,21 @@ export default function NonconformityList() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button disabled={!form.panel_id || !form.descricao.trim() || create.isPending} onClick={() => create.mutate()}>
               {create.isPending ? "Salvando..." : "Registrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Confirmar Exclusão</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja remover esta não-conformidade? As ações vinculadas a ela também serão removidas. Esta ação não pode ser desfeita.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? "Removendo..." : "Remover"}
             </Button>
           </DialogFooter>
         </DialogContent>

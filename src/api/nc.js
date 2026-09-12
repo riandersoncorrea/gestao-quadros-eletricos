@@ -41,6 +41,11 @@ export async function updateNonconformity(id, values) {
   return data;
 }
 
+export async function deleteNonconformity(id) {
+  const { error } = await supabase.from("nonconformities").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ---- Ações --------------------------------------------------------------
 
 /** Ações de uma NC, já com o campo derivado `atrasada` da view v_actions. */
