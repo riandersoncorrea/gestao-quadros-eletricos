@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RoleRoute from '@/components/RoleRoute';
 
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -57,7 +58,6 @@ const AuthenticatedApp = () => {
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Dashboard />} />
           <Route path="/mapa" element={<MapPage />} />
           <Route path="/quadros" element={<PanelList />} />
           <Route path="/quadro/:id" element={<PanelDetail />} />
@@ -67,18 +67,27 @@ const AuthenticatedApp = () => {
           <Route path="/inspecoes" element={<InspectionList />} />
           <Route path="/inspecoes/nova" element={<InspectionForm />} />
           <Route path="/inspecoes/:id" element={<InspectionDetail />} />
-          <Route path="/importacao-sap" element={<SapImportList />} />
-          <Route path="/importacao-sap/nova" element={<SapImportWizard />} />
-          <Route path="/importacao-sap/:id" element={<SapBatchDetail />} />
-          <Route path="/nao-conformidades" element={<NonconformityList />} />
-          <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
-          <Route path="/acoes" element={<ActionList />} />
-          <Route path="/relatorio" element={<ExecutiveReport />} />
-          <Route path="/qrcode" element={<QRCodePage />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
-          <Route path="/usuarios" element={<UserManagement />} />
-          <Route path="/config/indice-saude" element={<HealthConfig />} />
-          <Route path="/auditoria" element={<AuditLog />} />
+
+          {/* Editor não tem acesso: Painel, Não Conformidades, Ações, Relatório */}
+          <Route element={<RoleRoute allow={['admin', 'viewer']} />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/nao-conformidades" element={<NonconformityList />} />
+            <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
+            <Route path="/acoes" element={<ActionList />} />
+            <Route path="/relatorio" element={<ExecutiveReport />} />
+          </Route>
+
+          {/* Editor não tem acesso: Importação SAP, QR Codes (agora só admin) */}
+          <Route element={<RoleRoute allow={['admin']} />}>
+            <Route path="/importacao-sap" element={<SapImportList />} />
+            <Route path="/importacao-sap/nova" element={<SapImportWizard />} />
+            <Route path="/importacao-sap/:id" element={<SapBatchDetail />} />
+            <Route path="/qrcode" element={<QRCodePage />} />
+            <Route path="/usuarios" element={<UserManagement />} />
+            <Route path="/config/indice-saude" element={<HealthConfig />} />
+            <Route path="/auditoria" element={<AuditLog />} />
+          </Route>
         </Route>
       </Route>
 

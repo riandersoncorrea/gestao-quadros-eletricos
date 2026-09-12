@@ -25,14 +25,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "editor", "viewer"] },
+  { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "viewer"] },
   { path: "/mapa", icon: Map, label: "Mapa", roles: ["admin", "editor", "viewer"] },
   { path: "/inventario", icon: ClipboardList, label: "Inventário", roles: ["admin", "editor", "viewer"] },
   { path: "/inspecoes", icon: ClipboardCheck, label: "Checklists", roles: ["admin", "editor", "viewer"] },
-  { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "editor", "viewer"] },
-  { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "editor", "viewer"] },
-  { path: "/importacao-sap", icon: FileSpreadsheet, label: "Importação SAP", roles: ["admin", "editor"] },
-  { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin", "editor"] },
+  { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "viewer"] },
+  { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "viewer"] },
+  { path: "/importacao-sap", icon: FileSpreadsheet, label: "Importação SAP", roles: ["admin"] },
+  { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
   { path: "/config/indice-saude", icon: Gauge, label: "Índice de Saúde", roles: ["admin"] },
   { path: "/auditoria", icon: ShieldCheck, label: "Auditoria", roles: ["admin"] },
