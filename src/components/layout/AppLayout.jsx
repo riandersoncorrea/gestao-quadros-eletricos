@@ -1,7 +1,9 @@
 
 import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 import {
   LayoutDashboard,
   Map,
@@ -46,6 +48,20 @@ export default function AppLayout() {
   const userRole = user?.role || "viewer";
 
   const filteredNav = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["pending-users-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("approved", false);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: userRole === "admin",
+    refetchInterval: 60000,
+  });
 
   const roleLabel = {
     admin: "Administrador",
@@ -93,7 +109,12 @@ export default function AppLayout() {
               >
                 <item.icon className="h-4 w-4 shrink-0" />
                 {item.label}
-                {isActive && <ChevronRight className="h-3 w-3 ml-auto" />}
+                {item.path === "/usuarios" && pendingCount > 0 && (
+                  <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-destructive text-destructive-foreground">
+                    {pendingCount}
+                  </span>
+                )}
+                {isActive && item.path !== "/usuarios" && <ChevronRight className="h-3 w-3 ml-auto" />}
               </Link>
             );
           })}
@@ -165,6 +186,11 @@ export default function AppLayout() {
                   >
                     <item.icon className="h-4 w-4" />
                     {item.label}
+                    {item.path === "/usuarios" && pendingCount > 0 && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-destructive text-destructive-foreground">
+                        {pendingCount}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </nav>

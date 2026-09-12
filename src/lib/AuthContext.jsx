@@ -8,15 +8,16 @@ async function buildUser(authUser) {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, approved')
     .eq('id', authUser.id)
     .single();
 
   if (error) {
     // Network hiccups or a slow request land here too, not just a missing
-    // row — falling back to 'viewer' silently would make a real admin look
-    // downgraded with no trace of why. Logging keeps that diagnosable.
-    console.error('Failed to load profile role, defaulting to viewer:', error);
+    // row — falling back to 'viewer'/unapproved silently would make a real
+    // admin look downgraded or locked out with no trace of why. Logging
+    // keeps that diagnosable.
+    console.error('Failed to load profile role, defaulting to viewer/unapproved:', error);
   }
 
   return {
@@ -24,6 +25,7 @@ async function buildUser(authUser) {
     email: authUser.email,
     full_name: authUser.user_metadata?.full_name || '',
     role: profile?.role || 'viewer',
+    approved: profile?.approved ?? false,
   };
 }
 

@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import { Users, Search, ShieldCheck, Calendar } from "lucide-react";
+import { Users, Search, ShieldCheck, Calendar, UserCheck, UserX } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const ROLE_LABEL = { admin: "Administrador", editor: "Editor", viewer: "Visualizador" };
 const ROLE_BADGE = {
@@ -30,7 +31,7 @@ export default function UserManagement() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, role, created_at")
+        .select("id, email, role, approved, created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data;
@@ -50,6 +51,21 @@ export default function UserManagement() {
     onError: () => toast.error("Não foi possível atualizar o perfil"),
   });
 
+  const approvalMutation = useMutation({
+    mutationFn: async ({ id, approved }) => {
+      const { error } = await supabase.from("profiles").update({ approved }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { approved }) => {
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-users-count"] });
+      toast.success(approved ? "Acesso aprovado" : "Acesso revogado");
+    },
+    onError: () => toast.error("Não foi possível atualizar a aprovação"),
+  });
+
+  const pendingCount = profiles.filter((p) => !p.approved).length;
+
   if (!isAdmin) {
     navigate("/");
     return null;
@@ -65,7 +81,9 @@ export default function UserManagement() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Usuários</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Defina o perfil de acesso de cada usuário cadastrado.
+          {pendingCount > 0
+            ? <>{pendingCount} solicitação(ões) pendente(s) de aprovação · defina o perfil de acesso de cada usuário cadastrado.</>
+            : <>Defina o perfil de acesso de cada usuário cadastrado.</>}
         </p>
       </div>
 
@@ -95,7 +113,7 @@ export default function UserManagement() {
           {filtered.map((p) => {
             const isSelf = p.id === user?.id;
             return (
-              <Card key={p.id} className="border-border/60">
+              <Card key={p.id} className={`border-border/60 ${!p.approved ? "border-amber-300/60 bg-amber-50/40" : ""}`}>
                 <CardContent className="p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -109,6 +127,14 @@ export default function UserManagement() {
                           <Badge variant="outline" className={`text-xs ${ROLE_BADGE[p.role] || ""}`}>
                             {ROLE_LABEL[p.role] || p.role}
                           </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${p.approved
+                              ? "bg-secondary/15 text-secondary border-secondary/20"
+                              : "bg-amber-100 text-amber-800 border-amber-200"}`}
+                          >
+                            {p.approved ? "Aprovado" : "Pendente"}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -116,20 +142,44 @@ export default function UserManagement() {
                         </div>
                       </div>
                     </div>
-                    <Select
-                      value={p.role}
-                      onValueChange={(role) => mutation.mutate({ id: p.id, role })}
-                      disabled={isSelf || mutation.isPending}
-                    >
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="viewer">Visualizador</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      {!isSelf && (
+                        p.approved ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-muted-foreground hover:text-destructive"
+                            onClick={() => approvalMutation.mutate({ id: p.id, approved: false })}
+                            disabled={approvalMutation.isPending}
+                          >
+                            <UserX className="h-3.5 w-3.5" />Revogar
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => approvalMutation.mutate({ id: p.id, approved: true })}
+                            disabled={approvalMutation.isPending}
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />Aprovar acesso
+                          </Button>
+                        )
+                      )}
+                      <Select
+                        value={p.role}
+                        onValueChange={(role) => mutation.mutate({ id: p.id, role })}
+                        disabled={isSelf || mutation.isPending}
+                      >
+                        <SelectTrigger className="w-full sm:w-44">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="viewer">Visualizador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   {isSelf && (
                     <p className="text-[11px] text-muted-foreground mt-2">
