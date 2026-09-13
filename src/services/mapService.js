@@ -1,6 +1,7 @@
 import { listForMap, updateCoordinates } from "@/repositories/panelRepository";
 import { listStatusSeverityForMap } from "@/repositories/ncRepository";
 import { listAllUnresolvedFlags } from "@/repositories/healthIndexRepository";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
 
 /**
  * Dados para o mapa: quadros + contagem de NCs abertas e flags de análise
@@ -15,7 +16,7 @@ export async function fetchSpatialData() {
 
   const ncByPanel = new Map();
   for (const n of ncs) {
-    if (!["aberta", "em_tratamento"].includes(n.status)) continue;
+    if (!isOpenNonconformity(n.status)) continue;
     const e = ncByPanel.get(n.panel_id) || { abertas: 0, criticas: 0 };
     e.abertas += 1;
     if (n.severidade === "critica") e.criticas += 1;

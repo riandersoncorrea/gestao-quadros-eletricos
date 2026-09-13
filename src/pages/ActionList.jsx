@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listActions, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
+import { isOpenAction } from "@/domain/actionRules";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,7 @@ export default function ActionList() {
   });
 
   const atrasadasCount = actions.filter((a) => a.atrasada).length;
-  const pendentesCount = actions.filter((a) => ["aberta", "em_andamento"].includes(a.status)).length;
+  const pendentesCount = actions.filter((a) => isOpenAction(a.status)).length;
 
   const filtered = actions.filter((a) => {
     const s = search.toLowerCase();
@@ -53,7 +54,7 @@ export default function ActionList() {
     const matchSearch = !s || hay.includes(s);
     const matchFilter =
       filter === "all" ? true :
-      filter === "pendentes" ? ["aberta", "em_andamento"].includes(a.status) :
+      filter === "pendentes" ? isOpenAction(a.status) :
       filter === "atrasadas" ? a.atrasada :
       a.status === filter;
     return matchSearch && matchFilter;

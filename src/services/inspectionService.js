@@ -2,6 +2,7 @@ import { getCurrentUserId } from "@/auth/authService";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
 import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
+import { computeOverall, buildAutoNonconformities } from "@/domain/inspectionRules";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
@@ -21,13 +22,7 @@ export async function getInspectionFull(id) {
   return inspectionRepository.getInspectionAggregate(id);
 }
 
-export function computeOverall(responses, items) {
-  const itemById = new Map(items.map((i) => [i.id, i]));
-  const ncs = responses.filter((r) => r.resposta === "nao_conforme");
-  if (ncs.some((r) => itemById.get(r.template_item_id)?.obrigatorio)) return "reprovado";
-  if (ncs.length) return "aprovado_ressalvas";
-  return "aprovado";
-}
+export { computeOverall };
 
 /**
  * Cria a inspeção com respostas, medições, termografia e gera automaticamente
@@ -113,28 +108,15 @@ export async function createInspection({ header, responses, measurements, thermo
     }));
   await inspectionRepository.insertThermography(thermoRows);
 
-  const ncRows = answered
-    .filter((r) => r.resposta === "nao_conforme")
-    .map((r) => {
-      const it = itemById.get(r.template_item_id);
-      return {
-        panel_id: header.panel_id,
-        tag: header.panel_tag || null,
-        inspection_id: insp.id,
-        sap_order_id: header.sap_order_id || null,
-        template_item_id: r.template_item_id,
-        categoria: it?.modulo_nome || null,
-        descricao:
-          (r.descricao || "").trim() ||
-          `${it?.codigo ? it.codigo + " — " : ""}${it?.titulo || "Item não conforme"}`,
-        evidencia_url: r.evidencia_url || null,
-        severidade: r.severidade || "media",
-        recomendacao: r.recomendacao || null,
-        status: "aberta",
-        origem: "inspecao",
-        created_by: uid,
-      };
-    });
+  const ncRows = buildAutoNonconformities({
+    responses: answered,
+    items,
+    inspectionId: insp.id,
+    panelId: header.panel_id,
+    panelTag: header.panel_tag,
+    sapOrderId: header.sap_order_id,
+    createdBy: uid,
+  });
   await bulkCreateNonconformities(ncRows);
 
   await updatePanelAfterInspection(header.panel_id, {

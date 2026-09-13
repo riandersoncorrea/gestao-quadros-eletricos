@@ -1,5 +1,6 @@
 // Motor de análise e Índice de Saúde (0–100) para quadros BT.
-// Funções puras — sem acesso a rede. A persistência fica em src/api/analysis.js.
+// Funções puras — sem acesso a rede. A orquestração/persistência fica em
+// src/services/healthIndexService.js e src/repositories/healthIndexRepository.js.
 
 // Cada módulo de checklist contribui para uma dimensão do Índice de Saúde.
 // As dimensões e seus pesos ficam em public.health_index_config.
@@ -81,11 +82,23 @@ export function healthIndex(scores, weights) {
   return { index: sumW ? Math.round(sum / sumW) : null, parts };
 }
 
+/** Faixa do Índice de Saúde de um quadro: 'bom' | 'atencao' | 'critico' | 'semAvaliacao'. */
+export function healthBandKey(index) {
+  if (index == null) return "semAvaliacao";
+  if (index >= 80) return "bom";
+  if (index >= 50) return "atencao";
+  return "critico";
+}
+
+const BAND_DISPLAY = {
+  bom: { label: "Bom", tone: "ok" },
+  atencao: { label: "Atenção", tone: "warn" },
+  critico: { label: "Crítico", tone: "err" },
+  semAvaliacao: { label: "Sem avaliação", tone: "muted" },
+};
+
 export function healthBand(index) {
-  if (index == null) return { label: "Sem avaliação", tone: "muted" };
-  if (index >= 80) return { label: "Bom", tone: "ok" };
-  if (index >= 50) return { label: "Atenção", tone: "warn" };
-  return { label: "Crítico", tone: "err" };
+  return BAND_DISPLAY[healthBandKey(index)];
 }
 
 const norm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
 import { ElectricalPanel } from "@/services/panelService";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,7 +90,7 @@ export default function NonconformityList() {
     const matchSearch = !s || hay.includes(s);
     const matchStatus =
       statusFilter === "all" ||
-      (statusFilter === "abertas" ? ["aberta", "em_tratamento"].includes(n.status) : n.status === statusFilter);
+      (statusFilter === "abertas" ? isOpenNonconformity(n.status) : n.status === statusFilter);
     const matchSev = sevFilter === "all" || n.severidade === sevFilter;
     return matchSearch && matchStatus && matchSev;
   });
@@ -102,7 +103,7 @@ export default function NonconformityList() {
           <p className="text-sm text-muted-foreground mt-1">
             {panelParam
               ? <>Filtrado por quadro <span className="font-mono">{panelName.get(panelParam) || panelParam}</span> · <Link to="/nao-conformidades" className="text-primary hover:underline">limpar</Link></>
-              : <>{ncs.filter((n) => ["aberta", "em_tratamento"].includes(n.status)).length} aberta(s) de {ncs.length} no total</>}
+              : <>{ncs.filter((n) => isOpenNonconformity(n.status)).length} aberta(s) de {ncs.length} no total</>}
           </p>
         </div>
         {canEdit && (

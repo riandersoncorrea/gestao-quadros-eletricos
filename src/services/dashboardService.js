@@ -3,7 +3,10 @@ import { fetchHierarchy, listForDashboard as listPanelsForDashboard } from "@/re
 import { listStatusSeverityForDashboard } from "@/repositories/ncRepository";
 import { listAllForDashboard as listActionsForDashboard } from "@/repositories/actionRepository";
 import { listForDashboard as listInspectionsForDashboard, getForAdherence } from "@/repositories/inspectionRepository";
-import { panelAdherence } from "@/lib/adherence";
+import { panelAdherence } from "@/domain/adherence";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenAction } from "@/domain/actionRules";
+import { healthBandKey } from "@/domain/healthIndex";
 import { format, subMonths, startOfMonth } from "date-fns";
 
 // sap_orders é legado (Importação SAP) e não tem repository próprio —
@@ -33,15 +36,11 @@ export async function fetchDashboardData() {
   // --- Índice de Saúde da carteira ---
   const withHI = P.filter((p) => p.health_index != null);
   const isMedio = withHI.length ? Math.round(withHI.reduce((s, p) => s + p.health_index, 0) / withHI.length) : null;
-  const healthBands = {
-    bom: withHI.filter((p) => p.health_index >= 80).length,
-    atencao: withHI.filter((p) => p.health_index >= 50 && p.health_index < 80).length,
-    critico: withHI.filter((p) => p.health_index < 50).length,
-    semAvaliacao: P.length - withHI.length,
-  };
+  const healthBands = { bom: 0, atencao: 0, critico: 0, semAvaliacao: 0 };
+  for (const p of P) healthBands[healthBandKey(p.health_index)] += 1;
 
   // --- NCs ---
-  const abertas = N.filter((n) => ["aberta", "em_tratamento"].includes(n.status));
+  const abertas = N.filter((n) => isOpenNonconformity(n.status));
   const ncAbertas = abertas.length;
   const ncCriticas = abertas.filter((n) => n.severidade === "critica").length;
   const ncPorSeveridade = ["critica", "alta", "media", "baixa"].map((sev) => ({
@@ -57,7 +56,7 @@ export async function fetchDashboardData() {
 
   // --- Ações ---
   const acoesAtrasadas = A.filter((a) => a.atrasada).length;
-  const acoesPendentes = A.filter((a) => ["aberta", "em_andamento"].includes(a.status)).length;
+  const acoesPendentes = A.filter((a) => isOpenAction(a.status)).length;
 
   // --- Aderência ao plano (geral e por localidade) ---
   const ordersByPanel = new Map();

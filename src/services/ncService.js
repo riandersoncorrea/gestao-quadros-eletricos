@@ -1,5 +1,6 @@
 import { getCurrentUserId } from "@/auth/authService";
 import * as ncRepository from "@/repositories/ncRepository";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
 
 export async function listNonconformities() {
   return ncRepository.list();
@@ -26,7 +27,7 @@ export async function deleteNonconformity(id) {
 
 export async function ncSummaryForPanel(panelId) {
   const data = await ncRepository.getStatusSeverityForPanel(panelId);
-  const abertas = data.filter((n) => n.status === "aberta" || n.status === "em_tratamento");
+  const abertas = data.filter((n) => isOpenNonconformity(n.status));
   return {
     total: data.length,
     abertas: abertas.length,

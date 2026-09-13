@@ -6,7 +6,9 @@ import { getStatusSeverityForPanel } from "@/repositories/ncRepository";
 import { getStatusForPanel } from "@/repositories/actionRepository";
 import { insertConditionSnapshot } from "@/repositories/auditRepository";
 import { getInspectionFull } from "@/services/inspectionService";
-import { dimensionScores, healthIndex, analysisFlags } from "@/lib/healthIndex";
+import { dimensionScores, healthIndex, analysisFlags } from "@/domain/healthIndex";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenAction } from "@/domain/actionRules";
 
 export async function getHealthConfig() {
   return healthIndexRepository.getConfig();
@@ -69,7 +71,7 @@ export async function recomputeInspectionAnalysis(inspectionId) {
       await updateHealthIndex(panelId, index);
     }
 
-    const ncAbertas = (ncs || []).filter((n) => ["aberta", "em_tratamento"].includes(n.status));
+    const ncAbertas = (ncs || []).filter((n) => isOpenNonconformity(n.status));
     await insertConditionSnapshot({
       panel_id: panelId,
       health_index: index,
@@ -78,7 +80,7 @@ export async function recomputeInspectionAnalysis(inspectionId) {
       nc_abertas: ncAbertas.length,
       nc_criticas: ncAbertas.filter((n) => n.severidade === "critica").length,
       nc_altas: ncAbertas.filter((n) => n.severidade === "alta").length,
-      acoes_abertas: (acts || []).filter((a) => ["aberta", "em_andamento"].includes(a.status)).length,
+      acoes_abertas: (acts || []).filter((a) => isOpenAction(a.status)).length,
       acoes_atrasadas: (acts || []).filter((a) => a.atrasada).length,
       latitude: panel?.latitude ?? null,
       longitude: panel?.longitude ?? null,
