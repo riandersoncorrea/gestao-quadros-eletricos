@@ -1,45 +1,46 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchHierarchy } from "@/api/entities";
-import { panelAdherence } from "@/lib/adherence";
-import { format, parseISO, subMonths, startOfMonth } from "date-fns";
+import { fetchHierarchy, listForDashboard as listPanelsForDashboard } from "@/repositories/panelRepository";
+import { listStatusSeverityForDashboard } from "@/repositories/ncRepository";
+import { listAllForDashboard as listActionsForDashboard } from "@/repositories/actionRepository";
+import { listForDashboard as listInspectionsForDashboard, getForAdherence } from "@/repositories/inspectionRepository";
+import { panelAdherence } from "@/domain/adherence";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenAction } from "@/domain/actionRules";
+import { healthBandKey } from "@/domain/healthIndex";
+import { format, subMonths, startOfMonth } from "date-fns";
+
+// sap_orders é legado (Importação SAP) e não tem repository próprio —
+// mantido como leitura direta aqui e em getPanelAdherence, como já estava.
+async function getSapOrdersRaw() {
+  const { data, error } = await supabase.from("sap_orders").select("panel_id, data_planejada");
+  if (error) throw error;
+  return data;
+}
 
 /**
- * Agregados da Torre de Controle. Uma consulta por tabela; o resto é
- * computado no cliente.
+ * Agregados da Torre de Controle. Uma consulta por domínio (via repository);
+ * o resto é computado no cliente.
  */
 export async function fetchDashboardData() {
-  const [panels, ncs, actions, inspections, sapOrders, hierarchy] = await Promise.all([
-    supabase.from("electrical_panels").select(
-      "id, tag, name, status, criticality, health_index, localidade_id, next_inspection_date"
-    ),
-    supabase.from("nonconformities").select("id, panel_id, status, severidade, categoria, created_at"),
-    supabase.from("v_actions").select("id, status, atrasada, prazo"),
-    supabase.from("inspections").select("id, inspection_date, overall_result, status, panel_ref_id, panel_id"),
-    supabase.from("sap_orders").select("panel_id, data_planejada"),
+  const [P, N, A, I, sapOrders, hierarchy] = await Promise.all([
+    listPanelsForDashboard(),
+    listStatusSeverityForDashboard(),
+    listActionsForDashboard(),
+    listInspectionsForDashboard(),
+    getSapOrdersRaw(),
     fetchHierarchy(),
   ]);
-  const err = panels.error || ncs.error || actions.error || inspections.error || sapOrders.error;
-  if (err) throw err;
-
-  const P = panels.data;
-  const N = ncs.data;
-  const A = actions.data;
-  const I = inspections.data;
 
   const locName = new Map((hierarchy.localidades || []).map((l) => [l.id, l.nome]));
 
   // --- Índice de Saúde da carteira ---
   const withHI = P.filter((p) => p.health_index != null);
   const isMedio = withHI.length ? Math.round(withHI.reduce((s, p) => s + p.health_index, 0) / withHI.length) : null;
-  const healthBands = {
-    bom: withHI.filter((p) => p.health_index >= 80).length,
-    atencao: withHI.filter((p) => p.health_index >= 50 && p.health_index < 80).length,
-    critico: withHI.filter((p) => p.health_index < 50).length,
-    semAvaliacao: P.length - withHI.length,
-  };
+  const healthBands = { bom: 0, atencao: 0, critico: 0, semAvaliacao: 0 };
+  for (const p of P) healthBands[healthBandKey(p.health_index)] += 1;
 
   // --- NCs ---
-  const abertas = N.filter((n) => ["aberta", "em_tratamento"].includes(n.status));
+  const abertas = N.filter((n) => isOpenNonconformity(n.status));
   const ncAbertas = abertas.length;
   const ncCriticas = abertas.filter((n) => n.severidade === "critica").length;
   const ncPorSeveridade = ["critica", "alta", "media", "baixa"].map((sev) => ({
@@ -55,11 +56,11 @@ export async function fetchDashboardData() {
 
   // --- Ações ---
   const acoesAtrasadas = A.filter((a) => a.atrasada).length;
-  const acoesPendentes = A.filter((a) => ["aberta", "em_andamento"].includes(a.status)).length;
+  const acoesPendentes = A.filter((a) => isOpenAction(a.status)).length;
 
   // --- Aderência ao plano (geral e por localidade) ---
   const ordersByPanel = new Map();
-  for (const o of sapOrders.data) {
+  for (const o of sapOrders) {
     if (!ordersByPanel.has(o.panel_id)) ordersByPanel.set(o.panel_id, []);
     ordersByPanel.get(o.panel_id).push(o);
   }
@@ -129,4 +130,18 @@ export async function fetchDashboardData() {
     inspecoesVencidas,
     inspecoesTotais: I.length,
   };
+}
+
+/**
+ * Aderência ao plano de um único quadro (ordens SAP planejadas vs.
+ * inspeções realizadas). Usada na tela de detalhe do quadro.
+ */
+export async function getPanelAdherence(panelId) {
+  const { data: orders, error } = await supabase
+    .from("sap_orders")
+    .select("ordem, data_planejada")
+    .eq("panel_id", panelId);
+  if (error) throw error;
+  const inspections = await getForAdherence(panelId);
+  return panelAdherence(orders || [], inspections || []);
 }

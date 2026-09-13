@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
+import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";

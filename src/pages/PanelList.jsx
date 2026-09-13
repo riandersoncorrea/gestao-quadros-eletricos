@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ElectricalPanel } from "@/api/entities";
+import { ElectricalPanel } from "@/services/panelService";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";

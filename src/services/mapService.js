@@ -1,33 +1,29 @@
-import { supabase } from "@/lib/supabaseClient";
+import { listForMap, updateCoordinates } from "@/repositories/panelRepository";
+import { listStatusSeverityForMap } from "@/repositories/ncRepository";
+import { listAllUnresolvedFlags } from "@/repositories/healthIndexRepository";
+import { isOpenNonconformity } from "@/domain/nonconformityRules";
 
 /**
  * Dados para o mapa: quadros + contagem de NCs abertas e flags de análise
- * por quadro. Uma consulta por tabela; agregação no cliente.
+ * por quadro. Uma consulta por tabela (domínio); agregação no cliente.
  */
 export async function fetchSpatialData() {
   const [panels, ncs, flags] = await Promise.all([
-    supabase
-      .from("electrical_panels")
-      .select(
-        "id, tag, name, nomenclatura_oficial, status, criticality, health_index, health_index_updated_at, " +
-        "latitude, longitude, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
-      ),
-    supabase.from("nonconformities").select("panel_id, status, severidade"),
-    supabase.from("analysis_flags").select("panel_id, severidade").eq("resolvido", false),
+    listForMap(),
+    listStatusSeverityForMap(),
+    listAllUnresolvedFlags(),
   ]);
-  const err = panels.error || ncs.error || flags.error;
-  if (err) throw err;
 
   const ncByPanel = new Map();
-  for (const n of ncs.data) {
-    if (!["aberta", "em_tratamento"].includes(n.status)) continue;
+  for (const n of ncs) {
+    if (!isOpenNonconformity(n.status)) continue;
     const e = ncByPanel.get(n.panel_id) || { abertas: 0, criticas: 0 };
     e.abertas += 1;
     if (n.severidade === "critica") e.criticas += 1;
     ncByPanel.set(n.panel_id, e);
   }
   const flagByPanel = new Map();
-  for (const f of flags.data) {
+  for (const f of flags) {
     const e = flagByPanel.get(f.panel_id) || { total: 0, criticas: 0 };
     e.total += 1;
     if (f.severidade === "critica") e.criticas += 1;
@@ -35,7 +31,7 @@ export async function fetchSpatialData() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const enriched = panels.data.map((p) => ({
+  const enriched = panels.map((p) => ({
     ...p,
     nc: ncByPanel.get(p.id) || { abertas: 0, criticas: 0 },
     flags: flagByPanel.get(p.id) || { total: 0, criticas: 0 },
@@ -46,9 +42,5 @@ export async function fetchSpatialData() {
 }
 
 export async function setPanelCoordinates(panelId, latitude, longitude) {
-  const { error } = await supabase
-    .from("electrical_panels")
-    .update({ latitude, longitude })
-    .eq("id", panelId);
-  if (error) throw error;
+  return updateCoordinates(panelId, latitude, longitude);
 }

@@ -12,6 +12,7 @@ function parseOrder(orderBy) {
   return { column: ORDER_COLUMN_ALIASES[rawColumn] || rawColumn, ascending: !descending };
 }
 
+/** Fábrica de acesso genérico a uma tabela (list/filter/create/update/delete). */
 function makeEntity(table) {
   return {
     async list(orderBy) {
@@ -73,4 +74,54 @@ export async function fetchHierarchy() {
     locais: [...locais.data].sort(byNome),
     sublocais: [...sublocais.data].sort(byNome),
   };
+}
+
+export async function getSnapshotFields(panelId) {
+  const { data, error } = await supabase
+    .from("electrical_panels")
+    .select("status, criticality, latitude, longitude, localidade_id")
+    .eq("id", panelId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateHealthIndex(panelId, index) {
+  const { error } = await supabase
+    .from("electrical_panels")
+    .update({ health_index: index, health_index_updated_at: new Date().toISOString() })
+    .eq("id", panelId);
+  if (error) throw error;
+}
+
+export async function updateAfterInspection(panelId, values) {
+  const { error } = await supabase.from("electrical_panels").update(values).eq("id", panelId);
+  if (error) throw error;
+}
+
+export async function updateCoordinates(panelId, latitude, longitude) {
+  const { error } = await supabase
+    .from("electrical_panels")
+    .update({ latitude, longitude })
+    .eq("id", panelId);
+  if (error) throw error;
+}
+
+export async function listForDashboard() {
+  const { data, error } = await supabase
+    .from("electrical_panels")
+    .select("id, tag, name, status, criticality, health_index, localidade_id, next_inspection_date");
+  if (error) throw error;
+  return data;
+}
+
+export async function listForMap() {
+  const { data, error } = await supabase
+    .from("electrical_panels")
+    .select(
+      "id, tag, name, nomenclatura_oficial, status, criticality, health_index, health_index_updated_at, " +
+      "latitude, longitude, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
+    );
+  if (error) throw error;
+  return data;
 }

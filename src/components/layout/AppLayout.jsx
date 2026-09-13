@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
-import { supabase } from "@/lib/supabaseClient";
+import { countPendingUsers } from "@/services/userService";
 import {
   LayoutDashboard,
   Map,
@@ -49,14 +49,7 @@ export default function AppLayout() {
 
   const { data: pendingCount = 0 } = useQuery({
     queryKey: ["pending-users-count"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("approved", false);
-      if (error) throw error;
-      return count || 0;
-    },
+    queryFn: countPendingUsers,
     enabled: userRole === "admin",
     refetchInterval: 60000,
   });

@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getNonconformity, updateNonconformity, listActionsForNC,
-  createAction, updateAction, deleteAction,
-} from "@/api/nc";
-import { ElectricalPanel } from "@/api/entities";
+import { getNonconformity, updateNonconformity } from "@/services/ncService";
+import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
+import { ElectricalPanel } from "@/services/panelService";
+import { isOpenAction } from "@/domain/actionRules";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,7 +79,7 @@ export default function NonconformityDetail() {
 
   const sev = SEV[nc.severidade] || SEV.media;
   const st = NC_STATUS[nc.status] || NC_STATUS.aberta;
-  const abertas = actions.filter((a) => ["aberta", "em_andamento"].includes(a.status));
+  const abertas = actions.filter((a) => isOpenAction(a.status));
   const atrasadas = actions.filter((a) => a.atrasada);
 
   return (

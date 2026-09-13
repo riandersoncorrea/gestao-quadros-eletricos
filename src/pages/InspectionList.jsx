@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Inspection } from "@/api/entities";
+import { Inspection } from "@/services/panelService";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";

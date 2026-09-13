@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Inspection } from "@/api/entities";
-import { getInspectionFull } from "@/api/inspections";
+import { Inspection } from "@/services/panelService";
+import { getInspectionFull } from "@/services/inspectionService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

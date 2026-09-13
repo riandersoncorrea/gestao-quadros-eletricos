@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabaseClient";
-import { appUrl } from "@/lib/utils";
+import { signInWithPassword, signInWithGoogle } from "@/auth/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,8 +19,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw signInError;
+      await signInWithPassword(email, password);
       window.location.href = import.meta.env.BASE_URL;
     } catch (err) {
       setError(err.message || "Invalid email or password");
@@ -31,10 +29,7 @@ export default function Login() {
   };
 
   const handleGoogle = () => {
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${appUrl}/` },
-    });
+    signInWithGoogle();
   };
 
   return (

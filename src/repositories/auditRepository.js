@@ -2,26 +2,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 export const AUDIT_PAGE_SIZE = 50;
 
-/** Tabelas auditadas (para o filtro). Rótulo -> nome da tabela. */
-export const AUDITED_TABLES = [
-  { value: "electrical_panels", label: "Quadros" },
-  { value: "inspections", label: "Inspeções" },
-  { value: "inspection_responses", label: "Respostas de inspeção" },
-  { value: "nonconformities", label: "Não conformidades" },
-  { value: "actions", label: "Ações" },
-  { value: "localidades", label: "Localidades" },
-  { value: "locais", label: "Locais" },
-  { value: "sublocais", label: "Sublocais" },
-  { value: "sap_import_batches", label: "Lotes SAP" },
-  { value: "sap_orders", label: "Ordens SAP" },
-  { value: "health_index_config", label: "Config. Índice de Saúde" },
-  { value: "profiles", label: "Usuários" },
-];
-
-/**
- * Log de auditoria paginado no servidor (RLS: só admin).
- * filtros: { tabela, acao, q } — q busca em usuário/campo.
- */
 export async function fetchAuditLog({ page = 0, tabela = "", acao = "", q = "" } = {}) {
   let query = supabase
     .from("audit_log")
@@ -38,7 +18,6 @@ export async function fetchAuditLog({ page = 0, tabela = "", acao = "", q = "" }
   return { rows: data, total: count ?? 0 };
 }
 
-/** Histórico de auditoria de um registro específico. */
 export async function fetchRecordAudit(tabela, registroId) {
   const { data, error } = await supabase
     .from("audit_log")
@@ -68,4 +47,9 @@ export async function panelConditionHistory(panelId) {
     .order("snapshot_at", { ascending: true });
   if (error) throw error;
   return data;
+}
+
+export async function insertConditionSnapshot(row) {
+  const { error } = await supabase.from("panel_condition_history").insert(row);
+  if (error) throw error;
 }
