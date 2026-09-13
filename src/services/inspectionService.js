@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { getCurrentUserId } from "@/auth/authService";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
 import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
@@ -35,8 +35,7 @@ export function computeOverall(responses, items) {
  * (Supabase JS não tem transação — inserts são sequenciais.)
  */
 export async function createInspection({ header, responses, measurements, thermography, template, items }) {
-  const { data: user } = await supabase.auth.getUser();
-  const uid = user?.user?.id ?? null;
+  const uid = await getCurrentUserId();
   const itemById = new Map(items.map((i) => [i.id, i]));
   const answered = responses.filter((r) => r.resposta);
   const overall = computeOverall(answered, items);

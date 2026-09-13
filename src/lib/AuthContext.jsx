@@ -1,33 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getCurrentUser, onAuthStateChange, signOut } from '@/auth/authService';
 
 const AuthContext = createContext();
-
-async function buildUser(authUser) {
-  if (!authUser) return null;
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('role, approved')
-    .eq('id', authUser.id)
-    .single();
-
-  if (error) {
-    // Network hiccups or a slow request land here too, not just a missing
-    // row — falling back to 'viewer'/unapproved silently would make a real
-    // admin look downgraded or locked out with no trace of why. Logging
-    // keeps that diagnosable.
-    console.error('Failed to load profile role, defaulting to viewer/unapproved:', error);
-  }
-
-  return {
-    id: authUser.id,
-    email: authUser.email,
-    full_name: authUser.user_metadata?.full_name || '',
-    role: profile?.role || 'viewer',
-    approved: profile?.approved ?? false,
-  };
-}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -37,30 +11,25 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const nextUser = await buildUser(session?.user ?? null);
+    const refresh = async () => {
+      const nextUser = await getCurrentUser();
       if (!active) return;
       setUser(nextUser);
       setIsAuthenticated(!!nextUser);
       setIsLoadingAuth(false);
-    });
+    };
 
-    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const nextUser = await buildUser(session?.user ?? null);
-      if (!active) return;
-      setUser(nextUser);
-      setIsAuthenticated(!!nextUser);
-      setIsLoadingAuth(false);
-    });
+    refresh();
+    const unsubscribe = onAuthStateChange(refresh);
 
     return () => {
       active = false;
-      subscription.subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    await signOut();
   }, []);
 
   return (

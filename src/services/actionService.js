@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { getCurrentUserId } from "@/auth/authService";
 import * as actionRepository from "@/repositories/actionRepository";
 
 export async function listActionsForNC(ncId) {
@@ -10,10 +10,10 @@ export async function listActions() {
 }
 
 export async function createAction(values) {
-  const { data: user } = await supabase.auth.getUser();
+  const uid = await getCurrentUserId();
   const clean = { ...values };
   for (const k of Object.keys(clean)) if (clean[k] === "") clean[k] = null;
-  return actionRepository.create({ ...clean, created_by: user?.user?.id ?? null });
+  return actionRepository.create({ ...clean, created_by: uid });
 }
 
 export async function updateAction(id, values) {

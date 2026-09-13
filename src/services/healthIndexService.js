@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { getCurrentUserId } from "@/auth/authService";
 import * as healthIndexRepository from "@/repositories/healthIndexRepository";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { getSnapshotFields, updateHealthIndex } from "@/repositories/panelRepository";
@@ -13,8 +13,7 @@ export async function getHealthConfig() {
 }
 
 export async function saveHealthConfig(rows) {
-  const { data: user } = await supabase.auth.getUser();
-  const uid = user?.user?.id ?? null;
+  const uid = await getCurrentUserId();
   for (const r of rows) {
     await healthIndexRepository.updateConfigRow(r.id, {
       peso: Number(r.peso),

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabaseClient";
+import { getSession, updatePassword, signOut } from "@/auth/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ export default function ResetPassword() {
   useEffect(() => {
     // The reset-password link redirects here with the recovery tokens in the
     // URL hash; supabase-js parses them on load and establishes a session.
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSession().then((session) => {
       setHasRecoverySession(!!session);
     });
   }, []);
@@ -32,9 +32,8 @@ export default function ResetPassword() {
     }
     setLoading(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-      if (updateError) throw updateError;
-      await supabase.auth.signOut();
+      await updatePassword(newPassword);
+      await signOut();
       window.location.href = `${import.meta.env.BASE_URL}login`;
     } catch (err) {
       setError(err.message || "Failed to reset password");

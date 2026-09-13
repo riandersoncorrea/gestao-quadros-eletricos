@@ -9,6 +9,17 @@ export async function list() {
   return data;
 }
 
+/** Papel e status de aprovação de um único usuário (usado ao montar a sessão). */
+export async function getRoleAndApproval(id) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role, approved")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function updateRole(id, role) {
   const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
   if (error) throw error;
