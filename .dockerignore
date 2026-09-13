@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+.git
+.github
+.vscode
+.idea
+*.log
+.env
+.env.*
+!.env.local.example
+docs
+*.md
