@@ -1,36 +1,27 @@
 import { supabase } from "@/lib/supabaseClient";
+import * as healthIndexRepository from "@/repositories/healthIndexRepository";
+import * as inspectionRepository from "@/repositories/inspectionRepository";
+import { getSnapshotFields, updateHealthIndex } from "@/repositories/panelRepository";
+import { getStatusSeverityForPanel } from "@/repositories/ncRepository";
+import { getStatusForPanel } from "@/repositories/actionRepository";
+import { insertConditionSnapshot } from "@/repositories/auditRepository";
 import { getInspectionFull } from "@/services/inspectionService";
 import { dimensionScores, healthIndex, analysisFlags } from "@/lib/healthIndex";
 
 export async function getHealthConfig() {
-  const { data, error } = await supabase
-    .from("health_index_config")
-    .select("*")
-    .order("ordem", { ascending: true });
-  if (error) throw error;
-  return data;
+  return healthIndexRepository.getConfig();
 }
 
 export async function saveHealthConfig(rows) {
   const { data: user } = await supabase.auth.getUser();
   const uid = user?.user?.id ?? null;
   for (const r of rows) {
-    const { error } = await supabase
-      .from("health_index_config")
-      .update({ peso: Number(r.peso), ativo: r.ativo !== false, updated_by: uid })
-      .eq("id", r.id);
-    if (error) throw error;
+    await healthIndexRepository.updateConfigRow(r.id, {
+      peso: Number(r.peso),
+      ativo: r.ativo !== false,
+      updated_by: uid,
+    });
   }
-}
-
-async function templateItems(templateId) {
-  if (!templateId) return [];
-  const { data, error } = await supabase
-    .from("inspection_template_items")
-    .select("id, codigo, titulo, modulo, obrigatorio")
-    .eq("template_id", templateId);
-  if (error) throw error;
-  return data;
 }
 
 /**
@@ -44,56 +35,43 @@ export async function recomputeInspectionAnalysis(inspectionId) {
   const full = await getInspectionFull(inspectionId);
   const { inspection, responses, measurements, thermography } = full;
   const [config, items] = await Promise.all([
-    getHealthConfig(),
-    templateItems(inspection.template_id),
+    healthIndexRepository.getConfig(),
+    healthIndexRepository.getTemplateItemsSummary(inspection.template_id),
   ]);
 
   const scores = dimensionScores({ responses, measurements, thermography });
   const { index } = healthIndex(scores, config);
   const flags = analysisFlags({ responses, measurements, thermography, items });
 
-  await supabase
-    .from("inspections")
-    .update({ health_index_resultado: index })
-    .eq("id", inspectionId);
-
-  await supabase.from("analysis_flags").delete().eq("inspection_id", inspectionId);
-  if (flags.length) {
-    const panelId = inspection.panel_ref_id || inspection.panel_id;
-    const { error } = await supabase.from("analysis_flags").insert(
-      flags.map((f) => ({
-        inspection_id: inspectionId,
-        panel_id: panelId,
-        tipo: f.tipo,
-        categoria: f.categoria,
-        severidade: f.severidade,
-        mensagem: f.mensagem,
-      }))
-    );
-    if (error) throw error;
-  }
+  await inspectionRepository.setHealthIndexResult(inspectionId, index);
 
   const panelId = inspection.panel_ref_id || inspection.panel_id;
+  await healthIndexRepository.replaceInspectionFlags(
+    inspectionId,
+    flags.map((f) => ({
+      inspection_id: inspectionId,
+      panel_id: panelId,
+      tipo: f.tipo,
+      categoria: f.categoria,
+      severidade: f.severidade,
+      mensagem: f.mensagem,
+    }))
+  );
+
   if (panelId) {
-    const [{ data: latest }, { data: panel }, { data: ncs }, { data: acts }] = await Promise.all([
-      supabase.from("inspections").select("id, inspection_date")
-        .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`)
-        .neq("status", "cancelada")
-        .order("inspection_date", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("electrical_panels").select("status, criticality, latitude, longitude, localidade_id").eq("id", panelId).maybeSingle(),
-      supabase.from("nonconformities").select("status, severidade").eq("panel_id", panelId),
-      supabase.from("v_actions").select("status, atrasada").eq("panel_id", panelId),
+    const [latest, panel, ncs, acts] = await Promise.all([
+      inspectionRepository.getMostRecentForPanel(panelId),
+      getSnapshotFields(panelId),
+      getStatusSeverityForPanel(panelId),
+      getStatusForPanel(panelId),
     ]);
 
     if (latest?.id === inspectionId) {
-      await supabase
-        .from("electrical_panels")
-        .update({ health_index: index, health_index_updated_at: new Date().toISOString() })
-        .eq("id", panelId);
+      await updateHealthIndex(panelId, index);
     }
 
     const ncAbertas = (ncs || []).filter((n) => ["aberta", "em_tratamento"].includes(n.status));
-    await supabase.from("panel_condition_history").insert({
+    await insertConditionSnapshot({
       panel_id: panelId,
       health_index: index,
       status: panel?.status ?? null,
@@ -114,12 +92,5 @@ export async function recomputeInspectionAnalysis(inspectionId) {
 }
 
 export async function getPanelFlags(panelId) {
-  const { data, error } = await supabase
-    .from("analysis_flags")
-    .select("*")
-    .eq("panel_id", panelId)
-    .eq("resolvido", false)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+  return healthIndexRepository.getUnresolvedFlagsForPanel(panelId);
 }

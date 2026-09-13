@@ -1,59 +1,24 @@
 import { supabase } from "@/lib/supabaseClient";
+import * as inspectionRepository from "@/repositories/inspectionRepository";
+import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
+import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
 export async function getActiveTemplate() {
-  const { data: tpl, error: e1 } = await supabase
-    .from("inspection_templates")
-    .select("*")
-    .eq("ativo", true)
-    .order("versao", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (e1) throw e1;
+  const tpl = await inspectionRepository.getActiveTemplateRow();
   if (!tpl) return { template: null, items: [] };
-
-  const { data: items, error: e2 } = await supabase
-    .from("inspection_template_items")
-    .select("*")
-    .eq("template_id", tpl.id)
-    .eq("ativo", true)
-    .order("modulo", { ascending: true })
-    .order("ordem", { ascending: true });
-  if (e2) throw e2;
+  const items = await inspectionRepository.getTemplateItems(tpl.id);
   return { template: tpl, items };
 }
 
 export async function ordersForPanel(panelId) {
   if (!panelId) return [];
-  const { data, error } = await supabase
-    .from("sap_orders")
-    .select("id, ordem, plano, data_planejada, frequencia")
-    .eq("panel_id", panelId)
-    .order("data_planejada", { ascending: true });
-  if (error) throw error;
-  return data;
+  return inspectionRepository.getSapOrdersForPanel(panelId);
 }
 
 export async function getInspectionFull(id) {
-  const [insp, responses, measurements, thermo, ncs, flags] = await Promise.all([
-    supabase.from("inspections").select("*").eq("id", id).single(),
-    supabase.from("inspection_responses").select("*").eq("inspection_id", id),
-    supabase.from("measurements").select("*").eq("inspection_id", id),
-    supabase.from("thermography_points").select("*").eq("inspection_id", id),
-    supabase.from("nonconformities").select("*").eq("inspection_id", id).order("created_at", { ascending: true }),
-    supabase.from("analysis_flags").select("*").eq("inspection_id", id).order("severidade", { ascending: true }),
-  ]);
-  const err = insp.error || responses.error || measurements.error || thermo.error || ncs.error || flags.error;
-  if (err) throw err;
-  return {
-    inspection: insp.data,
-    responses: responses.data,
-    measurements: measurements.data,
-    thermography: thermo.data,
-    nonconformities: ncs.data,
-    flags: flags.data,
-  };
+  return inspectionRepository.getInspectionAggregate(id);
 }
 
 export function computeOverall(responses, items) {
@@ -76,27 +41,22 @@ export async function createInspection({ header, responses, measurements, thermo
   const answered = responses.filter((r) => r.resposta);
   const overall = computeOverall(answered, items);
 
-  const { data: insp, error: ie } = await supabase
-    .from("inspections")
-    .insert({
-      panel_id: header.panel_id,
-      panel_ref_id: header.panel_id,
-      panel_name: header.panel_name,
-      inspection_date: header.inspection_date,
-      inspector_name: header.inspector_name,
-      frequency: header.frequency || null,
-      next_inspection: header.next_inspection || null,
-      overall_result: overall,
-      observacoes: header.observacoes || null,
-      assinatura_url: header.assinatura_url || null,
-      template_id: template?.id ?? null,
-      sap_order_id: header.sap_order_id || null,
-      status: "executada",
-      created_by: uid,
-    })
-    .select()
-    .single();
-  if (ie) throw ie;
+  const insp = await inspectionRepository.insertInspection({
+    panel_id: header.panel_id,
+    panel_ref_id: header.panel_id,
+    panel_name: header.panel_name,
+    inspection_date: header.inspection_date,
+    inspector_name: header.inspector_name,
+    frequency: header.frequency || null,
+    next_inspection: header.next_inspection || null,
+    overall_result: overall,
+    observacoes: header.observacoes || null,
+    assinatura_url: header.assinatura_url || null,
+    template_id: template?.id ?? null,
+    sap_order_id: header.sap_order_id || null,
+    status: "executada",
+    created_by: uid,
+  });
 
   const respRows = answered.map((r) => {
     const it = itemById.get(r.template_item_id);
@@ -112,10 +72,7 @@ export async function createInspection({ header, responses, measurements, thermo
       evidencia_url: r.evidencia_url || null,
     };
   });
-  if (respRows.length) {
-    const { error } = await supabase.from("inspection_responses").insert(respRows);
-    if (error) throw error;
-  }
+  await inspectionRepository.insertResponses(respRows);
 
   const measRows = measurements
     .filter((m) => m.categoria && m.unidade)
@@ -133,10 +90,7 @@ export async function createInspection({ header, responses, measurements, thermo
       resultado: m.resultado || null,
       observacao: m.observacao || null,
     }));
-  if (measRows.length) {
-    const { error } = await supabase.from("measurements").insert(measRows);
-    if (error) throw error;
-  }
+  await inspectionRepository.insertMeasurements(measRows);
 
   const thermoRows = thermography
     .filter((t) => t.equipamento || t.ponto || t.temperatura !== "")
@@ -158,10 +112,7 @@ export async function createInspection({ header, responses, measurements, thermo
       diagnostico: t.diagnostico || null,
       criticidade: t.criticidade || null,
     }));
-  if (thermoRows.length) {
-    const { error } = await supabase.from("thermography_points").insert(thermoRows);
-    if (error) throw error;
-  }
+  await inspectionRepository.insertThermography(thermoRows);
 
   const ncRows = answered
     .filter((r) => r.resposta === "nao_conforme")
@@ -185,18 +136,12 @@ export async function createInspection({ header, responses, measurements, thermo
         created_by: uid,
       };
     });
-  if (ncRows.length) {
-    const { error } = await supabase.from("nonconformities").insert(ncRows);
-    if (error) throw error;
-  }
+  await bulkCreateNonconformities(ncRows);
 
-  await supabase
-    .from("electrical_panels")
-    .update({
-      last_inspection_date: header.inspection_date,
-      ...(header.next_inspection ? { next_inspection_date: header.next_inspection } : {}),
-    })
-    .eq("id", header.panel_id);
+  await updatePanelAfterInspection(header.panel_id, {
+    last_inspection_date: header.inspection_date,
+    ...(header.next_inspection ? { next_inspection_date: header.next_inspection } : {}),
+  });
 
   try {
     const { recomputeInspectionAnalysis } = await import("@/services/healthIndexService");

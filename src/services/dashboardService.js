@@ -1,30 +1,32 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchHierarchy } from "@/services/panelService";
+import { fetchHierarchy, listForDashboard as listPanelsForDashboard } from "@/repositories/panelRepository";
+import { listStatusSeverityForDashboard } from "@/repositories/ncRepository";
+import { listAllForDashboard as listActionsForDashboard } from "@/repositories/actionRepository";
+import { listForDashboard as listInspectionsForDashboard, getForAdherence } from "@/repositories/inspectionRepository";
 import { panelAdherence } from "@/lib/adherence";
-import { format, parseISO, subMonths, startOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth } from "date-fns";
+
+// sap_orders é legado (Importação SAP) e não tem repository próprio —
+// mantido como leitura direta aqui e em getPanelAdherence, como já estava.
+async function getSapOrdersRaw() {
+  const { data, error } = await supabase.from("sap_orders").select("panel_id, data_planejada");
+  if (error) throw error;
+  return data;
+}
 
 /**
- * Agregados da Torre de Controle. Uma consulta por tabela; o resto é
- * computado no cliente.
+ * Agregados da Torre de Controle. Uma consulta por domínio (via repository);
+ * o resto é computado no cliente.
  */
 export async function fetchDashboardData() {
-  const [panels, ncs, actions, inspections, sapOrders, hierarchy] = await Promise.all([
-    supabase.from("electrical_panels").select(
-      "id, tag, name, status, criticality, health_index, localidade_id, next_inspection_date"
-    ),
-    supabase.from("nonconformities").select("id, panel_id, status, severidade, categoria, created_at"),
-    supabase.from("v_actions").select("id, status, atrasada, prazo"),
-    supabase.from("inspections").select("id, inspection_date, overall_result, status, panel_ref_id, panel_id"),
-    supabase.from("sap_orders").select("panel_id, data_planejada"),
+  const [P, N, A, I, sapOrders, hierarchy] = await Promise.all([
+    listPanelsForDashboard(),
+    listStatusSeverityForDashboard(),
+    listActionsForDashboard(),
+    listInspectionsForDashboard(),
+    getSapOrdersRaw(),
     fetchHierarchy(),
   ]);
-  const err = panels.error || ncs.error || actions.error || inspections.error || sapOrders.error;
-  if (err) throw err;
-
-  const P = panels.data;
-  const N = ncs.data;
-  const A = actions.data;
-  const I = inspections.data;
 
   const locName = new Map((hierarchy.localidades || []).map((l) => [l.id, l.nome]));
 
@@ -59,7 +61,7 @@ export async function fetchDashboardData() {
 
   // --- Aderência ao plano (geral e por localidade) ---
   const ordersByPanel = new Map();
-  for (const o of sapOrders.data) {
+  for (const o of sapOrders) {
     if (!ordersByPanel.has(o.panel_id)) ordersByPanel.set(o.panel_id, []);
     ordersByPanel.get(o.panel_id).push(o);
   }
@@ -136,11 +138,11 @@ export async function fetchDashboardData() {
  * inspeções realizadas). Usada na tela de detalhe do quadro.
  */
 export async function getPanelAdherence(panelId) {
-  const [orders, inspections] = await Promise.all([
-    supabase.from("sap_orders").select("ordem, data_planejada").eq("panel_id", panelId),
-    supabase.from("inspections")
-      .select("inspection_date, status")
-      .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`),
-  ]);
-  return panelAdherence(orders.data || [], inspections.data || []);
+  const { data: orders, error } = await supabase
+    .from("sap_orders")
+    .select("ordem, data_planejada")
+    .eq("panel_id", panelId);
+  if (error) throw error;
+  const inspections = await getForAdherence(panelId);
+  return panelAdherence(orders || [], inspections || []);
 }
