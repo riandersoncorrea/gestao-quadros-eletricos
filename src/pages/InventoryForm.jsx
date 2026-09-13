@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
+import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { uploadFile } from "@/lib/storage";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

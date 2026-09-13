@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchSpatialData, setPanelCoordinates } from "@/api/spatial";
-import { fetchHierarchy } from "@/api/entities";
+import { fetchSpatialData, setPanelCoordinates } from "@/services/mapService";
+import { fetchHierarchy } from "@/services/panelService";
 import SpatialMap, { COLOR_BY, legendFor } from "@/components/panels/SpatialMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

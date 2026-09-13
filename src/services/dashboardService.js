@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchHierarchy } from "@/api/entities";
+import { fetchHierarchy } from "@/services/panelService";
 import { panelAdherence } from "@/lib/adherence";
 import { format, parseISO, subMonths, startOfMonth } from "date-fns";
 
@@ -129,4 +129,18 @@ export async function fetchDashboardData() {
     inspecoesVencidas,
     inspecoesTotais: I.length,
   };
+}
+
+/**
+ * Aderência ao plano de um único quadro (ordens SAP planejadas vs.
+ * inspeções realizadas). Usada na tela de detalhe do quadro.
+ */
+export async function getPanelAdherence(panelId) {
+  const [orders, inspections] = await Promise.all([
+    supabase.from("sap_orders").select("ordem, data_planejada").eq("panel_id", panelId),
+    supabase.from("inspections")
+      .select("inspection_date, status")
+      .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`),
+  ]);
+  return panelAdherence(orders.data || [], inspections.data || []);
 }

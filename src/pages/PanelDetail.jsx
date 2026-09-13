@@ -1,11 +1,10 @@
 import React, { useState } from "react";
-import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
-import { supabase } from "@/lib/supabaseClient";
-import { getPanelFlags } from "@/api/analysis";
-import { ncSummaryForPanel } from "@/api/nc";
-import { panelLocationHistory, panelConditionHistory } from "@/api/audit";
+import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
+import { getPanelFlags } from "@/services/healthIndexService";
+import { ncSummaryForPanel } from "@/services/ncService";
+import { panelLocationHistory, panelConditionHistory } from "@/services/auditService";
+import { getPanelAdherence } from "@/services/dashboardService";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { panelAdherence } from "@/lib/adherence";
 import { appUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -102,15 +101,7 @@ export default function PanelDetail() {
 
   const { data: adherenceData } = useQuery({
     queryKey: ["panel-adherence", id],
-    queryFn: async () => {
-      const [orders, inspections] = await Promise.all([
-        supabase.from("sap_orders").select("ordem, data_planejada").eq("panel_id", id),
-        supabase.from("inspections")
-          .select("inspection_date, status")
-          .or(`panel_ref_id.eq.${id},panel_id.eq.${id}`),
-      ]);
-      return panelAdherence(orders.data || [], inspections.data || []);
-    },
+    queryFn: () => getPanelAdherence(id),
   });
 
   const panel = panels?.[0];

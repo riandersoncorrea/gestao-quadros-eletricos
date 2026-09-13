@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabaseClient";
+import { listProfiles, updateUserRole, updateUserApproval } from "@/services/userService";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,22 +28,12 @@ export default function UserManagement() {
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, email, role, approved, created_at")
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: listProfiles,
     enabled: isAdmin,
   });
 
   const mutation = useMutation({
-    mutationFn: async ({ id, role }) => {
-      const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, role }) => updateUserRole(id, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
       toast.success("Perfil atualizado");
@@ -52,10 +42,7 @@ export default function UserManagement() {
   });
 
   const approvalMutation = useMutation({
-    mutationFn: async ({ id, approved }) => {
-      const { error } = await supabase.from("profiles").update({ approved }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, approved }) => updateUserApproval(id, approved),
     onSuccess: (_, { approved }) => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
       queryClient.invalidateQueries({ queryKey: ["pending-users-count"] });

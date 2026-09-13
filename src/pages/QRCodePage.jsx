@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { ElectricalPanel } from "@/api/entities";
+import { ElectricalPanel } from "@/services/panelService";
 import { appUrl } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";

@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getNonconformity, updateNonconformity, listActionsForNC,
-  createAction, updateAction, deleteAction,
-} from "@/api/nc";
-import { ElectricalPanel } from "@/api/entities";
+import { getNonconformity, updateNonconformity } from "@/services/ncService";
+import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
+import { ElectricalPanel } from "@/services/panelService";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

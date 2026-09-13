@@ -199,7 +199,7 @@ export async function createInspection({ header, responses, measurements, thermo
     .eq("id", header.panel_id);
 
   try {
-    const { recomputeInspectionAnalysis } = await import("@/api/analysis");
+    const { recomputeInspectionAnalysis } = await import("@/services/healthIndexService");
     await recomputeInspectionAnalysis(insp.id);
   } catch (e) {
     console.error("Falha ao calcular Índice de Saúde da inspeção:", e);

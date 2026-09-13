@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ElectricalPanel, fetchHierarchy } from "@/api/entities";
-import { getActiveTemplate, ordersForPanel, createInspection, computeOverall } from "@/api/inspections";
+import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
+import { getActiveTemplate, ordersForPanel, createInspection, computeOverall } from "@/services/inspectionService";
 import { uploadFile } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

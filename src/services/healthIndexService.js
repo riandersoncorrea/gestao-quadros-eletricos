@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { getInspectionFull } from "@/api/inspections";
+import { getInspectionFull } from "@/services/inspectionService";
 import { dimensionScores, healthIndex, analysisFlags } from "@/lib/healthIndex";
 
 export async function getHealthConfig() {

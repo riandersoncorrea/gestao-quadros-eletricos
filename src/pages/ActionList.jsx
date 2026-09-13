@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listActions, updateAction } from "@/api/nc";
-import { ElectricalPanel } from "@/api/entities";
+import { listActions, updateAction } from "@/services/actionService";
+import { ElectricalPanel } from "@/services/panelService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
