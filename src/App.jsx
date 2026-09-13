@@ -25,9 +25,6 @@ import InspectionForm from '@/pages/InspectionForm';
 import InspectionDetail from '@/pages/InspectionDetail';
 import InfoFundamentais from '@/pages/InfoFundamentais';
 import UserManagement from '@/pages/UserManagement';
-import SapImportList from '@/pages/SapImportList';
-import SapImportWizard from '@/pages/SapImportWizard';
-import SapBatchDetail from '@/pages/SapBatchDetail';
 import HealthConfig from '@/pages/HealthConfig';
 import NonconformityList from '@/pages/NonconformityList';
 import NonconformityDetail from '@/pages/NonconformityDetail';
@@ -78,11 +75,8 @@ const AuthenticatedApp = () => {
             <Route path="/relatorio" element={<ExecutiveReport />} />
           </Route>
 
-          {/* Editor não tem acesso: Importação SAP, QR Codes (agora só admin) */}
+          {/* Editor não tem acesso: QR Codes (agora só admin) */}
           <Route element={<RoleRoute allow={['admin']} />}>
-            <Route path="/importacao-sap" element={<SapImportList />} />
-            <Route path="/importacao-sap/nova" element={<SapImportWizard />} />
-            <Route path="/importacao-sap/:id" element={<SapBatchDetail />} />
             <Route path="/qrcode" element={<QRCodePage />} />
             <Route path="/usuarios" element={<UserManagement />} />
             <Route path="/config/indice-saude" element={<HealthConfig />} />
