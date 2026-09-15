@@ -17,7 +17,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
-import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, Camera, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine } from "lucide-react";
+import { saveDraft, loadDraft, clearDraft } from "@/utils/formDraft";
 
 const RESP = [
   { v: "conforme", label: "Conforme", cls: "bg-secondary text-white border-secondary" },
@@ -62,6 +63,11 @@ function autoResultado(valor, min, max) {
 const emptyMeas = () => ({ categoria: "", parametro: "", valor: "", unidade: "", instrumento: "", limite_min: "", limite_max: "", resultado: "", observacao: "" });
 const emptyThermo = () => ({ equipamento: "", ponto: "", temperatura: "", temperatura_ambiente: "", instrumento: "", criticidade: "", diagnostico: "", observacao: "", imagem_url: "", imagem_termografica_url: "" });
 
+// Only one "new inspection" screen exists (no :id route) — the checklist type
+// (template id) is what distinguishes drafts that shouldn't be mixed.
+const DRAFT_KEY = "qe:inspection-draft:new";
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
 export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -82,6 +88,7 @@ export default function InspectionForm() {
   const [hasSignature, setHasSignature] = useState(false);
   const sigCanvasRef = useRef(null);
   const sigDrawing = useRef(false);
+  const draftRestoredRef = useRef(false);
 
   useEffect(() => {
     if (user) setHeader((s) => (s.inspector_name ? s : { ...s, inspector_name: user.full_name || user.email }));
@@ -89,7 +96,42 @@ export default function InspectionForm() {
 
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
   const { data: hierarchy } = useQuery({ queryKey: ["hierarchy"], queryFn: fetchHierarchy });
-  const { data: tpl } = useQuery({ queryKey: ["active-template"], queryFn: getActiveTemplate });
+  const { data: tpl, isFetched: tplFetched } = useQuery({ queryKey: ["active-template"], queryFn: getActiveTemplate });
+  const templateId = tpl?.template?.id || null;
+
+  // Restore a local draft, if any, once the active template has settled —
+  // needed so we can discard a draft saved against a different checklist template.
+  useEffect(() => {
+    if (draftRestoredRef.current || !tplFetched) return;
+    draftRestoredRef.current = true;
+    const draft = loadDraft(DRAFT_KEY, DRAFT_TTL_MS);
+    if (!draft) return;
+    if (draft.template_id && templateId && draft.template_id !== templateId) {
+      clearDraft(DRAFT_KEY);
+      return;
+    }
+    if (draft.header) setHeader(draft.header);
+    if (draft.responses) setResponses(draft.responses);
+    if (draft.measurements) setMeasurements(draft.measurements);
+    if (draft.thermography) setThermography(draft.thermography);
+    if (draft.locFilter) setLocFilter(draft.locFilter);
+    if (draft.tab) setTab(draft.tab);
+    toast.info("Rascunho da inspeção anterior restaurado");
+  }, [tplFetched, templateId]);
+
+  // Autosave the in-progress draft locally so a reload doesn't lose it.
+  useEffect(() => {
+    if (!draftRestoredRef.current) return; // don't save before we've had a chance to read an existing draft
+    const isDirty = !!(
+      header.panel_id || (header.observacoes || "").trim() || header.sap_order_id ||
+      Object.keys(responses).length > 0 || measurements.length > 0 || thermography.length > 0
+    );
+    if (!isDirty) return;
+    const timer = setTimeout(() => {
+      saveDraft(DRAFT_KEY, { template_id: templateId, header, responses, measurements, thermography, locFilter, tab });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [templateId, header, responses, measurements, thermography, locFilter, tab]);
   const { data: sapOrders = [] } = useQuery({
     queryKey: ["orders-for-panel", header.panel_id],
     queryFn: () => ordersForPanel(header.panel_id),
@@ -156,6 +198,7 @@ export default function InspectionForm() {
       return createInspection({ header: { ...header, assinatura_url }, responses: answeredList, measurements, thermography, template: tpl?.template, items });
     },
     onSuccess: (insp) => {
+      clearDraft(DRAFT_KEY);
       queryClient.invalidateQueries({ queryKey: ["inspections"] });
       queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
       queryClient.invalidateQueries({ queryKey: ["panels"] });
@@ -578,12 +621,20 @@ export default function InspectionForm() {
                     <div className="flex flex-wrap items-center gap-3">
                       <Input className="flex-1 min-w-[200px]" placeholder="Observação" value={t.observacao}
                         onChange={(e) => setThermography((arr) => arr.map((x, xi) => xi === i ? { ...x, observacao: e.target.value } : x))} />
-                      <label className="flex items-center gap-1.5 px-3 h-9 border border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 text-xs text-muted-foreground shrink-0">
-                        {uploadingKey === `thermo-${i}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                        {t.imagem_termografica_url ? "Trocar imagem" : "Imagem térmica"}
-                        <input type="file" className="hidden" accept="image/*"
-                          onChange={(e) => uploadEvidence(e, `thermo-${i}`, (url) => setThermography((arr) => arr.map((x, xi) => xi === i ? { ...x, imagem_termografica_url: url } : x)))} />
-                      </label>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label className="flex items-center gap-1.5 px-3 h-9 border border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 text-xs text-muted-foreground">
+                          {uploadingKey === `thermo-${i}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                          Câmera
+                          <input type="file" className="hidden" accept="image/*" capture="environment"
+                            onChange={(e) => uploadEvidence(e, `thermo-${i}`, (url) => setThermography((arr) => arr.map((x, xi) => xi === i ? { ...x, imagem_termografica_url: url } : x)))} />
+                        </label>
+                        <label className="flex items-center gap-1.5 px-3 h-9 border border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 text-xs text-muted-foreground">
+                          {uploadingKey === `thermo-${i}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                          {t.imagem_termografica_url ? "Trocar imagem" : "Galeria"}
+                          <input type="file" className="hidden" accept="image/*"
+                            onChange={(e) => uploadEvidence(e, `thermo-${i}`, (url) => setThermography((arr) => arr.map((x, xi) => xi === i ? { ...x, imagem_termografica_url: url } : x)))} />
+                        </label>
+                      </div>
                       {t.imagem_termografica_url && <span className="text-xs text-secondary">✓ anexada</span>}
                     </div>
                   </div>
