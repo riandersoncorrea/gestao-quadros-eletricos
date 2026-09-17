@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Inspection } from "@/services/panelService";
+import React, { useState, useMemo, useEffect } from "react";
+import { Inspection, ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,18 +22,45 @@ export default function InspectionList() {
   const { canEdit } = useUserRole();
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
+  const [localidadeFilter, setLocalidadeFilter] = useState("all");
 
   const { data: inspections = [], isLoading } = useQuery({
     queryKey: ["inspections"],
     queryFn: () => Inspection.list("-inspection_date"),
   });
 
+  // Mesmas queries (e mesmas queryKeys, portanto cache compartilhado) já
+  // usadas em Inventário/Painel — só para resolver panel → localidade,
+  // já que inspections não tem localidade_id direto.
+  const { data: panels = [] } = useQuery({
+    queryKey: ["panels"],
+    queryFn: () => ElectricalPanel.list("tag"),
+  });
+  const { data: hierarchy } = useQuery({
+    queryKey: ["hierarchy"],
+    queryFn: fetchHierarchy,
+  });
+
+  const { localidades, panelLocMap } = useMemo(() => ({
+    localidades: hierarchy?.localidades || [],
+    panelLocMap: new Map(panels.map((p) => [p.id, p.localidade_id])),
+  }), [hierarchy, panels]);
+
   const filtered = inspections.filter(i => {
     const s = search.toLowerCase();
     const matchSearch = !s || i.panel_name?.toLowerCase().includes(s) || i.inspector_name?.toLowerCase().includes(s);
     const matchResult = resultFilter === "all" || i.overall_result === resultFilter;
-    return matchSearch && matchResult;
+    const matchLocalidade = localidadeFilter === "all"
+      || panelLocMap.get(i.panel_ref_id || i.panel_id) === localidadeFilter;
+    return matchSearch && matchResult && matchLocalidade;
   });
+
+  const PAGE_SIZE = 40;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart = page * PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [search, resultFilter, localidadeFilter]);
 
   return (
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6">
@@ -56,6 +83,15 @@ export default function InspectionList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por quadro ou inspetor..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
+        <Select value={localidadeFilter} onValueChange={setLocalidadeFilter}>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Localidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as localidades</SelectItem>
+            {localidades.map((l) => (
+              <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={resultFilter} onValueChange={setResultFilter}>
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Resultado" /></SelectTrigger>
           <SelectContent>
@@ -74,16 +110,19 @@ export default function InspectionList() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <ClipboardCheck className="h-10 w-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm">
-              {search || resultFilter !== "all" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
+              {search || resultFilter !== "all" || localidadeFilter !== "all" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
             </p>
-            {canEdit && !search && resultFilter === "all" && (
+            {canEdit && !search && resultFilter === "all" && localidadeFilter === "all" && (
               <Link to="/inspecoes/nova"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Registrar primeira inspeção</Button></Link>
             )}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map(insp => {
+          <p className="text-xs text-muted-foreground">
+            Mostrando {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} de {filtered.length}
+          </p>
+          {pageItems.map(insp => {
             const r = RESULT_CONFIG[insp.overall_result] || RESULT_CONFIG.aprovado;
             const ResultIcon = r.icon;
             return (
@@ -123,6 +162,16 @@ export default function InspectionList() {
               </Card>
             );
           })}
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <span className="text-muted-foreground">Página {page + 1} de {pageCount}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(p => p - 1); window.scrollTo(0, 0); }}>Anterior</Button>
+                <Button variant="outline" size="sm" disabled={page >= pageCount - 1} onClick={() => { setPage(p => p + 1); window.scrollTo(0, 0); }}>Próxima</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
