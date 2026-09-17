@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Inspection, ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { useQuery } from "@tanstack/react-query";
+import {
+  PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
+} from "@/domain/dashboardFilters";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,10 @@ export default function InspectionList() {
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
+  const [period, setPeriod] = useState("todo");
+  const [customDraft, setCustomDraft] = useState({ from: "", to: "" });
+  const [customApplied, setCustomApplied] = useState(null);
+  const [customError, setCustomError] = useState(null);
 
   const { data: inspections = [], isLoading } = useQuery({
     queryKey: ["inspections"],
@@ -46,13 +53,16 @@ export default function InspectionList() {
     panelLocMap: new Map(panels.map((p) => [p.id, p.localidade_id])),
   }), [hierarchy, panels]);
 
+  const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
+
   const filtered = inspections.filter(i => {
     const s = search.toLowerCase();
     const matchSearch = !s || i.panel_name?.toLowerCase().includes(s) || i.inspector_name?.toLowerCase().includes(s);
     const matchResult = resultFilter === "all" || i.overall_result === resultFilter;
     const matchLocalidade = localidadeFilter === "all"
       || panelLocMap.get(i.panel_ref_id || i.panel_id) === localidadeFilter;
-    return matchSearch && matchResult && matchLocalidade;
+    const matchPeriod = isWithinRange(i.inspection_date, dateRange);
+    return matchSearch && matchResult && matchLocalidade && matchPeriod;
   });
 
   const PAGE_SIZE = 40;
@@ -60,7 +70,23 @@ export default function InspectionList() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageStart = page * PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
-  useEffect(() => { setPage(0); }, [search, resultFilter, localidadeFilter]);
+  useEffect(() => { setPage(0); }, [search, resultFilter, localidadeFilter, dateRange]);
+
+  function handlePeriodChange(value) {
+    setPeriod(value);
+    setCustomError(null);
+    if (value !== "personalizado") setCustomApplied(null);
+  }
+
+  function applyCustomRange() {
+    const err = validateCustomRange(customDraft);
+    if (err) {
+      setCustomError(err);
+      return;
+    }
+    setCustomError(null);
+    setCustomApplied(customDraft);
+  }
 
   return (
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6">
@@ -78,7 +104,7 @@ export default function InspectionList() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por quadro ou inspetor..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
@@ -92,6 +118,14 @@ export default function InspectionList() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={period} onValueChange={handlePeriodChange}>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={resultFilter} onValueChange={setResultFilter}>
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Resultado" /></SelectTrigger>
           <SelectContent>
@@ -101,6 +135,30 @@ export default function InspectionList() {
             <SelectItem value="reprovado">Reprovado</SelectItem>
           </SelectContent>
         </Select>
+
+        {period === "personalizado" && (
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                aria-label="Data inicial"
+                className="w-[150px]"
+                value={customDraft.from}
+                onChange={(e) => setCustomDraft((s) => ({ ...s, from: e.target.value }))}
+              />
+              <span className="text-sm text-muted-foreground">até</span>
+              <Input
+                type="date"
+                aria-label="Data final"
+                className="w-[150px]"
+                value={customDraft.to}
+                onChange={(e) => setCustomDraft((s) => ({ ...s, to: e.target.value }))}
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={applyCustomRange}>Aplicar</Button>
+          </div>
+        )}
+        {customError && <p className="text-xs text-destructive basis-full">{customError}</p>}
       </div>
 
       {isLoading ? (
@@ -110,9 +168,9 @@ export default function InspectionList() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <ClipboardCheck className="h-10 w-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm">
-              {search || resultFilter !== "all" || localidadeFilter !== "all" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
+              {search || resultFilter !== "all" || localidadeFilter !== "all" || period !== "todo" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
             </p>
-            {canEdit && !search && resultFilter === "all" && localidadeFilter === "all" && (
+            {canEdit && !search && resultFilter === "all" && localidadeFilter === "all" && period === "todo" && (
               <Link to="/inspecoes/nova"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Registrar primeira inspeção</Button></Link>
             )}
           </CardContent>
