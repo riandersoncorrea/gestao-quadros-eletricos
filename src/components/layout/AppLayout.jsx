@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   LogOut,
-  Zap,
   ChevronRight,
   BookOpen,
   Users,
@@ -148,7 +147,7 @@ export default function AppLayout() {
       <div className="flex flex-col flex-1 overflow-hidden print:flex-none print:overflow-visible">
         <header className="lg:hidden flex items-center justify-between px-4 h-14 bg-card border-b border-border print:hidden">
           <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
+            <img src={logoSistema} alt="" className="h-7 w-7 object-contain shrink-0" />
             <span className="text-sm font-bold">Quadros Elétricos</span>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -162,7 +161,7 @@ export default function AppLayout() {
             <div className="absolute left-0 top-0 bottom-0 w-64 bg-sidebar shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="p-5 border-b border-sidebar-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-sidebar-primary" />
+                  <img src={logoSistema} alt="" className="h-7 w-7 object-contain shrink-0" />
                   <span className="text-sm font-bold text-sidebar-foreground">Menu</span>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="text-sidebar-foreground">
