@@ -60,7 +60,10 @@ export default function UserManagement() {
 
   const filtered = profiles.filter((p) => {
     const s = search.toLowerCase();
-    return !s || p.email?.toLowerCase().includes(s) || ROLE_LABEL[p.role]?.toLowerCase().includes(s);
+    return !s
+      || p.email?.toLowerCase().includes(s)
+      || p.full_name?.toLowerCase().includes(s)
+      || ROLE_LABEL[p.role]?.toLowerCase().includes(s);
   });
 
   return (
@@ -77,7 +80,7 @@ export default function UserManagement() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar por e-mail ou perfil..."
+          placeholder="Buscar por nome, e-mail ou perfil..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -109,7 +112,7 @@ export default function UserManagement() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="font-semibold text-sm truncate">{p.email || "(sem e-mail)"}</span>
+                          <span className="font-semibold text-sm truncate">{p.full_name || p.email || "(sem e-mail)"}</span>
                           {isSelf && <Badge variant="outline" className="text-xs">você</Badge>}
                           <Badge variant="outline" className={`text-xs ${ROLE_BADGE[p.role] || ""}`}>
                             {ROLE_LABEL[p.role] || p.role}
@@ -123,7 +126,10 @@ export default function UserManagement() {
                             {p.approved ? "Aprovado" : "Pendente"}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        {p.full_name && p.email && (
+                          <p className="text-xs text-muted-foreground truncate">{p.email}</p>
+                        )}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                           <Calendar className="h-3 w-3" />
                           Cadastrado em {format(parseISO(p.created_at), "dd/MM/yyyy")}
                         </div>

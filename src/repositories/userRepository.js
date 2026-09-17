@@ -3,17 +3,17 @@ import { supabase } from "@/lib/supabaseClient";
 export async function list() {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, role, approved, created_at")
+    .select("id, email, full_name, role, approved, created_at")
     .order("created_at", { ascending: true });
   if (error) throw error;
   return data;
 }
 
-/** Papel e status de aprovação de um único usuário (usado ao montar a sessão). */
+/** Papel, aprovação e nome de um único usuário (usado ao montar a sessão). */
 export async function getRoleAndApproval(id) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("role, approved")
+    .select("role, approved, full_name")
     .eq("id", id)
     .single();
   if (error) throw error;
