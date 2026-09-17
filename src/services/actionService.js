@@ -1,5 +1,6 @@
 import { getCurrentUserId } from "@/auth/authService";
 import * as actionRepository from "@/repositories/actionRepository";
+import { updateNonconformity } from "@/services/ncService";
 
 export async function listActionsForNC(ncId) {
   return actionRepository.listForNC(ncId);
@@ -9,11 +10,22 @@ export async function listActions() {
   return actionRepository.listAll();
 }
 
-export async function createAction(values) {
+/**
+ * `currentNcStatus` (opcional): status da NC no momento da criação. Se ela
+ * ainda estiver "aberta", a primeira ação registrada já a move para
+ * "em_tratamento" — reflete que a NC passou a ter um tratamento em curso.
+ * Não força nada além disso (concluir/cancelar continua manual).
+ */
+export async function createAction(values, options) {
+  const { currentNcStatus } = options || {};
   const uid = await getCurrentUserId();
   const clean = { ...values };
   for (const k of Object.keys(clean)) if (clean[k] === "") clean[k] = null;
-  return actionRepository.create({ ...clean, created_by: uid });
+  const created = await actionRepository.create({ ...clean, created_by: uid });
+  if (currentNcStatus === "aberta" && values.nonconformity_id) {
+    await updateNonconformity(values.nonconformity_id, { status: "em_tratamento" });
+  }
+  return created;
 }
 
 export async function updateAction(id, values) {

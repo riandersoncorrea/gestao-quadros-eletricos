@@ -6,6 +6,7 @@ import { listActionsForNC, createAction, updateAction, deleteAction } from "@/se
 import { listAssignableAdmins } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
 import { isOpenAction } from "@/domain/actionRules";
+import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,10 @@ export default function NonconformityDetail() {
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
   const addAction = useMutation({
-    mutationFn: () => createAction({ ...newAction, nonconformity_id: id, panel_id: nc.panel_id, prazo: newAction.prazo || null }),
+    mutationFn: () => createAction(
+      { ...newAction, nonconformity_id: id, panel_id: nc.panel_id, prazo: newAction.prazo || null },
+      { currentNcStatus: nc.status }
+    ),
     onSuccess: () => { invalidate(); setNewAction(null); toast.success("Ação criada"); },
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
@@ -83,6 +87,7 @@ export default function NonconformityDetail() {
   const st = NC_STATUS[nc.status] || NC_STATUS.aberta;
   const abertas = actions.filter((a) => isOpenAction(a.status));
   const atrasadas = actions.filter((a) => a.atrasada);
+  const suggestComplete = isOpenNonconformity(nc.status) && allActionsResolved(actions);
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -165,6 +170,18 @@ export default function NonconformityDetail() {
           )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {suggestComplete && canEdit && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-secondary/30 bg-secondary/10 px-3 py-2">
+              <p className="text-xs text-secondary flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />
+                Todas as ações foram encerradas.
+              </p>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => patchNC.mutate({ status: "concluida" })}>
+                Marcar NC como concluída
+              </Button>
+            </div>
+          )}
+
           {actions.length === 0 && !newAction && <p className="text-sm text-muted-foreground">Nenhuma ação registrada.</p>}
 
           {actions.map((a) => {
