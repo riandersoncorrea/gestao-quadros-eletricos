@@ -2,14 +2,13 @@ import React from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import AuthLayout from "@/components/AuthLayout";
-import { Hourglass, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 export default function PendingApproval() {
   const { user, logout } = useAuth();
 
   return (
     <AuthLayout
-      icon={Hourglass}
       title="Solicitação pendente"
       subtitle="Seu cadastro foi recebido e aguarda aprovação de um administrador"
     >

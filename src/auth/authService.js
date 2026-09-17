@@ -31,8 +31,18 @@ export function signInWithGoogle() {
   });
 }
 
-export async function signUp(email, password) {
-  const { error } = await supabase.auth.signUp({ email, password });
+/**
+ * `fullName` vai em `options.data.full_name` — o trigger `handle_new_user`
+ * (banco) já lê exatamente essa chave de `raw_user_meta_data` e grava em
+ * `profiles.full_name` na criação da linha. Nenhuma chamada extra aqui:
+ * é o mesmo mecanismo que já popula o nome para cadastros via Google.
+ */
+export async function signUp(email, password, fullName) {
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName } },
+  });
   if (error) throw error;
 }
 
