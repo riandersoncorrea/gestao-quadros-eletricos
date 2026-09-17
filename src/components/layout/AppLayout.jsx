@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import logoSistema from "@/assets/logo-sistema.png";
 
 const NAV_ITEMS = [
   { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "viewer"] },
@@ -73,9 +74,7 @@ export default function AppLayout() {
       <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border print:hidden">
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-sidebar-primary/20 flex items-center justify-center">
-              <Zap className="h-5 w-5 text-sidebar-primary" />
-            </div>
+            <img src={logoSistema} alt="" className="h-10 w-10 object-contain shrink-0" />
             <div>
               <h1 className="text-xs font-bold text-sidebar-foreground tracking-tight leading-tight">
                 Gestão de Quadros Elétricos
