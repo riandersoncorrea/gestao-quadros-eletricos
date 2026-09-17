@@ -7,6 +7,7 @@ import { panelAdherence } from "@/domain/adherence";
 import { isOpenNonconformity } from "@/domain/nonconformityRules";
 import { isOpenAction } from "@/domain/actionRules";
 import { healthBandKey } from "@/domain/healthIndex";
+import { LOCALIDADE_ALL, isWithinRange, matchesLocalidade } from "@/domain/dashboardFilters";
 import { format, subMonths, startOfMonth } from "date-fns";
 
 // sap_orders é legado (Importação SAP) e não tem repository próprio —
@@ -18,10 +19,11 @@ async function getSapOrdersRaw() {
 }
 
 /**
- * Agregados da Torre de Controle. Uma consulta por domínio (via repository);
- * o resto é computado no cliente.
+ * Busca os dados brutos usados pelo Dashboard, uma consulta por domínio
+ * (via repository). Cacheável: os filtros de localidade/período do Dashboard
+ * recortam esse mesmo resultado no cliente, sem refazer as consultas.
  */
-export async function fetchDashboardData() {
+export async function fetchDashboardRaw() {
   const [P, N, A, I, sapOrders, hierarchy] = await Promise.all([
     listPanelsForDashboard(),
     listStatusSeverityForDashboard(),
@@ -30,8 +32,26 @@ export async function fetchDashboardData() {
     getSapOrdersRaw(),
     fetchHierarchy(),
   ]);
+  return { P, N, A, I, sapOrders, hierarchy };
+}
+
+/**
+ * Agregados do Dashboard a partir dos dados brutos.
+ * filters: { localidadeId = "all", dateRange = null } — dateRange já resolvido
+ * ({ start, end } ou null para "todo o período").
+ */
+export function computeDashboardData(raw, filters = {}) {
+  const { P: P_all, N: N_all, A: A_all, I: I_all, sapOrders, hierarchy } = raw;
+  const { localidadeId = LOCALIDADE_ALL, dateRange = null } = filters;
 
   const locName = new Map((hierarchy.localidades || []).map((l) => [l.id, l.nome]));
+  const panelLocMap = new Map(P_all.map((p) => [p.id, p.localidade_id]));
+
+  // --- Recorte por localidade (dimensão presente em todos os domínios via panel_id) ---
+  const P = localidadeId === LOCALIDADE_ALL ? P_all : P_all.filter((p) => p.localidade_id === localidadeId);
+  const N = N_all.filter((n) => matchesLocalidade(n.panel_id, localidadeId, panelLocMap));
+  const A = A_all.filter((a) => matchesLocalidade(a.panel_id, localidadeId, panelLocMap));
+  const I = I_all.filter((i) => matchesLocalidade(i.panel_ref_id || i.panel_id, localidadeId, panelLocMap));
 
   // --- Índice de Saúde da carteira ---
   const withHI = P.filter((p) => p.health_index != null);
@@ -39,8 +59,8 @@ export async function fetchDashboardData() {
   const healthBands = { bom: 0, atencao: 0, critico: 0, semAvaliacao: 0 };
   for (const p of P) healthBands[healthBandKey(p.health_index)] += 1;
 
-  // --- NCs ---
-  const abertas = N.filter((n) => isOpenNonconformity(n.status));
+  // --- NCs (status atual + data de abertura, quando um período está selecionado) ---
+  const abertas = N.filter((n) => isOpenNonconformity(n.status) && isWithinRange(n.created_at, dateRange));
   const ncAbertas = abertas.length;
   const ncCriticas = abertas.filter((n) => n.severidade === "critica").length;
   const ncPorSeveridade = ["critica", "alta", "media", "baixa"].map((sev) => ({
@@ -59,20 +79,22 @@ export async function fetchDashboardData() {
   const acoesPendentes = A.filter((a) => isOpenAction(a.status)).length;
 
   // --- Aderência ao plano (geral e por localidade) ---
+  // Cálculo legado, ainda usado pelo Relatório executivo: sempre a partir dos
+  // dados completos (não recortados pelos filtros do Dashboard).
   const ordersByPanel = new Map();
   for (const o of sapOrders) {
     if (!ordersByPanel.has(o.panel_id)) ordersByPanel.set(o.panel_id, []);
     ordersByPanel.get(o.panel_id).push(o);
   }
   const inspByPanel = new Map();
-  for (const ins of I) {
+  for (const ins of I_all) {
     const pid = ins.panel_ref_id || ins.panel_id;
     if (!inspByPanel.has(pid)) inspByPanel.set(pid, []);
     inspByPanel.get(pid).push(ins);
   }
   let cumpridas = 0, due = 0;
   const adhByLoc = new Map();
-  for (const p of P) {
+  for (const p of P_all) {
     const a = panelAdherence(ordersByPanel.get(p.id) || [], inspByPanel.get(p.id) || []);
     cumpridas += a.cumpridas; due += a.due;
     if (p.localidade_id && a.due > 0) {
@@ -86,7 +108,8 @@ export async function fetchDashboardData() {
     .map((e) => ({ ...e, percent: Math.round((100 * e.cumpridas) / e.due) }))
     .sort((a, b) => a.percent - b.percent);
 
-  // --- Inspeções ao longo do tempo (6 meses) ---
+  // --- Inspeções ao longo do tempo (janela fixa de 6 meses; não afetada pelo
+  // filtro de período, que teria semântica ambígua com essa janela própria) ---
   const months = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(new Date(), 5 - i)));
   const inspPorMes = months.map((m) => {
     const key = format(m, "yyyy-MM");
@@ -96,6 +119,8 @@ export async function fetchDashboardData() {
       reprovadas: I.filter((ins) => ins.inspection_date && ins.inspection_date.slice(0, 7) === key && ins.overall_result === "reprovado").length,
     };
   });
+  // --- Inspeções realizadas no período selecionado (KPI "histórico") ---
+  const inspecoesNoPeriodo = I.filter((ins) => isWithinRange(ins.inspection_date, dateRange));
 
   // --- Ranking de quadros prioritários ---
   const ncByPanel = new Map();
@@ -128,8 +153,16 @@ export async function fetchDashboardData() {
     inspPorMes,
     ranking,
     inspecoesVencidas,
-    inspecoesTotais: I.length,
+    inspecoesTotais: inspecoesNoPeriodo.length,
   };
+}
+
+/**
+ * Agregados do Dashboard sem filtros — usado pelo Relatório executivo.
+ */
+export async function fetchDashboardData() {
+  const raw = await fetchDashboardRaw();
+  return computeDashboardData(raw);
 }
 
 /**

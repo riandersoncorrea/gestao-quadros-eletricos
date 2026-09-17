@@ -44,7 +44,7 @@ export async function getStatusForPanel(panelId) {
 }
 
 export async function listAllForDashboard() {
-  const { data, error } = await supabase.from("v_actions").select("id, status, atrasada, prazo");
+  const { data, error } = await supabase.from("v_actions").select("id, panel_id, status, atrasada, prazo");
   if (error) throw error;
   return data;
 }
