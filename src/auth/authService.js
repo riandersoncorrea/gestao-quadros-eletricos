@@ -83,6 +83,7 @@ export async function getCurrentUser() {
     // Perfil (banco) é a fonte canônica; metadata da sessão (OAuth) cobre o
     // caso de cadastros ainda não capturados por lá.
     full_name: profile?.full_name || authUser.user_metadata?.full_name || '',
+    avatar_url: profile?.avatar_url || null,
     role: profile?.role || 'viewer',
     approved: profile?.approved ?? false,
   };

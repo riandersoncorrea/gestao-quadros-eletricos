@@ -8,6 +8,13 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
+  const refreshUser = useCallback(async () => {
+    const nextUser = await getCurrentUser();
+    setUser(nextUser);
+    setIsAuthenticated(!!nextUser);
+    return nextUser;
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -38,6 +45,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       isLoadingAuth,
       logout,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

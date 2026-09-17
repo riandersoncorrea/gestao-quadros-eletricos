@@ -31,6 +31,7 @@ import NonconformityDetail from '@/pages/NonconformityDetail';
 import ActionList from '@/pages/ActionList';
 import ExecutiveReport from '@/pages/ExecutiveReport';
 import AuditLog from '@/pages/AuditLog';
+import Profile from '@/pages/Profile';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -65,6 +66,7 @@ const AuthenticatedApp = () => {
           <Route path="/inspecoes/nova" element={<InspectionForm />} />
           <Route path="/inspecoes/:id" element={<InspectionDetail />} />
           <Route path="/informacoes" element={<InfoFundamentais />} />
+          <Route path="/perfil" element={<Profile />} />
 
           {/* Editor não tem acesso: Painel, Não Conformidades, Ações, Relatório */}
           <Route element={<RoleRoute allow={['admin', 'viewer']} />}>

@@ -23,6 +23,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -112,19 +113,26 @@ export default function AppLayout() {
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-8 w-8 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-xs font-bold text-sidebar-primary">
-              {user?.full_name?.[0]?.toUpperCase() || "U"}
-            </div>
+          <Link
+            to="/perfil"
+            className="flex items-center gap-3 mb-3 -mx-1 px-1 py-1 rounded-lg cursor-pointer hover:bg-sidebar-accent transition-colors group"
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={user?.avatar_url || undefined} alt={user?.full_name || user?.email} />
+              <AvatarFallback className="bg-sidebar-primary/20 text-xs font-bold text-sidebar-primary">
+                {(user?.full_name || user?.email || "U")[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-sidebar-foreground truncate">
+              <p className="text-xs font-medium text-sidebar-foreground truncate group-hover:underline">
                 {user?.full_name || user?.email}
               </p>
               <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", roleBadgeColor[userRole])}>
                 {roleLabel[userRole]}
               </span>
             </div>
-          </div>
+            <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60 shrink-0" />
+          </Link>
           <Button
             variant="ghost"
             size="sm"
@@ -186,6 +194,27 @@ export default function AppLayout() {
                 ))}
               </nav>
               <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-sidebar-border">
+                <Link
+                  to="/perfil"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 mb-3 -mx-1 px-1 py-1 rounded-lg cursor-pointer hover:bg-sidebar-accent transition-colors"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.avatar_url || undefined} alt={user?.full_name || user?.email} />
+                    <AvatarFallback className="bg-sidebar-primary/20 text-xs font-bold text-sidebar-primary">
+                      {(user?.full_name || user?.email || "U")[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-sidebar-foreground truncate">
+                      {user?.full_name || user?.email}
+                    </p>
+                    <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", roleBadgeColor[userRole])}>
+                      {roleLabel[userRole]}
+                    </span>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30 shrink-0" />
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"
