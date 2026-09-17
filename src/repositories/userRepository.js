@@ -43,6 +43,23 @@ export async function updateApproval(id, approved) {
   if (error) throw error;
 }
 
+/**
+ * Administradores aprovados, para preencher o seletor de responsável de
+ * ações (só admins podem ser atribuídos). Esta página só é alcançável por
+ * admins (RoleRoute), então a policy "Admins can view all profiles" já
+ * cobre a leitura — nenhuma mudança de RLS foi necessária.
+ */
+export async function listApprovedAdmins() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name")
+    .eq("role", "admin")
+    .eq("approved", true)
+    .order("full_name", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function countPending() {
   const { count, error } = await supabase
     .from("profiles")

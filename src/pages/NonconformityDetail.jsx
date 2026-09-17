@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getNonconformity, updateNonconformity } from "@/services/ncService";
 import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
+import { listAssignableAdmins } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
 import { isOpenAction } from "@/domain/actionRules";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
@@ -38,6 +39,7 @@ export default function NonconformityDetail() {
   const { data: nc, isLoading } = useQuery({ queryKey: ["nc", id], queryFn: () => getNonconformity(id) });
   const { data: actions = [] } = useQuery({ queryKey: ["nc-actions", id], queryFn: () => listActionsForNC(id) });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
+  const { data: admins = [] } = useQuery({ queryKey: ["assignable-admins"], queryFn: listAssignableAdmins, enabled: canEdit });
   const panel = panels.find((p) => p.id === nc?.panel_id);
 
   const invalidate = () => {
@@ -99,7 +101,7 @@ export default function NonconformityDetail() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Descrição</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Detalhes</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{nc.descricao}</p>
           {nc.categoria && <p className="text-xs text-muted-foreground">Categoria: {nc.categoria}</p>}
@@ -121,36 +123,33 @@ export default function NonconformityDetail() {
           {nc.evidencia_url && (
             <a href={nc.evidencia_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">ver evidência</a>
           )}
+
+          {canEdit && (
+            <div className="grid gap-3 sm:grid-cols-2 pt-3 mt-1 border-t border-border">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={nc.status} onValueChange={(v) => patchNC.mutate({ status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(NC_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Severidade</Label>
+                <Select value={nc.severidade} onValueChange={(v) => patchNC.mutate({ severidade: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(SEV).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs">Recomendação</Label>
+                <Textarea rows={2} defaultValue={nc.recomendacao || ""}
+                  onBlur={(e) => { if (e.target.value !== (nc.recomendacao || "")) patchNC.mutate({ recomendacao: e.target.value || null }); }}
+                  placeholder="Ação recomendada" />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {canEdit && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Tratativa</CardTitle></CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Status</Label>
-              <Select value={nc.status} onValueChange={(v) => patchNC.mutate({ status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(NC_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Severidade</Label>
-              <Select value={nc.severidade} onValueChange={(v) => patchNC.mutate({ severidade: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(SEV).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs">Recomendação</Label>
-              <Textarea rows={2} defaultValue={nc.recomendacao || ""}
-                onBlur={(e) => { if (e.target.value !== (nc.recomendacao || "")) patchNC.mutate({ recomendacao: e.target.value || null }); }}
-                placeholder="Ação recomendada" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader className="pb-3 flex-row items-center justify-between">
@@ -200,8 +199,25 @@ export default function NonconformityDetail() {
               <Textarea rows={2} placeholder="O que precisa ser feito" value={newAction.descricao}
                 onChange={(e) => setNewAction((s) => ({ ...s, descricao: e.target.value }))} />
               <div className="grid gap-2 sm:grid-cols-2">
-                <Input placeholder="Responsável" value={newAction.responsavel}
-                  onChange={(e) => setNewAction((s) => ({ ...s, responsavel: e.target.value }))} />
+                <div className="space-y-1">
+                  <Select
+                    value={newAction.responsavel}
+                    onValueChange={(v) => setNewAction((s) => ({ ...s, responsavel: v }))}
+                    disabled={admins.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={admins.length === 0 ? "Nenhum administrador disponível" : "Selecione um administrador"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {admins.map((a) => (
+                        <SelectItem key={a.id} value={a.full_name || a.email}>{a.full_name || a.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {admins.length === 0 && (
+                    <p className="text-[11px] text-destructive">Nenhum administrador disponível para atribuição.</p>
+                  )}
+                </div>
                 <Input type="date" value={newAction.prazo}
                   onChange={(e) => setNewAction((s) => ({ ...s, prazo: e.target.value }))} />
               </div>

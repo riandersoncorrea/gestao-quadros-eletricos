@@ -31,3 +31,8 @@ export async function updateUserApproval(id, approved) {
 export async function countPendingUsers() {
   return userRepository.countPending();
 }
+
+/** Administradores aprovados disponíveis para serem responsáveis por uma ação. */
+export async function listAssignableAdmins() {
+  return userRepository.listApprovedAdmins();
+}
