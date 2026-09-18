@@ -98,7 +98,7 @@ export default function InspectionDetail() {
           <Button variant="ghost" size="icon" className="print:hidden" onClick={() => navigate("/inspecoes")}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight">{insp.panel_name || "Inspeção"}</h1>
+              <h1 className="text-xl font-bold tracking-tight text-primary">{insp.panel_name || "Inspeção"}</h1>
               <Badge variant="outline" className={`text-xs ${res.cls}`}><ResIcon className="h-3 w-3 mr-1" />{res.label}</Badge>
               {insp.health_index_resultado != null && (
                 <Badge variant="outline" className={`text-xs ${healthCls(insp.health_index_resultado)}`}>

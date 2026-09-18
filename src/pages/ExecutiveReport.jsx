@@ -36,7 +36,7 @@ export default function ExecutiveReport() {
       </div>
 
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Relatório Executivo — Integridade de Quadros BT</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Relatório Executivo — Integridade de Quadros BT</h1>
         <p className="text-sm text-muted-foreground">Serviços Operacionais · São Luís EFC · gerado em {hoje}</p>
       </div>
 

@@ -92,7 +92,7 @@ export default function InspectionList() {
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Checklists de Inspeção</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">Checklists de Inspeção</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Inspeções baseadas nas normas NR-10 e NBR 5410
           </p>

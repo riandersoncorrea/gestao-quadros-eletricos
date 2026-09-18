@@ -99,7 +99,7 @@ export default function NonconformityList() {
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Não Conformidades</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">Não Conformidades</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {panelParam
               ? <>Filtrado por quadro <span className="font-mono">{panelName.get(panelParam) || panelParam}</span> · <Link to="/nao-conformidades" className="text-primary hover:underline">limpar</Link></>

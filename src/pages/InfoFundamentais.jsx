@@ -256,7 +256,7 @@ export default function InfoFundamentais() {
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Informações Fundamentais</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Informações Fundamentais</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Processo de Gerenciamento de Quadros Elétricos em Áreas Administrativas
         </p>

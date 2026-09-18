@@ -168,7 +168,7 @@ export default function PanelDetail() {
           </Button>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">{panel.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-primary">{panel.name}</h1>
               <StatusBadge status={panel.status} />
               {panel.criticality && (
                 <Badge variant="outline" className={`text-xs ${CRITICALITY_STYLE[panel.criticality]}`}>

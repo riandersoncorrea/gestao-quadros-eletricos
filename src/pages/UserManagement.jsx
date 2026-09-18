@@ -69,7 +69,7 @@ export default function UserManagement() {
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Usuários</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Usuários</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {pendingCount > 0
             ? <>{pendingCount} solicitação(ões) pendente(s) de aprovação · defina o perfil de acesso de cada usuário cadastrado.</>

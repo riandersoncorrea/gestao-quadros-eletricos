@@ -95,7 +95,7 @@ export default function NonconformityDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/nao-conformidades")}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">Não-conformidade</h1>
+            <h1 className="text-xl font-bold tracking-tight text-primary">Não-conformidade</h1>
             <Badge variant="outline" className={`text-xs ${sev.cls}`}>{sev.label}</Badge>
             <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>
           </div>

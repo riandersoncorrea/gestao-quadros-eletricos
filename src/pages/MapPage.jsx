@@ -82,7 +82,7 @@ export default function MapPage() {
   return (
     <div className="p-4 lg:p-8 space-y-4 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Mapa</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Mapa</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {placedCount} de {filtered.length} quadros posicionados
           {unplaced.length > 0 && ` · ${unplaced.length} sem coordenada`}
