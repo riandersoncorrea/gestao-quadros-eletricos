@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import AvatarCropDialog from "@/components/profile/AvatarCropDialog";
 import { toast } from "sonner";
 import { Camera, Lock } from "lucide-react";
 
@@ -24,6 +25,7 @@ export default function Profile() {
   const [fullName, setFullName] = useState(user?.full_name || "");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [cropSource, setCropSource] = useState(null);
 
   const mutation = useMutation({
     mutationFn: () => updateOwnProfile({ fullName, avatarFile, currentAvatarUrl: user?.avatar_url }),
@@ -40,8 +42,20 @@ export default function Profile() {
   const handlePickAvatar = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    setCropSource({ src: URL.createObjectURL(file), file });
+  };
+
+  const closeCropDialog = () => {
+    if (cropSource) URL.revokeObjectURL(cropSource.src);
+    setCropSource(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCropConfirm = (croppedFile) => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarFile(croppedFile);
+    setAvatarPreview(URL.createObjectURL(croppedFile));
+    closeCropDialog();
   };
 
   const initials = (fullName || user.email || "U")[0].toUpperCase();
@@ -76,6 +90,13 @@ export default function Profile() {
                 <Camera className="h-3.5 w-3.5" />
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePickAvatar} />
+              <AvatarCropDialog
+                open={!!cropSource}
+                imageSrc={cropSource?.src}
+                originalFile={cropSource?.file}
+                onCancel={closeCropDialog}
+                onConfirm={handleCropConfirm}
+              />
             </div>
             <div>
               <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
