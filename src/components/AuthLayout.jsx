@@ -3,7 +3,7 @@ import logoSistema from "@/assets/logo-sistema.png";
 
 export default function AuthLayout({ title, subtitle, footer, children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center lg:justify-between bg-sidebar px-4 py-10 lg:px-20 xl:px-28 gap-12">
+    <div className="min-h-screen flex items-center justify-center bg-sidebar px-4 py-10 gap-16">
       {/* Marca — flutua direto no fundo teal, sem caixa própria; só em
           telas grandes. No mobile a versão compacta aparece acima do
           formulário. */}
