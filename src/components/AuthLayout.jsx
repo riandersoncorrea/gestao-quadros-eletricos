@@ -8,7 +8,7 @@ export default function AuthLayout({ title, subtitle, footer, children }) {
           telas grandes. No mobile a versão compacta aparece acima do
           formulário. */}
       <div className="hidden lg:flex flex-col items-start shrink-0">
-        <img src={logoSistema} alt="Gestão de Quadros Elétricos" className="h-44 w-44 object-contain mb-4" />
+        <img src={logoSistema} alt="Gestão de Quadros Elétricos" className="h-64 w-64 object-contain mb-4" />
         <p className="text-4xl font-bold tracking-tight text-primary leading-tight">Gestão de<br />Quadros Elétricos</p>
         <p className="text-sm text-sidebar-foreground/70 mt-2">Serv. Operacionais · São Luís EFC</p>
       </div>
