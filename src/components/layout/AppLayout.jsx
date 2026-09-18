@@ -19,7 +19,8 @@ import {
   Gauge,
   FileWarning,
   ListChecks,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { path: "/inspecoes", icon: ClipboardCheck, label: "Checklists", roles: ["admin", "editor", "viewer"] },
   { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "viewer"] },
   { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "viewer"] },
+  { path: "/analise-inteligente", icon: Sparkles, label: "Análise Inteligente", roles: ["admin", "viewer"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
   { path: "/config/indice-saude", icon: Gauge, label: "Índice de Saúde", roles: ["admin"] },

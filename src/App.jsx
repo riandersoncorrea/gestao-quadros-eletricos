@@ -30,6 +30,7 @@ import NonconformityList from '@/pages/NonconformityList';
 import NonconformityDetail from '@/pages/NonconformityDetail';
 import ActionList from '@/pages/ActionList';
 import ExecutiveReport from '@/pages/ExecutiveReport';
+import IntelligentAnalysis from '@/pages/IntelligentAnalysis';
 import AuditLog from '@/pages/AuditLog';
 import Profile from '@/pages/Profile';
 
@@ -75,6 +76,7 @@ const AuthenticatedApp = () => {
             <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
             <Route path="/acoes" element={<ActionList />} />
             <Route path="/relatorio" element={<ExecutiveReport />} />
+            <Route path="/analise-inteligente" element={<IntelligentAnalysis />} />
           </Route>
 
           {/* Editor não tem acesso: QR Codes (agora só admin) */}

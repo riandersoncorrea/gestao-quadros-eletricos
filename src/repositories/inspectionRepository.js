@@ -109,6 +109,24 @@ export async function listForDashboard() {
   return data;
 }
 
+/** Inspeções para a Análise Inteligente dos Dados: inclui o Índice de Saúde por inspeção (não usado no Dashboard). */
+export async function listForAnalysis() {
+  const { data, error } = await supabase
+    .from("inspections")
+    .select("id, inspection_date, overall_result, status, panel_ref_id, panel_id, health_index_resultado");
+  if (error) throw error;
+  return data;
+}
+
+/** Todas as respostas de checklist (todas as inspeções) — usado para agregações client-side na Análise Inteligente dos Dados. */
+export async function listAllResponses() {
+  const { data, error } = await supabase
+    .from("inspection_responses")
+    .select("id, inspection_id, template_item_id, modulo, titulo, resposta");
+  if (error) throw error;
+  return data;
+}
+
 export async function getForAdherence(panelId) {
   const { data, error } = await supabase
     .from("inspections")
