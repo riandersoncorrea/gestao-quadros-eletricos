@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import logoSistema from "@/assets/logo-sistema.png";
+import logoGerencia from "@/assets/sao-luis-efc-logo.png";
 
 const NAV_ITEMS = [
   { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "viewer"] },
@@ -150,9 +151,19 @@ export default function AppLayout() {
             <img src={logoSistema} alt="" className="h-7 w-7 object-contain shrink-0" />
             <span className="text-sm font-bold">Quadros Elétricos</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-3">
+            <img src={logoGerencia} alt="Gerência de Serviços Operacionais — São Luís EFC" className="h-7 w-auto object-contain" />
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
+        </header>
+
+        {/* Desktop top bar — faixa dedicada para a marca da Gerência, para
+            nunca disputar espaço com botões de ação (ex.: "Novo") que as
+            páginas posicionam no canto superior direito do conteúdo. */}
+        <header className="hidden lg:flex items-center justify-end h-14 px-6 bg-card border-b border-border shrink-0 print:hidden">
+          <img src={logoGerencia} alt="Gerência de Serviços Operacionais — São Luís EFC" className="h-10 w-auto object-contain" />
         </header>
 
         {/* Mobile Nav Overlay */}

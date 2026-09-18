@@ -1,9 +1,16 @@
 import React from "react";
 import logoSistema from "@/assets/logo-sistema.png";
+import logoGerencia from "@/assets/sao-luis-efc-logo.png";
 
 export default function AuthLayout({ title, subtitle, footer, children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sidebar px-4 py-10 gap-16">
+    <div className="relative min-h-screen flex items-center justify-center bg-sidebar px-4 py-10 gap-16">
+      <img
+        src={logoGerencia}
+        alt="Gerência de Serviços Operacionais — São Luís EFC"
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 h-10 sm:h-12 w-auto object-contain"
+      />
+
       {/* Marca — flutua direto no fundo teal, sem caixa própria; só em
           telas grandes. No mobile a versão compacta aparece acima do
           formulário. */}
