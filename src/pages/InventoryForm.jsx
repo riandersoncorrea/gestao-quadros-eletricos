@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { uploadFile } from "@/storage/storageService";
+import {
+  MAX_DIAGRAMS,
+  listDiagrams,
+  uploadDiagramFile,
+  attachDiagrams,
+  removeDiagram,
+  discardUploadedFile,
+} from "@/services/panelAttachmentService";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +19,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { useUserRole } from "@/hooks/useUserRole";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Save, ArrowLeft, Upload, MapPin, Loader2, Zap, Hash, Database } from "lucide-react";
+import { Save, ArrowLeft, Upload, MapPin, Loader2, Zap, Hash, Database, FileText, X } from "lucide-react";
 
 const SITE_PREFIX = { porto: "PRT", oficina: "OFC", pelotizacao: "PEL" };
 
@@ -41,7 +50,7 @@ const EMPTY_FORM = {
   panel_type: "", panel_type_custom: "", voltage_nominal: "", current_nominal: "",
   frequency_hz: "60hz", power_supply: "", main_breaker_type: "", main_breaker_capacity: "", main_breaker_brand: "", phases: "",
   circuit_count: "", has_dr: false, has_dps: false, has_grounding: false,
-  diagram_status: "inexistente", diagram_url: "", photo_url: "", installation_date: "",
+  diagram_status: "inexistente", photo_url: "", installation_date: "",
   last_inspection_date: "", next_inspection_date: "", inspection_frequency: "",
   sap_functional_location: "", sap_equipment_number: "",
   latitude: "", longitude: "", status: "ativo", responsible_engineer: "Francisco Josadack", notes: "",
@@ -55,13 +64,20 @@ export default function InventoryForm() {
   const isEditing = !!id;
   const criticidadeLocked = !isEditing && !isAdmin;
   const [form, setForm] = useState(EMPTY_FORM);
-  const [uploading, setUploading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [pendingDiagrams, setPendingDiagrams] = useState([]);
+  const [diagramUploading, setDiagramUploading] = useState(false);
 
   const { data: panels } = useQuery({
     queryKey: ["panel", id],
     queryFn: () => ElectricalPanel.filter({ id }),
     enabled: !!id,
+  });
+
+  const { data: savedDiagrams = [] } = useQuery({
+    queryKey: ["panel-attachments", id],
+    queryFn: () => listDiagrams(id),
+    enabled: isEditing,
   });
 
   const { data: allPanels = [] } = useQuery({
@@ -104,6 +120,20 @@ export default function InventoryForm() {
   const sublocalName = useMemo(() => (hierarchy?.sublocais || []).find(s => s.id === form.sublocal_id)?.nome || "", [hierarchy, form.sublocal_id]);
   const nameSuffix = localName && sublocalName ? `${localName}_${sublocalName}` : "";
 
+  // Diagramas unifilares: legado (electrical_panels.diagram_url, só leitura,
+  // preservado para quadros antigos) + anexos novos (panel_attachments) +
+  // pendentes (Criar Quadro: já enviados ao Storage, mas só viram linha na
+  // tabela depois que o quadro existe — ver mutationFn abaixo).
+  const legacyDiagramUrl = panels?.[0]?.diagram_url || "";
+  const hasLegacyDiagram = !!legacyDiagramUrl;
+  const allDiagramItems = useMemo(() => [
+    ...(hasLegacyDiagram ? [{ key: "legacy", source: "legacy", file_url: legacyDiagramUrl, file_name: "Diagrama Unifilar (legado)" }] : []),
+    ...savedDiagrams.map(a => ({ key: a.id, source: "attachment", id: a.id, file_url: a.file_url, file_name: a.file_name || "Diagrama" })),
+    ...pendingDiagrams.map((p, i) => ({ key: `pending-${i}`, source: "pending", file_url: p.file_url, file_name: p.file_name })),
+  ], [hasLegacyDiagram, legacyDiagramUrl, savedDiagrams, pendingDiagrams]);
+  const diagramCount = allDiagramItems.length;
+  const diagramLimitReached = diagramCount >= MAX_DIAGRAMS;
+
   const mutation = useMutation({
     mutationFn: async (data) => {
       const clean = { ...data };
@@ -128,7 +158,13 @@ export default function InventoryForm() {
         return ElectricalPanel.update(id, { ...clean, name: `${tag} / ${nameSuffix}` });
       }
       const created = await ElectricalPanel.create(clean);
-      return ElectricalPanel.update(created.id, { name: `${created.tag} / ${nameSuffix}` });
+      const updated = await ElectricalPanel.update(created.id, { name: `${created.tag} / ${nameSuffix}` });
+      // Quadro novo: só agora ele existe, então os diagramas selecionados
+      // antes de salvar (já enviados ao Storage) podem virar anexos de fato.
+      if (pendingDiagrams.length > 0) {
+        await attachDiagrams(created.id, pendingDiagrams, { attachments: [], hasLegacyDiagram: false });
+      }
+      return updated;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["panels"] });
@@ -140,15 +176,61 @@ export default function InventoryForm() {
     onError: () => toast.error("Erro ao salvar o quadro"),
   });
 
-  const handleFileUpload = async (e, field) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const setLoad = field === "diagram_url" ? setUploading : setUploadingPhoto;
-    setLoad(true);
+    setUploadingPhoto(true);
     const { file_url } = await uploadFile({ file });
-    setForm(prev => ({ ...prev, [field]: file_url }));
-    setLoad(false);
+    setForm(prev => ({ ...prev, photo_url: file_url }));
+    setUploadingPhoto(false);
     toast.success("Arquivo enviado!");
+  };
+
+  const handleDiagramFilesSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const remaining = MAX_DIAGRAMS - diagramCount;
+    if (files.length > remaining) {
+      toast.error(remaining <= 0
+        ? `Limite de ${MAX_DIAGRAMS} diagramas por quadro atingido.`
+        : `Só é possível adicionar mais ${remaining} diagrama(s) (limite de ${MAX_DIAGRAMS}).`);
+      return;
+    }
+    setDiagramUploading(true);
+    try {
+      const uploaded = [];
+      for (const file of files) {
+        uploaded.push(await uploadDiagramFile(file));
+      }
+      if (isEditing) {
+        const created = await attachDiagrams(id, uploaded, { attachments: savedDiagrams, hasLegacyDiagram });
+        queryClient.setQueryData(["panel-attachments", id], (prev = []) => [...prev, ...created]);
+      } else {
+        setPendingDiagrams(prev => [...prev, ...uploaded]);
+      }
+      toast.success(uploaded.length > 1 ? "Diagramas enviados!" : "Diagrama enviado!");
+    } catch (err) {
+      toast.error(err.message || "Erro ao enviar diagrama(s)");
+    } finally {
+      setDiagramUploading(false);
+    }
+  };
+
+  const handleRemoveDiagram = async (item) => {
+    if (item.source === "legacy") return;
+    if (item.source === "attachment") {
+      try {
+        await removeDiagram(item);
+        queryClient.setQueryData(["panel-attachments", id], (prev = []) => prev.filter(a => a.id !== item.id));
+        toast.success("Diagrama removido!");
+      } catch {
+        toast.error("Erro ao remover diagrama");
+      }
+      return;
+    }
+    await discardUploadedFile(item.file_url);
+    setPendingDiagrams(prev => prev.filter(p => p.file_url !== item.file_url));
   };
 
   const getMyLocation = () => {
@@ -558,20 +640,61 @@ export default function InventoryForm() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Upload do Diagrama Unifilar</Label>
-              <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Selecionar arquivo (PDF ou imagem)"}</span>
-                <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => handleFileUpload(e, "diagram_url")} />
+              <Label>Diagramas Unifilares ({diagramCount}/{MAX_DIAGRAMS})</Label>
+              {allDiagramItems.length > 0 && (
+                <ul className="space-y-1.5">
+                  {allDiagramItems.map(item => (
+                    <li key={item.key} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm">
+                      <a
+                        href={item.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 min-w-0 text-secondary hover:underline"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{item.file_name}</span>
+                      </a>
+                      {item.source === "legacy" ? (
+                        <span className="text-[10px] text-muted-foreground shrink-0">legado</span>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          onClick={() => handleRemoveDiagram(item)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <label className={cn(
+                "flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg w-fit transition-colors",
+                diagramLimitReached || diagramUploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"
+              )}>
+                {diagramUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                <span className="text-sm text-muted-foreground">
+                  {diagramUploading ? "Enviando..." : diagramLimitReached ? "Limite de 5 diagramas atingido" : "Selecionar diagramas (PDF ou imagem)"}
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept="image/*,.pdf"
+                  disabled={diagramLimitReached || diagramUploading}
+                  onChange={handleDiagramFilesSelected}
+                />
               </label>
-              {form.diagram_url && <p className="text-xs text-secondary font-medium">✓ Diagrama enviado</p>}
             </div>
             <div className="space-y-2">
               <Label>Foto do Quadro{isEditing ? "" : " *"}</Label>
               <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
                 {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 <span className="text-sm text-muted-foreground">{uploadingPhoto ? "Enviando..." : "Selecionar foto"}</span>
-                <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, "photo_url")} />
+                <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
               </label>
               {form.photo_url && <p className="text-xs text-secondary font-medium">✓ Foto enviada</p>}
             </div>
