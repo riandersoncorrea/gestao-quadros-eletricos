@@ -2,7 +2,8 @@ import path from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// GitHub Pages serves this project at /<repo>/, Netlify serves it at /.
+// GitHub Pages (the only production deploy) serves this project at
+// /<repo>/; everything else (local dev, `vite preview`) serves it at /.
 const base = process.env.GITHUB_PAGES === 'true' ? '/gestao-quadros-eletricos/' : '/'
 
 // https://vite.dev/config/

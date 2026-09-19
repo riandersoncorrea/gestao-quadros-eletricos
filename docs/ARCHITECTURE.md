@@ -9,7 +9,7 @@
 
 ## 1. Resumo executivo
 
-O sistema é um SPA React servido estaticamente (GitHub Pages + Netlify) que fala **diretamente** com o Supabase (Postgres + Auth + Storage) a partir do navegador. Não existe backend próprio: toda regra de acesso é imposta por RLS no Postgres, e boa parte da lógica de negócio roda no cliente, dentro de módulos `src/api/*.js` e, em alguns pontos, dentro das próprias páginas React.
+O sistema é um SPA React servido estaticamente (GitHub Pages) que fala **diretamente** com o Supabase (Postgres + Auth + Storage) a partir do navegador. Não existe backend próprio: toda regra de acesso é imposta por RLS no Postgres, e boa parte da lógica de negócio roda no cliente, dentro de módulos `src/api/*.js` e, em alguns pontos, dentro das próprias páginas React.
 
 Isso funciona bem para o MVP atual, mas cria três acoplamentos fortes que a refatoração pretende afrouxar (sem trocar nada agora):
 
@@ -437,8 +437,7 @@ As policies de `SELECT` da maioria das tabelas usam `using (true)` para qualquer
 
 ## 12. Deploy e ambiente (contexto, sem alteração)
 
-- **GitHub Pages**: workflow `.github/workflows/deploy-pages.yml`, dispara só em push para `main` (não roda nesta branch). Usa `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` como *Actions variables* (não secrets) — intencional, pois são valores públicos por natureza no client-side.
-- **Netlify**: sem arquivo de configuração commitado no repositório (`netlify.toml` não existe) — configuração deve estar no próprio painel do Netlify.
+- **GitHub Pages** (único ambiente de produção): workflow `.github/workflows/deploy-pages.yml`, dispara só em push para `main` (não roda nesta branch). Usa `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` como *Actions variables* (não secrets) — intencional, pois são valores públicos por natureza no client-side.
 - **Variáveis de ambiente**: só `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (`.env.local.example`), ambas seguras para o bundle do cliente.
 - **Scripts disponíveis**: `npm run lint` (ESLint), `npm run typecheck` (`tsc -p jsconfig.json`, checkJs sobre `src/pages/**/*.jsx` e `src/components/**/*.js`), `npm run build` (Vite).
 

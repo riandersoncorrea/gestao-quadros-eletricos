@@ -21,11 +21,8 @@ Veja `supabase/README.md` para os passos de configuração de autenticação (Go
 
 **Deploy**
 
-O app está publicado em dois lugares, ambos com deploy automático a cada push na branch `main`:
+Hospedagem atual: **GitHub Pages** — https://riandersoncorrea.github.io/gestao-quadros-eletricos/ (deploy automático a cada push na branch `main`, workflow em `.github/workflows/deploy-pages.yml`; usa as GitHub Actions *variables* `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`).
 
-- **Netlify** — https://gestao-quadros-eletricos.netlify.app (config de build no próprio painel Netlify; SPA fallback em `public/_redirects`)
-- **GitHub Pages** — https://riandersoncorrea.github.io/gestao-quadros-eletricos/ (workflow em `.github/workflows/deploy-pages.yml`; usa as GitHub Actions *variables* `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`)
-
-O Pages serve o app num subcaminho (`/gestao-quadros-eletricos/`); o `base` do Vite só muda quando `GITHUB_PAGES=true`, então o Netlify (na raiz) não é afetado.
+O Pages serve o app num subcaminho (`/gestao-quadros-eletricos/`); o `base` do Vite só muda quando `GITHUB_PAGES=true` (fora disso, `base` é `/`, usado no dev local e no `npm run preview`).
 
 Ao adicionar um novo domínio de deploy, lembre de cadastrá-lo em **Supabase → Authentication → URL Configuration → Redirect URLs** e em **Google Cloud → OAuth Client → Origens JavaScript autorizadas**.

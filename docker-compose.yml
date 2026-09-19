@@ -1,6 +1,6 @@
 # Executa a SPA em contêiner localmente, do mesmo jeito que rodaria em
 # produção (Azure App Service ou outra infraestrutura corporativa). Não
-# afeta o deploy atual (GitHub Pages / Netlify).
+# afeta o deploy atual (GitHub Pages, único ambiente de produção).
 #
 # Uso:
 #   cp .env.local.example .env.docker   # preencher com valores reais

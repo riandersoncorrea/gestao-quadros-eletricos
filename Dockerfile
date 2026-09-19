@@ -1,8 +1,8 @@
 # Build portátil da SPA (Vite/React) para hospedagem em contêiner — ex.:
 # Azure App Service (Web App for Containers) ou outra infraestrutura
-# corporativa. Não substitui o deploy atual (GitHub Pages via
-# .github/workflows/deploy-pages.yml, Netlify via painel próprio) — é uma
-# terceira opção, em paralelo.
+# corporativa. Não substitui o deploy atual (GitHub Pages, único ambiente
+# de produção, via .github/workflows/deploy-pages.yml) — é uma opção
+# alternativa, em paralelo.
 
 # ---- build ------------------------------------------------------------
 FROM node:20-alpine AS build
