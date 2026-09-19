@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleRoute from '@/components/RoleRoute';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -98,9 +99,11 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router basename={import.meta.env.BASE_URL}>
-          <AuthenticatedApp />
-        </Router>
+        <ErrorBoundary>
+          <Router basename={import.meta.env.BASE_URL}>
+            <AuthenticatedApp />
+          </Router>
+        </ErrorBoundary>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>
