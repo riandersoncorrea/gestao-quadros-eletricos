@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { computeVigentesByPanel } from "@/domain/inspectionRules";
 import { buildInspectedPanelsReport } from "@/domain/inspectedPanelsReport";
-import { exportInspectedPanelsPdf } from "@/services/inspectedPanelsPdfService";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock, FileDown } from "lucide-react";
@@ -118,6 +117,9 @@ export default function InspectionList() {
         ? "Todas as localidades"
         : (localidades.find((l) => l.id === localidadeFilter)?.nome || "—");
       const periodLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label || "Todo o período";
+      // jsPDF é pesado e usado só por este botão — carregado sob demanda
+      // no clique, não no carregamento da listagem de Checklists.
+      const { exportInspectedPanelsPdf } = await import("@/services/inspectedPanelsPdfService");
       await exportInspectedPanelsPdf(report, { filtrosLabel: `Localidade: ${localidadeLabel} · Período: ${periodLabel}` });
       toast.success("Relatório gerado!");
     } catch {

@@ -5,7 +5,6 @@ import {
   ANALYSIS_PERIOD_OPTIONS, STATUS_OPTIONS, LOCALIDADE_ALL,
   resolveAnalysisPeriodRange, validateCustomRange,
 } from "@/domain/intelligentAnalysisFilters";
-import { exportIntelligentAnalysisPdf } from "@/services/intelligentAnalysisPdfService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +151,9 @@ export default function IntelligentAnalysis() {
     if (!analysis?.hasData) return;
     setExporting(true);
     try {
+      // jsPDF + html2canvas são pesados e usados só por este botão —
+      // carregados sob demanda no clique, não no carregamento da página.
+      const { exportIntelligentAnalysisPdf } = await import("@/services/intelligentAnalysisPdfService");
       await exportIntelligentAnalysisPdf({ analysis, filters, localidades, panelOptions });
       toast.success("Relatório PDF gerado!");
     } catch (err) {

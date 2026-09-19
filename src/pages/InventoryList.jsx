@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import * as XLSX from "xlsx";
 import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { appUrl } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -120,7 +119,10 @@ export default function InventoryList() {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
   React.useEffect(() => { setPage(0); }, [search, statusFilter, localidadeFilter, healthFilter, critFilter]);
 
-  const exportExcel = () => {
+  // xlsx é uma biblioteca grande usada só por este botão — carregada sob
+  // demanda no clique, em vez de no carregamento da página inteira.
+  const exportExcel = async () => {
+    const XLSX = await import("xlsx");
     const rows = panels.map(p => ({
       "Tag": p.tag || "",
       "Nome Descritivo": p.name || "",
