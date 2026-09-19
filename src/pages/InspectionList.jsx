@@ -12,9 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
-import { findVigenciaConflict } from "@/domain/inspectionRules";
+import { computeVigentesByPanel } from "@/domain/inspectionRules";
+import { buildInspectedPanelsReport } from "@/domain/inspectedPanelsReport";
+import { exportInspectedPanelsPdf } from "@/services/inspectedPanelsPdfService";
+import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock } from "lucide-react";
+import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock, FileDown } from "lucide-react";
 
 const RESULT_CONFIG = {
   aprovado: { label: "Aprovado", className: "bg-secondary/15 text-secondary border-secondary/20", icon: CheckCircle2 },
@@ -57,17 +60,12 @@ export default function InspectionList() {
   // Indicador de "inspeção vigente": só na inspeção mais recente de cada
   // quadro (calculado sobre a lista completa, não a filtrada, para não
   // marcar por engano uma inspeção antiga que só aparece por causa dos
-  // filtros). Mesma regra de vigência usada ao criar uma nova inspeção
-  // (ver domain/inspectionRules.js#findVigenciaConflict).
-  const mostRecentIdByPanel = useMemo(() => {
-    const map = new Map();
-    for (const insp of inspections) {
-      const pid = insp.panel_ref_id || insp.panel_id;
-      if (!map.has(pid)) map.set(pid, insp.id);
-    }
-    return map;
-  }, [inspections]);
+  // filtros). Mesma regra de vigência usada ao criar uma nova inspeção e
+  // pelo relatório em PDF de quadros inspecionados (ver
+  // domain/inspectionRules.js#computeVigentesByPanel).
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const vigentesByPanel = useMemo(() => computeVigentesByPanel(inspections, today), [inspections, today]);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
 
@@ -102,6 +100,31 @@ export default function InspectionList() {
     }
     setCustomError(null);
     setCustomApplied(customDraft);
+  }
+
+  // Relatório em PDF de quadros já inspecionados (apoio ao planejamento das
+  // inspeções): reaproveita a mesma regra de vigência (vigentesByPanel,
+  // acima) e os mesmos filtros já aplicados nesta página — o relatório só
+  // inclui um quadro se a inspeção que define sua vigência também estiver
+  // no conjunto `filtered` (não a paginação visual, o recorte completo).
+  async function handleExportInspectedPanelsPdf() {
+    setExportingPdf(true);
+    try {
+      const filteredIds = new Set(filtered.map((i) => i.id));
+      const report = buildInspectedPanelsReport({
+        inspections, panels, hierarchy, filteredInspectionIds: filteredIds, referenceDateStr: today,
+      });
+      const localidadeLabel = localidadeFilter === "all"
+        ? "Todas as localidades"
+        : (localidades.find((l) => l.id === localidadeFilter)?.nome || "—");
+      const periodLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label || "Todo o período";
+      await exportInspectedPanelsPdf(report, { filtrosLabel: `Localidade: ${localidadeLabel} · Período: ${periodLabel}` });
+      toast.success("Relatório gerado!");
+    } catch {
+      toast.error("Não foi possível gerar o relatório. Tente novamente.");
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   return (
@@ -177,6 +200,16 @@ export default function InspectionList() {
         {customError && <p className="text-xs text-destructive basis-full">{customError}</p>}
       </div>
 
+      <div className="flex justify-end">
+        <Button
+          variant="outline" size="sm" className="gap-2"
+          onClick={handleExportInspectedPanelsPdf} disabled={isLoading || exportingPdf}
+        >
+          <FileDown className="h-4 w-4" />
+          {exportingPdf ? "Gerando relatório..." : "Gerar relatório de quadros inspecionados"}
+        </Button>
+      </div>
+
       {isLoading ? (
         <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
       ) : filtered.length === 0 ? (
@@ -200,7 +233,8 @@ export default function InspectionList() {
             const r = RESULT_CONFIG[insp.overall_result] || RESULT_CONFIG.aprovado;
             const ResultIcon = r.icon;
             const pid = insp.panel_ref_id || insp.panel_id;
-            const vigencia = mostRecentIdByPanel.get(pid) === insp.id ? findVigenciaConflict(insp, today) : null;
+            const vigenteEntry = vigentesByPanel.get(pid);
+            const vigencia = vigenteEntry?.inspection.id === insp.id ? vigenteEntry.conflict : null;
             return (
               <Card key={insp.id} className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
                 <CardContent className="p-4">

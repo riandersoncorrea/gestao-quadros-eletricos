@@ -32,6 +32,45 @@ export function findVigenciaConflict(mostRecentInspection, referenceDateStr) {
 }
 
 /**
+ * A partir de uma lista de inspeções já carregada (ex.: Inspection.list()),
+ * determina, para cada quadro, qual é a inspeção mais recente NÃO CANCELADA
+ * — mesmo critério de desempate (maior inspection_date; em empate, maior
+ * created_at) usado por inspectionRepository.getMostRecentForPanel — e se
+ * ela está vigente na data de referência (ver findVigenciaConflict acima).
+ *
+ * Fonte única de verdade para "quais quadros têm inspeção vigente" quando
+ * já se tem a lista completa de inspeções em memória (listagem de
+ * Checklists, relatório em PDF de quadros inspecionados etc.) — evita
+ * repetir essa lógica em cada tela e evita N+1 queries, ao contrário de
+ * checkPanelVigencia/getMostRecentForPanel, que consultam o banco por um
+ * único quadro por vez (fluxo de criação de uma nova inspeção).
+ *
+ * Retorna um Map `panelId -> { inspection, conflict }` contendo somente os
+ * quadros com inspeção vigente.
+ */
+export function computeVigentesByPanel(inspections, referenceDateStr) {
+  const mostRecentByPanel = new Map();
+  for (const insp of inspections) {
+    if (insp.status === "cancelada") continue;
+    const pid = insp.panel_ref_id || insp.panel_id;
+    const current = mostRecentByPanel.get(pid);
+    if (
+      !current ||
+      insp.inspection_date > current.inspection_date ||
+      (insp.inspection_date === current.inspection_date && (insp.created_at || "") > (current.created_at || ""))
+    ) {
+      mostRecentByPanel.set(pid, insp);
+    }
+  }
+  const result = new Map();
+  for (const [pid, insp] of mostRecentByPanel) {
+    const conflict = findVigenciaConflict(insp, referenceDateStr);
+    if (conflict) result.set(pid, { inspection: insp, conflict });
+  }
+  return result;
+}
+
+/**
  * Resultado geral da inspeção: reprovado se alguma resposta "não conforme"
  * for de item obrigatório; aprovado com ressalvas se houver "não conforme"
  * em item não obrigatório; aprovado caso contrário.
