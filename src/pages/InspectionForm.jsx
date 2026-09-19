@@ -2,7 +2,10 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
-import { getActiveTemplate, ordersForPanel, createInspection, computeOverall } from "@/services/inspectionService";
+import {
+  getActiveTemplate, ordersForPanel, createInspection, computeOverall,
+  checkPanelVigencia, InspectionVigenteError,
+} from "@/services/inspectionService";
 import { uploadFile } from "@/storage/storageService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,11 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
-import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, Camera, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, Camera, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine, ShieldAlert } from "lucide-react";
 import { saveDraft, loadDraft, clearDraft } from "@/utils/formDraft";
 
 const RESP = [
@@ -89,6 +93,11 @@ export default function InspectionForm() {
   const sigCanvasRef = useRef(null);
   const sigDrawing = useRef(false);
   const draftRestoredRef = useRef(false);
+  // Aviso de inspeção vigente: mostrado tanto ao selecionar o quadro (aviso
+  // "vigencia") quanto ao tentar salvar, se o back-end recusar por já
+  // existir uma inspeção vigente criada nesse meio-tempo (aviso "save").
+  const [vigenciaDialog, setVigenciaDialog] = useState(null); // { conflict, onConfirm, onCancel } | null
+  const dismissedVigenciaKeyRef = useRef(null);
 
   useEffect(() => {
     if (user) setHeader((s) => (s.inspector_name ? s : { ...s, inspector_name: user.full_name || user.email }));
@@ -137,6 +146,34 @@ export default function InspectionForm() {
     queryFn: () => ordersForPanel(header.panel_id),
     enabled: !!header.panel_id,
   });
+
+  // Aviso proativo (seção "ao iniciar nova inspeção"): reconsultado sempre
+  // que o quadro OU a data mudam. A validação que realmente impede o
+  // salvamento silencioso é a segunda checagem, feita no service
+  // (createInspection), imediatamente antes de gravar.
+  const { data: vigenciaConflict } = useQuery({
+    queryKey: ["panel-vigencia", header.panel_id, header.inspection_date],
+    queryFn: () => checkPanelVigencia(header.panel_id, header.inspection_date),
+    enabled: !!header.panel_id && !!header.inspection_date,
+  });
+  useEffect(() => {
+    if (!vigenciaConflict) return;
+    const key = `${header.panel_id}::${header.inspection_date}`;
+    if (dismissedVigenciaKeyRef.current === key) return;
+    setVigenciaDialog({
+      conflict: vigenciaConflict,
+      // "Continuar mesmo assim": lembra que o usuário já confirmou esta
+      // combinação quadro+data, para não repetir o aviso a cada re-render
+      // enquanto ele preenche o resto do formulário.
+      onConfirm: () => { dismissedVigenciaKeyRef.current = key; setVigenciaDialog(null); },
+      // "Cancelar": limpa o quadro selecionado. Não marca como dispensado —
+      // se o usuário escolher esse mesmo quadro de novo depois, o aviso deve
+      // aparecer novamente (cancelar significa "não quero este quadro
+      // agora", não "pare de me avisar sobre ele").
+      onCancel: () => { dismissedVigenciaKeyRef.current = null; clearPanelSelection(); setVigenciaDialog(null); },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vigenciaConflict, header.panel_id, header.inspection_date]);
 
   const items = tpl?.items || [];
   const modules = useMemo(() => {
@@ -188,14 +225,14 @@ export default function InspectionForm() {
   const overall = computeOverall(answeredList, items);
 
   const create = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ forceDuplicate = false } = {}) => {
       let assinatura_url = null;
       if (hasSignature) {
         const blob = await new Promise((resolve) => sigCanvasRef.current.toBlob(resolve, "image/png"));
         const file = new File([blob], `assinatura-${Date.now()}.png`, { type: "image/png" });
         ({ file_url: assinatura_url } = await uploadFile({ file }));
       }
-      return createInspection({ header: { ...header, assinatura_url }, responses: answeredList, measurements, thermography, template: tpl?.template, items });
+      return createInspection({ header: { ...header, assinatura_url }, responses: answeredList, measurements, thermography, template: tpl?.template, items, forceDuplicate });
     },
     onSuccess: (insp) => {
       clearDraft(DRAFT_KEY);
@@ -205,7 +242,21 @@ export default function InspectionForm() {
       toast.success("Inspeção registrada" + (ncCount ? ` · ${ncCount} não-conformidade(s) gerada(s)` : ""));
       navigate(`/inspecoes/${insp.id}`);
     },
-    onError: (e) => toast.error(`Erro ao salvar: ${e.message}`),
+    onError: (e) => {
+      // Segunda validação (feita no service, ver createInspection): outra
+      // pessoa registrou uma inspeção vigente para este quadro entre a
+      // abertura do formulário e o envio. Reaproveita o mesmo diálogo do
+      // aviso proativo, com os dados atualizados vindos do erro.
+      if (e instanceof InspectionVigenteError) {
+        setVigenciaDialog({
+          conflict: e.details,
+          onConfirm: () => { setVigenciaDialog(null); create.mutate({ forceDuplicate: true }); },
+          onCancel: () => setVigenciaDialog(null),
+        });
+        return;
+      }
+      toast.error(`Erro ao salvar: ${e.message}`);
+    },
   });
 
   if (!canEdit) { navigate("/inspecoes"); return null; }
@@ -701,13 +752,47 @@ export default function InspectionForm() {
           <div className="flex justify-end gap-3 pb-8">
             <Button variant="outline" onClick={() => navigate("/inspecoes")}>Cancelar</Button>
             <Button className="gap-2" disabled={create.isPending}
-              onClick={() => { if (validate()) create.mutate(); }}>
+              onClick={() => { if (validate()) create.mutate({}); }}>
               {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Registrar inspeção
             </Button>
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!vigenciaDialog} onOpenChange={(open) => { if (!open) vigenciaDialog?.onCancel(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <ShieldAlert className="h-5 w-5" />Inspeção já realizada
+            </DialogTitle>
+            <DialogDescription>
+              Este quadro {vigenciaDialog?.conflict?.emAndamento ? "possui uma inspeção em andamento" : "possui uma inspeção vigente"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Última inspeção</p>
+              <p className="font-medium">
+                {vigenciaDialog?.conflict?.lastInspectionDate ? format(parseISO(vigenciaDialog.conflict.lastInspectionDate), "dd/MM/yyyy") : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Próxima inspeção</p>
+              <p className="font-medium">
+                {vigenciaDialog?.conflict?.nextInspectionDate ? format(parseISO(vigenciaDialog.conflict.nextInspectionDate), "dd/MM/yyyy") : "—"}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Uma nova inspeção pode gerar registros duplicados para o mesmo período. Deseja realmente continuar?
+          </p>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => vigenciaDialog?.onCancel()}>Cancelar</Button>
+            <Button type="button" onClick={() => vigenciaDialog?.onConfirm()}>Continuar mesmo assim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

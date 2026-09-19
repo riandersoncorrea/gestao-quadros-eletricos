@@ -80,13 +80,22 @@ export async function insertThermography(rows) {
   if (error) throw error;
 }
 
+/**
+ * Inspeção mais recente (não cancelada) de um quadro. Usada tanto pelo
+ * recálculo do Índice de Saúde quanto pela detecção de inspeção vigente
+ * (ver findVigenciaConflict em domain/inspectionRules.js) — por isso inclui
+ * `next_inspection`/`status` além do `id`/`inspection_date` originais.
+ * Em caso de empate na data (duas inspeções no mesmo dia), desempata pela
+ * mais recentemente criada.
+ */
 export async function getMostRecentForPanel(panelId) {
   const { data, error } = await supabase
     .from("inspections")
-    .select("id, inspection_date")
+    .select("id, inspection_date, next_inspection, status")
     .or(`panel_ref_id.eq.${panelId},panel_id.eq.${panelId}`)
     .neq("status", "cancelada")
     .order("inspection_date", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;

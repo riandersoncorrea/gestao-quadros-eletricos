@@ -2,9 +2,32 @@ import { getCurrentUserId } from "@/auth/authService";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
 import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
-import { computeOverall, buildAutoNonconformities } from "@/domain/inspectionRules";
+import { computeOverall, buildAutoNonconformities, findVigenciaConflict } from "@/domain/inspectionRules";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
+
+/** Erro lançado quando o quadro já possui uma inspeção vigente e a criação não foi forçada (ver createInspection). */
+export class InspectionVigenteError extends Error {
+  constructor(details) {
+    super("Este quadro já possui uma inspeção vigente.");
+    this.name = "InspectionVigenteError";
+    this.code = "INSPECTION_VIGENTE";
+    this.details = details;
+  }
+}
+
+/**
+ * Verifica se o quadro já possui uma inspeção vigente na data informada
+ * (ver a regra em domain/inspectionRules.js#findVigenciaConflict). Consulta
+ * sempre a inspeção mais recente diretamente no banco (sem cache), para que
+ * a checagem no momento de salvar reflita inspeções criadas por outro
+ * usuário entre a abertura do formulário e o envio.
+ */
+export async function checkPanelVigencia(panelId, referenceDateStr) {
+  if (!panelId || !referenceDateStr) return null;
+  const last = await inspectionRepository.getMostRecentForPanel(panelId);
+  return findVigenciaConflict(last, referenceDateStr);
+}
 
 export async function getActiveTemplate() {
   const tpl = await inspectionRepository.getActiveTemplateRow();
@@ -29,7 +52,17 @@ export { computeOverall };
  * uma não-conformidade para cada item respondido como "Não Conforme".
  * (Supabase JS não tem transação — inserts são sequenciais.)
  */
-export async function createInspection({ header, responses, measurements, thermography, template, items }) {
+export async function createInspection({ header, responses, measurements, thermography, template, items, forceDuplicate = false }) {
+  // Segunda validação (a primeira é feita pela UI ao selecionar o quadro):
+  // reconsulta a inspeção mais recente do quadro imediatamente antes de
+  // gravar, para pegar uma inspeção vigente criada por outro usuário nesse
+  // meio-tempo. `forceDuplicate` só é true depois que o usuário confirmou
+  // explicitamente "Continuar mesmo assim" no aviso.
+  if (!forceDuplicate) {
+    const conflict = await checkPanelVigencia(header.panel_id, header.inspection_date);
+    if (conflict) throw new InspectionVigenteError(conflict);
+  }
+
   const uid = await getCurrentUserId();
   const itemById = new Map(items.map((i) => [i.id, i]));
   const answered = responses.filter((r) => r.resposta);

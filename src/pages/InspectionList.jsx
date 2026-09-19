@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { findVigenciaConflict } from "@/domain/inspectionRules";
 import { format, parseISO } from "date-fns";
-import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock } from "lucide-react";
 
 const RESULT_CONFIG = {
   aprovado: { label: "Aprovado", className: "bg-secondary/15 text-secondary border-secondary/20", icon: CheckCircle2 },
@@ -52,6 +53,21 @@ export default function InspectionList() {
     localidades: hierarchy?.localidades || [],
     panelLocMap: new Map(panels.map((p) => [p.id, p.localidade_id])),
   }), [hierarchy, panels]);
+
+  // Indicador de "inspeção vigente": só na inspeção mais recente de cada
+  // quadro (calculado sobre a lista completa, não a filtrada, para não
+  // marcar por engano uma inspeção antiga que só aparece por causa dos
+  // filtros). Mesma regra de vigência usada ao criar uma nova inspeção
+  // (ver domain/inspectionRules.js#findVigenciaConflict).
+  const mostRecentIdByPanel = useMemo(() => {
+    const map = new Map();
+    for (const insp of inspections) {
+      const pid = insp.panel_ref_id || insp.panel_id;
+      if (!map.has(pid)) map.set(pid, insp.id);
+    }
+    return map;
+  }, [inspections]);
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
 
@@ -183,6 +199,8 @@ export default function InspectionList() {
           {pageItems.map(insp => {
             const r = RESULT_CONFIG[insp.overall_result] || RESULT_CONFIG.aprovado;
             const ResultIcon = r.icon;
+            const pid = insp.panel_ref_id || insp.panel_id;
+            const vigencia = mostRecentIdByPanel.get(pid) === insp.id ? findVigenciaConflict(insp, today) : null;
             return (
               <Card key={insp.id} className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
                 <CardContent className="p-4">
@@ -199,6 +217,13 @@ export default function InspectionList() {
                           </Badge>
                           {insp.frequency && (
                             <Badge variant="outline" className="text-xs capitalize">{insp.frequency}</Badge>
+                          )}
+                          {vigencia && (
+                            <Badge variant="outline" className="text-xs flex items-center gap-1 bg-secondary/15 text-secondary border-secondary/20">
+                              {vigencia.emAndamento
+                                ? <><Clock className="h-3 w-3" />Em andamento</>
+                                : <><ShieldCheck className="h-3 w-3" />Inspeção vigente</>}
+                            </Badge>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
