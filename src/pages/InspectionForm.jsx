@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
 import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, Camera, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine, ShieldAlert } from "lucide-react";
 import { saveDraft, loadDraft, clearDraft } from "@/utils/formDraft";
+import { resizeImageIfNeeded } from "@/utils/imageProcessing";
 
 const RESP = [
   { v: "conforme", label: "Conforme", cls: "bg-secondary text-white border-secondary" },
@@ -330,7 +331,11 @@ export default function InspectionForm() {
     if (!file) return;
     setUploadingKey(key);
     try {
-      const { file_url } = await uploadFile({ file });
+      // Reduz fotos de câmera grandes antes do upload (Termografia e
+      // Evidência usam o mesmo fluxo). resizeImageIfNeeded nunca lança —
+      // em caso de falha, devolve o próprio `file` original.
+      const optimized = await resizeImageIfNeeded(file);
+      const { file_url } = await uploadFile({ file: optimized });
       apply(file_url);
       toast.success("Evidência enviada");
     } catch (err) {
