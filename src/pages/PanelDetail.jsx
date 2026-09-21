@@ -5,7 +5,7 @@ import { ncSummaryForPanel } from "@/services/ncService";
 import { panelLocationHistory, panelConditionHistory } from "@/services/auditService";
 import { getPanelAdherence } from "@/services/dashboardService";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { appUrl } from "@/lib/utils";
+import { panelPublicUrl } from "@/lib/utils";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,7 +115,7 @@ export default function PanelDetail() {
     },
   });
 
-  const qrValue = `${appUrl}/quadro/${id}`;
+  const qrValue = panelPublicUrl(id);
 
   const downloadQR = () => {
     const url = getQRCodeDataUrl(qrValue, 600);
@@ -380,7 +380,7 @@ export default function PanelDetail() {
               <QRCodeGenerator value={qrValue} size={180} />
             </div>
             <p className="text-xs text-muted-foreground text-center max-w-[200px]">
-              Escaneie para acessar os dados deste quadro
+              Escaneie para acessar os dados públicos deste quadro, sem precisar de login
             </p>
             <Button variant="outline" size="sm" onClick={downloadQR} className="gap-2">
               <Download className="h-3 w-3" />

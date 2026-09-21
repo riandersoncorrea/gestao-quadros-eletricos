@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { ElectricalPanel } from "@/services/panelService";
-import { appUrl } from "@/lib/utils";
+import { panelPublicUrl } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ export default function QRCodePage() {
 
 
   const downloadQR = (panel) => {
-    const url = getQRCodeDataUrl(`${appUrl}/quadro/${panel.id}`, 600);
+    const url = getQRCodeDataUrl(panelPublicUrl(panel.id), 600);
     const link = document.createElement("a");
     link.href = url;
     link.download = `QR_${panel.code}.png`;
@@ -45,7 +45,7 @@ export default function QRCodePage() {
           <div class="grid">
             ${panels.map(p => `
               <div class="item">
-                <img src="${getQRCodeDataUrl(`${appUrl}/quadro/${p.id}`, 300)}" />
+                <img src="${getQRCodeDataUrl(panelPublicUrl(p.id), 300)}" />
                 <div class="name">${p.name}</div>
                 <div class="code">${p.code}</div>
                 ${p.location_name ? `<div class="location">${p.location_name}</div>` : ''}
@@ -97,7 +97,7 @@ export default function QRCodePage() {
             <Card key={panel.id} className="hover:shadow-md transition-shadow">
               <CardContent className="flex flex-col items-center p-6 gap-3">
                 <div className="p-3 bg-white rounded-xl border border-border shadow-sm">
-                  <QRCodeGenerator value={`${appUrl}/quadro/${panel.id}`} size={140} />
+                  <QRCodeGenerator value={panelPublicUrl(panel.id)} size={140} />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-semibold">{panel.name}</p>

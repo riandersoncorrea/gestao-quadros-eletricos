@@ -17,6 +17,10 @@ import ResetPassword from '@/pages/ResetPassword';
 
 import AppLayout from '@/components/layout/AppLayout';
 
+// Página pública do quadro (QR Code, sem login) — fora do ProtectedRoute,
+// junto com as outras rotas públicas abaixo. Ver src/pages/PublicPanelDetail.jsx.
+const PublicPanelDetail = lazy(() => import('@/pages/PublicPanelDetail'));
+
 // As páginas autenticadas (abaixo) são carregadas sob demanda (uma por
 // rota) — só as 4 páginas de autenticação acima ficam no bundle inicial,
 // já que são a primeira coisa que um usuário não autenticado precisa ver
@@ -58,6 +62,7 @@ const AuthenticatedApp = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/quadro-publico/:id" element={<PublicPanelDetail />} />
 
         <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
           <Route element={<AppLayout />}>

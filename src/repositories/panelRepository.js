@@ -76,6 +76,23 @@ export async function fetchHierarchy() {
   };
 }
 
+/**
+ * Dados do quadro para a página pública (sem login, ver
+ * src/pages/PublicPanelDetail.jsx) — consulta a view `panel_public_info`
+ * (supabase/migrations/0010_public_panel_view.sql), que já é a whitelist
+ * de colunas públicas; não adicionar aqui nenhuma coluna de
+ * `electrical_panels` fora dessa view.
+ */
+export async function getPublicPanelInfo(panelId) {
+  const { data, error } = await supabase
+    .from("panel_public_info")
+    .select("*")
+    .eq("id", panelId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function getSnapshotFields(panelId) {
   const { data, error } = await supabase
     .from("electrical_panels")
