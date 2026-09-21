@@ -48,7 +48,7 @@ const SEV = [
   { v: "alta", label: "Alta" },
   { v: "critica", label: "Crítica" },
 ];
-const PARAM_OPTIONS = ["R-N", "S-N", "T-N", "R-S", "S-T", "R-T"];
+const PARAM_OPTIONS = ["R-N", "S-N", "T-N", "R-S", "S-T", "R-T", "R", "S", "T"];
 const RESULT_BADGE = {
   conforme: { label: "Conforme", cls: "bg-secondary/15 text-secondary border-secondary/20" },
   fora_limite: { label: "Fora do limite", cls: "bg-destructive/10 text-destructive border-destructive/20" },
