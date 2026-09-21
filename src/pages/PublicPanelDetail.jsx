@@ -7,18 +7,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge, PhaseLabel } from "@/components/panels/StatusBadge";
 import {
-  Zap, MapPin, ShieldCheck, Building2, Layers, FileText, Image, LogIn,
+  Zap, MapPin, ShieldCheck, Building2, Layers, FileText, Image, LogIn, Database, Calendar,
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import logoSistema from "@/assets/logo-sistema.png";
 
 /**
  * Página pública do quadro (sem login) — para onde o QR Code físico aponta
  * (ver panelPublicUrl em src/lib/utils.js). Mostra só o subconjunto de
  * dados aprovado como público, vindo da view `panel_public_info`
- * (supabase/migrations/0010_public_panel_view.sql) — nunca buscar dados
- * de electrical_panels diretamente aqui. Rota fora do ProtectedRoute/
+ * (supabase/migrations/0010_public_panel_view.sql e
+ * 0011_public_panel_sap_fields.sql) — nunca buscar dados de
+ * electrical_panels diretamente aqui. Rota fora do ProtectedRoute/
  * AppLayout em src/App.jsx: sem sidebar, sem verificação de sessão.
  */
+
+function fmtDate(d) {
+  try { return d ? format(parseISO(d), "dd/MM/yyyy") : null; } catch { return d; }
+}
 
 const TYPE_LABEL = {
   QDL: "QDL – Distribuição de Luz", QDF: "QDF – Distribuição de Força", QDC: "QDC – Comando",
@@ -141,6 +147,26 @@ export default function PublicPanelDetail() {
                   <InfoRow icon={FileText} label="Nº de Série" value={panel.serial_number} />
                 </CardContent>
               </Card>
+
+              {(panel.sap_functional_location || panel.sap_equipment_number || panel.inspection_frequency
+                || panel.last_inspection_date || panel.next_inspection_date || panel.installation_date) && (
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Database className="h-4 w-4 text-primary" />
+                      SAP / Plano de Manutenção
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border">
+                    <InfoRow icon={Database} label="Local de Instalação SAP" value={panel.sap_functional_location} />
+                    <InfoRow icon={Database} label="Nº do Equipamento SAP" value={panel.sap_equipment_number} />
+                    <InfoRow icon={Calendar} label="Frequência de Inspeção" value={panel.inspection_frequency} />
+                    <InfoRow icon={Calendar} label="Última Inspeção" value={fmtDate(panel.last_inspection_date)} />
+                    <InfoRow icon={Calendar} label="Próxima Inspeção" value={fmtDate(panel.next_inspection_date)} />
+                    <InfoRow icon={Calendar} label="Instalação" value={fmtDate(panel.installation_date)} />
+                  </CardContent>
+                </Card>
+              )}
 
               {panel.diagram_url && (
                 <Card className="md:col-span-2">
