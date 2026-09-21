@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { uploadFile } from "@/storage/storageService";
+import { resizeImageIfNeeded } from "@/utils/imageProcessing";
 import {
   MAX_DIAGRAMS,
   listDiagrams,
@@ -21,7 +22,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Save, ArrowLeft, Upload, MapPin, Loader2, Zap, Hash, Database, FileText, X } from "lucide-react";
+import { Save, ArrowLeft, Upload, MapPin, Loader2, Zap, Hash, Database, FileText, X, Camera } from "lucide-react";
 
 const SITE_PREFIX = { porto: "PRT", oficina: "OFC", pelotizacao: "PEL" };
 
@@ -180,7 +181,12 @@ export default function InventoryForm() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingPhoto(true);
-    const { file_url } = await uploadFile({ file });
+    // Reduz fotos de câmera grandes antes do upload (mesma otimização já
+    // usada na Termografia — ver src/utils/imageProcessing.js).
+    // resizeImageIfNeeded nunca lança — em caso de falha, devolve o
+    // próprio arquivo original.
+    const optimized = await resizeImageIfNeeded(file);
+    const { file_url } = await uploadFile({ file: optimized });
     setForm(prev => ({ ...prev, photo_url: file_url }));
     setUploadingPhoto(false);
     toast.success("Arquivo enviado!");
@@ -691,11 +697,18 @@ export default function InventoryForm() {
             </div>
             <div className="space-y-2">
               <Label>Foto do Quadro{isEditing ? "" : " *"}</Label>
-              <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
-                {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                <span className="text-sm text-muted-foreground">{uploadingPhoto ? "Enviando..." : "Selecionar foto"}</span>
-                <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
-              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
+                  {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  <span className="text-sm text-muted-foreground">{uploadingPhoto ? "Enviando..." : "Tirar foto"}</span>
+                  <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handlePhotoUpload} />
+                </label>
+                <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
+                  {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <span className="text-sm text-muted-foreground">{uploadingPhoto ? "Enviando..." : "Escolher arquivo"}</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                </label>
+              </div>
               {form.photo_url && <p className="text-xs text-secondary font-medium">✓ Foto enviada</p>}
             </div>
             <div className="space-y-2">
