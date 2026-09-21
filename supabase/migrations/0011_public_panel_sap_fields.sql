@@ -50,15 +50,19 @@ select
   p.responsible_engineer,
   p.diagram_url,
   p.photo_url,
+  loc.nome as localidade_nome,
+  lo.nome as local_nome,
+  sub.nome as sublocal_nome,
+  -- Novas colunas de 0011: CREATE OR REPLACE VIEW só permite acrescentar
+  -- colunas ao final da lista (Postgres não deixa renomear/reordenar uma
+  -- coluna de view existente — erro 42P16), por isso entram depois das
+  -- colunas de hierarquia, e não junto das demais colunas de p.* acima.
   p.sap_functional_location,
   p.sap_equipment_number,
   p.inspection_frequency,
   p.last_inspection_date,
   p.next_inspection_date,
-  p.installation_date,
-  loc.nome as localidade_nome,
-  lo.nome as local_nome,
-  sub.nome as sublocal_nome
+  p.installation_date
 from public.electrical_panels p
 left join public.localidades loc on loc.id = p.localidade_id
 left join public.locais lo on lo.id = p.local_id
