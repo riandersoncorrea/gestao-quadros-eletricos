@@ -4,6 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
 import { ElectricalPanel } from "@/services/panelService";
 import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import {
+  PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
+} from "@/domain/dashboardFilters";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +48,10 @@ export default function NonconformityList() {
   const [sevFilter, setSevFilter] = useState(
     ["baixa", "media", "alta", "critica"].includes(searchParams.get("sev")) ? searchParams.get("sev") : "all"
   );
+  const [period, setPeriod] = useState("todo");
+  const [customDraft, setCustomDraft] = useState({ from: "", to: "" });
+  const [customApplied, setCustomApplied] = useState(null);
+  const [customError, setCustomError] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [deleteId, setDeleteId] = useState(null);
@@ -83,6 +90,8 @@ export default function NonconformityList() {
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
 
+  const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
+
   const filtered = ncs.filter((n) => {
     if (panelParam && n.panel_id !== panelParam) return false;
     const s = search.toLowerCase();
@@ -92,8 +101,29 @@ export default function NonconformityList() {
       statusFilter === "all" ||
       (statusFilter === "abertas" ? isOpenNonconformity(n.status) : n.status === statusFilter);
     const matchSev = sevFilter === "all" || n.severidade === sevFilter;
-    return matchSearch && matchStatus && matchSev;
+    // Data semântica da NC: created_at, o momento em que ela foi aberta —
+    // não existe campo de "data de ocorrência" separado no modelo (só
+    // created_at/updated_at em nonconformities), e a tela de detalhe já
+    // rotula created_at como "aberta em" (ver NonconformityDetail.jsx).
+    const matchPeriod = isWithinRange(n.created_at, dateRange);
+    return matchSearch && matchStatus && matchSev && matchPeriod;
   });
+
+  function handlePeriodChange(value) {
+    setPeriod(value);
+    setCustomError(null);
+    if (value !== "personalizado") setCustomApplied(null);
+  }
+
+  function applyCustomRange() {
+    const err = validateCustomRange(customDraft);
+    if (err) {
+      setCustomError(err);
+      return;
+    }
+    setCustomError(null);
+    setCustomApplied(customDraft);
+  }
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
@@ -136,6 +166,38 @@ export default function NonconformityList() {
             {Object.entries(SEV).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={period} onValueChange={handlePeriodChange}>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {period === "personalizado" && (
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                aria-label="Data inicial"
+                className="w-[150px]"
+                value={customDraft.from}
+                onChange={(e) => setCustomDraft((s) => ({ ...s, from: e.target.value }))}
+              />
+              <span className="text-sm text-muted-foreground">até</span>
+              <Input
+                type="date"
+                aria-label="Data final"
+                className="w-[150px]"
+                value={customDraft.to}
+                onChange={(e) => setCustomDraft((s) => ({ ...s, to: e.target.value }))}
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={applyCustomRange}>Aplicar</Button>
+          </div>
+        )}
+        {customError && <p className="text-xs text-destructive basis-full">{customError}</p>}
       </div>
 
       {isLoading ? (
