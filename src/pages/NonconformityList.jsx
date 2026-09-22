@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
@@ -109,6 +109,13 @@ export default function NonconformityList() {
     return matchSearch && matchStatus && matchSev && matchPeriod;
   });
 
+  const PAGE_SIZE = 40;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart = page * PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [search, statusFilter, sevFilter, dateRange]);
+
   function handlePeriodChange(value) {
     setPeriod(value);
     setCustomError(null);
@@ -211,7 +218,10 @@ export default function NonconformityList() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((n) => {
+          <p className="text-xs text-muted-foreground">
+            Mostrando {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} de {filtered.length}
+          </p>
+          {pageItems.map((n) => {
             const sev = SEV[n.severidade] || SEV.media;
             const st = NC_STATUS[n.status] || NC_STATUS.aberta;
             return (
@@ -246,6 +256,16 @@ export default function NonconformityList() {
               </div>
             );
           })}
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <span className="text-muted-foreground">Página {page + 1} de {pageCount}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(p => p - 1); window.scrollTo(0, 0); }}>Anterior</Button>
+                <Button variant="outline" size="sm" disabled={page >= pageCount - 1} onClick={() => { setPage(p => p + 1); window.scrollTo(0, 0); }}>Próxima</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
