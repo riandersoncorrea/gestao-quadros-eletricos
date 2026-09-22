@@ -483,7 +483,7 @@ export default function InspectionForm() {
           {modules.map((mod) => (
             <Card key={mod.modulo}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">{mod.modulo}. {mod.nome}</CardTitle>
+                <CardTitle className="text-base">{mod.nome}</CardTitle>
               </CardHeader>
               <CardContent className="divide-y divide-border">
                 {mod.items.map((it) => {
