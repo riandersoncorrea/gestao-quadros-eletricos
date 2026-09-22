@@ -181,15 +181,20 @@ export default function InventoryForm() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingPhoto(true);
-    // Reduz fotos de câmera grandes antes do upload (mesma otimização já
-    // usada na Termografia — ver src/utils/imageProcessing.js).
-    // resizeImageIfNeeded nunca lança — em caso de falha, devolve o
-    // próprio arquivo original.
-    const optimized = await resizeImageIfNeeded(file);
-    const { file_url } = await uploadFile({ file: optimized });
-    setForm(prev => ({ ...prev, photo_url: file_url }));
-    setUploadingPhoto(false);
-    toast.success("Arquivo enviado!");
+    try {
+      // Reduz fotos de câmera grandes antes do upload (mesma otimização já
+      // usada na Termografia — ver src/utils/imageProcessing.js).
+      // resizeImageIfNeeded nunca lança — em caso de falha, devolve o
+      // próprio arquivo original.
+      const optimized = await resizeImageIfNeeded(file);
+      const { file_url } = await uploadFile({ file: optimized });
+      setForm(prev => ({ ...prev, photo_url: file_url }));
+      toast.success("Arquivo enviado!");
+    } catch (err) {
+      toast.error(err.message || "Erro ao enviar a foto");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const handleDiagramFilesSelected = async (e) => {
