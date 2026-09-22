@@ -171,7 +171,7 @@ export default function InspectionDetail() {
       {/* Checklist por módulo */}
       {modules.map(([mod, rows]) => (
         <Card key={mod}>
-          <CardHeader className="pb-3"><CardTitle className="text-base">{mod}. {moduleName(mod)}</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-base">{moduleName(mod)}</CardTitle></CardHeader>
           <CardContent className="divide-y divide-border">
             {rows.map((r) => {
               const rr = RESP[r.resposta] || {};
