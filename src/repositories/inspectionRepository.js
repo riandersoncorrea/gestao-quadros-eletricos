@@ -38,7 +38,14 @@ export async function getSapOrdersForPanel(panelId) {
 export async function getInspectionAggregate(id) {
   const [insp, responses, measurements, thermo, ncs, flags] = await Promise.all([
     supabase.from("inspections").select("*").eq("id", id).single(),
-    supabase.from("inspection_responses").select("*").eq("inspection_id", id),
+    // inspection_responses não tem coluna `codigo` própria (só `titulo`/
+    // `modulo`, copiados no momento da criação — ver createInspection em
+    // services/inspectionService.js). O código (ex.: "PRO-01") continua só
+    // no catálogo (inspection_template_items), então é trazido aqui via
+    // join pelo FK template_item_id — não requer nenhuma coluna nova nem
+    // migração, e cai naturalmente para null se o item do catálogo tiver
+    // sido removido (template_item_id fica null via on delete set null).
+    supabase.from("inspection_responses").select("*, inspection_template_items(codigo)").eq("inspection_id", id),
     supabase.from("measurements").select("*").eq("inspection_id", id),
     supabase.from("thermography_points").select("*").eq("inspection_id", id),
     supabase.from("nonconformities").select("*").eq("inspection_id", id).order("created_at", { ascending: true }),
@@ -46,9 +53,13 @@ export async function getInspectionAggregate(id) {
   ]);
   const err = insp.error || responses.error || measurements.error || thermo.error || ncs.error || flags.error;
   if (err) throw err;
+  const responsesWithCodigo = (responses.data || []).map(({ inspection_template_items, ...r }) => ({
+    ...r,
+    codigo: inspection_template_items?.codigo ?? null,
+  }));
   return {
     inspection: insp.data,
-    responses: responses.data,
+    responses: responsesWithCodigo,
     measurements: measurements.data,
     thermography: thermo.data,
     nonconformities: ncs.data,

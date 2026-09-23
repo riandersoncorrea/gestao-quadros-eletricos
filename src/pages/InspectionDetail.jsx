@@ -178,7 +178,10 @@ export default function InspectionDetail() {
               return (
                 <div key={r.id} className="py-2.5">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm flex-1">{r.titulo}</p>
+                    <p className="text-sm flex-1">
+                      {r.codigo && <span className="font-mono text-xs text-muted-foreground mr-2">{r.codigo}</span>}
+                      {r.titulo}
+                    </p>
                     <Badge variant="outline" className={`text-[10px] shrink-0 ${rr.cls || ""}`}>{rr.label || r.resposta}</Badge>
                   </div>
                   {r.justificativa && <p className="text-xs text-muted-foreground mt-1">Justificativa: {r.justificativa}</p>}
