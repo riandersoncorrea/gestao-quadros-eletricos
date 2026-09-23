@@ -3,6 +3,7 @@ import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
 import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
 import { computeOverall, buildAutoNonconformities, findVigenciaConflict } from "@/domain/inspectionRules";
+import { SAFETY_FORM_CODES } from "@/domain/safetyFormExport";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
@@ -46,6 +47,11 @@ export async function getInspectionFull(id) {
 }
 
 export { computeOverall };
+
+/** Respostas dos códigos usados pela exportação do Form Segurança, para um conjunto de inspeções — ver domain/safetyFormExport.js. */
+export async function getSafetyFormResponses(inspectionIds) {
+  return inspectionRepository.getResponsesByCodesForInspections(inspectionIds, SAFETY_FORM_CODES);
+}
 
 /**
  * Cria a inspeção com respostas, medições, termografia e gera automaticamente

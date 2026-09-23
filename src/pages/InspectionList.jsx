@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Inspection, ElectricalPanel, fetchHierarchy } from "@/services/panelService";
+import { getSafetyFormResponses } from "@/services/inspectionService";
 import { useQuery } from "@tanstack/react-query";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
@@ -14,9 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { computeVigentesByPanel } from "@/domain/inspectionRules";
 import { buildInspectedPanelsReport } from "@/domain/inspectedPanelsReport";
+import { buildSafetyFormRows } from "@/domain/safetyFormExport";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock, FileDown } from "lucide-react";
+import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock, FileDown, FileSpreadsheet } from "lucide-react";
 
 const RESULT_CONFIG = {
   aprovado: { label: "Aprovado", className: "bg-secondary/15 text-secondary border-secondary/20", icon: CheckCircle2 },
@@ -65,6 +67,8 @@ export default function InspectionList() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const vigentesByPanel = useMemo(() => computeVigentesByPanel(inspections, today), [inspections, today]);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingSafetyForm, setExportingSafetyForm] = useState(false);
+  const panelsById = useMemo(() => new Map(panels.map((p) => [p.id, p])), [panels]);
 
   const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
 
@@ -126,6 +130,37 @@ export default function InspectionList() {
       toast.error("Não foi possível gerar o relatório. Tente novamente.");
     } finally {
       setExportingPdf(false);
+    }
+  }
+
+  // Base do Form Segurança (outro setor): uma linha por inspeção
+  // efetivamente salva — a mesma lista `filtered` já respeitando busca,
+  // localidade, período e resultado desta página (mesmo comportamento do
+  // relatório em PDF acima). Descarta defensivamente `status: "cancelada"`
+  // (mesma regra já usada em getMostRecentForPanel, repositories/
+  // inspectionRepository.js — nenhuma inspeção criada pelo app tem hoje
+  // outro status além de "executada", mas não custa respeitar o mesmo
+  // filtro já estabelecido no resto do código).
+  async function handleExportSafetyForm() {
+    setExportingSafetyForm(true);
+    try {
+      const toExport = filtered.filter((i) => i.status !== "cancelada");
+      if (toExport.length === 0) {
+        toast.error("Nenhuma inspeção para exportar com os filtros atuais.");
+        return;
+      }
+      const respostas = await getSafetyFormResponses(toExport.map((i) => i.id));
+      const rows = buildSafetyFormRows({ inspections: toExport, panelsById, respostas });
+      // xlsx é pesado e usado só por este botão — carregado sob demanda no
+      // clique, mesmo padrão já usado no relatório em PDF acima e na
+      // exportação Excel do Inventário (InventoryList.jsx).
+      const { exportSafetyFormExcel } = await import("@/services/safetyFormExportService");
+      await exportSafetyFormExcel(rows);
+      toast.success("Base do Form Segurança exportada!");
+    } catch {
+      toast.error("Não foi possível exportar a base do Form Segurança. Tente novamente.");
+    } finally {
+      setExportingSafetyForm(false);
     }
   }
 
@@ -202,13 +237,20 @@ export default function InspectionList() {
         {customError && <p className="text-xs text-destructive basis-full">{customError}</p>}
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button
           variant="outline" size="sm" className="gap-2"
           onClick={handleExportInspectedPanelsPdf} disabled={isLoading || exportingPdf}
         >
           <FileDown className="h-4 w-4" />
           {exportingPdf ? "Gerando relatório..." : "Gerar relatório de quadros inspecionados"}
+        </Button>
+        <Button
+          variant="outline" size="sm" className="gap-2"
+          onClick={handleExportSafetyForm} disabled={isLoading || exportingSafetyForm}
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          {exportingSafetyForm ? "Exportando..." : "Exportar base Form Segurança"}
         </Button>
       </div>
 

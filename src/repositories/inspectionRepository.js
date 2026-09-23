@@ -147,6 +147,40 @@ export async function listAllResponses() {
   return data;
 }
 
+/**
+ * Respostas de um conjunto de códigos de pergunta (ex.: exportação do Form
+ * Segurança) para um conjunto de inspeções — duas consultas em lote, nunca
+ * uma por inspeção. inspection_responses não guarda `codigo` (só
+ * `template_item_id`, ver getInspectionAggregate acima), então primeiro
+ * resolve os códigos para os ids do catálogo, depois busca as respostas
+ * por inspection_id + template_item_id.
+ */
+export async function getResponsesByCodesForInspections(inspectionIds, codigos) {
+  if (!inspectionIds.length || !codigos.length) return [];
+
+  const { data: items, error: itemsError } = await supabase
+    .from("inspection_template_items")
+    .select("id, codigo")
+    .in("codigo", codigos);
+  if (itemsError) throw itemsError;
+  if (!items.length) return [];
+
+  const codigoByItemId = new Map(items.map((i) => [i.id, i.codigo]));
+
+  const { data: responses, error: respError } = await supabase
+    .from("inspection_responses")
+    .select("inspection_id, template_item_id, resposta")
+    .in("inspection_id", inspectionIds)
+    .in("template_item_id", items.map((i) => i.id));
+  if (respError) throw respError;
+
+  return responses.map((r) => ({
+    inspection_id: r.inspection_id,
+    codigo: codigoByItemId.get(r.template_item_id),
+    resposta: r.resposta,
+  }));
+}
+
 export async function getForAdherence(panelId) {
   const { data, error } = await supabase
     .from("inspections")
