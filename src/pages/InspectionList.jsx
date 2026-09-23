@@ -250,7 +250,7 @@ export default function InspectionList() {
           onClick={handleExportSafetyForm} disabled={isLoading || exportingSafetyForm}
         >
           <FileSpreadsheet className="h-4 w-4" />
-          {exportingSafetyForm ? "Exportando..." : "Exportar base (BI SEGURANÇA)"}
+          {exportingSafetyForm ? "Exportando..." : "Exportar base (BI Segurança)"}
         </Button>
       </div>
 
