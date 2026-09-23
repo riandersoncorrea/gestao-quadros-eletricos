@@ -16,7 +16,9 @@ export const SAFETY_FORM_QUESTION_MAP = [
 
 export const SAFETY_FORM_CODES = SAFETY_FORM_QUESTION_MAP.map((q) => q.codigo);
 
-export const TAG_HEADER = "TAG do quadro";
+// Só uma coluna de TAG: "TAG do quadro" e "INFORME O TAG/IDENTIFICAÇÃO DO
+// PAINEL:" são o mesmo dado (electrical_panels.tag) — confirmado e
+// removida a duplicata a pedido do usuário.
 export const TAG_FORM_HEADER = "INFORME O TAG/IDENTIFICAÇÃO DO PAINEL:";
 export const PHOTO_HEADER = "1.1 - REGISTRE A FOTO DO PAINEL INSPECIONADO";
 
@@ -63,7 +65,6 @@ export function buildSafetyFormRows({ inspections, panelsById, respostas }) {
     const respMap = byInspection.get(insp.id) || new Map();
 
     const row = {
-      [TAG_HEADER]: tag,
       [TAG_FORM_HEADER]: tag,
     };
     for (const { codigo, header } of SAFETY_FORM_QUESTION_MAP) {
