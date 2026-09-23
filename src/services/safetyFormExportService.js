@@ -46,15 +46,15 @@ export async function exportSafetyFormExcel(rows) {
   });
 
   // Coluna da foto: a tabela (acima) já gravou a URL como texto simples em
-  // cada célula; aqui soma o hyperlink clicável do Excel por cima da
-  // mesma célula. Nunca mexe em célula vazia (sem foto fica vazia, sem
-  // link "quebrado").
+  // cada célula; aqui troca pelo hyperlink clicável do Excel, com "Download"
+  // como texto visível (URL continua sendo o destino do link). Nunca mexe
+  // em célula vazia (sem foto fica vazia, sem link "quebrado").
   const photoColIdx = headers.indexOf(PHOTO_HEADER);
   if (photoColIdx !== -1) {
     rows.forEach((row, i) => {
       const url = row[PHOTO_HEADER];
       if (!url) return;
-      sheet.getRow(i + 2).getCell(photoColIdx + 1).value = { text: url, hyperlink: url };
+      sheet.getRow(i + 2).getCell(photoColIdx + 1).value = { text: "Download", hyperlink: url };
     });
   }
 
