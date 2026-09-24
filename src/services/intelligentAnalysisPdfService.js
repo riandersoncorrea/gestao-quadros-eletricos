@@ -258,6 +258,21 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   if (analysis.pareto.itens.length) {
     await pdf.chartImage("pareto-nc", 100);
     pdf.paragraph(analysis.chartDescriptions.pareto, 9);
+    // Significado dos códigos exibidos no gráfico acima — texto nativo do
+    // jsPDF (não faz parte da imagem capturada do gráfico), para não
+    // depender de comprimir a legenda dentro do limite de altura da
+    // captura e arriscar ficar ilegível. Mesma fonte de dados da legenda
+    // exibida na tela (analysis.pareto.itens, já resolvida com a descrição
+    // oficial do catálogo), então acompanha automaticamente o recorte
+    // atual; NCs manuais sem código ficam de fora, como na tela.
+    const codigosLegenda = analysis.pareto.itens.filter((it) => it.codigo && it.titulo);
+    if (codigosLegenda.length) {
+      pdf.ensureSpace(7);
+      doc.setFont(undefined, "bold"); doc.setFontSize(9.5);
+      doc.text("Significado dos códigos", MARGIN, pdf.y); pdf.y += 5.5;
+      doc.setFont(undefined, "normal");
+      for (const it of codigosLegenda) pdf.bullet(`${it.codigo}: ${it.titulo}`, 8.5);
+    }
   } else {
     pdf.paragraph("Nenhuma não conformidade aberta no período selecionado.");
   }

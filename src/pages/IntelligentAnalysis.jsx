@@ -501,6 +501,34 @@ function DimensionChart({ dimensions, reading }) {
   );
 }
 
+/**
+ * Rodapé "Significado dos códigos" do gráfico de Pareto (pedido de
+ * refinamento visual) — usa só os códigos que de fato aparecem em
+ * `pareto.itens`, já resolvidos com a descrição oficial do template ativo
+ * em computeParetoNaoConformidades/filterAnalysisData (nenhum lookup novo
+ * de catálogo aqui, nenhuma lista fixa). Acompanha automaticamente
+ * filtros/período/localidade porque `pareto.itens` já é o recorte atual.
+ * NCs manuais sem código (sem correspondência no catálogo) não entram,
+ * pois não há descrição oficial a resolver para elas.
+ */
+function ParetoLegend({ itens }) {
+  const list = itens.filter((it) => it.codigo && it.titulo);
+  if (list.length === 0) return null;
+  return (
+    <div className="mt-5 pt-4 border-t border-border/60">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/80 mb-2">Significado dos códigos</p>
+      <dl className={`grid gap-x-6 gap-y-1.5 text-xs ${list.length > 6 ? "sm:grid-cols-2" : ""}`}>
+        {list.map((it) => (
+          <div key={it.codigo} className="flex gap-1.5 min-w-0">
+            <dt className="font-semibold text-foreground shrink-0">{it.codigo}:</dt>
+            <dd className="text-muted-foreground leading-snug">{it.titulo}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function ParetoSection({ pareto, reading }) {
   // Altura proporcional à quantidade de itens (mais itens -> mais espaço
   // horizontal por categoria e labels rotacionados -> mais altura), sem
@@ -548,6 +576,7 @@ function ParetoSection({ pareto, reading }) {
         </div>
       )}
       <ChartReading text={reading} />
+      <ParetoLegend itens={pareto.itens} />
     </Section>
   );
 }
@@ -560,7 +589,7 @@ function TemporalSection({ temporal, reading }) {
         <EmptyState text="Histórico insuficiente para traçar evolução (é necessário mais de um período com inspeções)." />
       ) : (
         <ResponsiveContainer width="100%" height={360}>
-          <ComposedChart data={temporal.pontos} margin={{ left: 4, right: 16, top: 28, bottom: 10 }}>
+          <ComposedChart data={temporal.pontos} margin={{ left: 4, right: 24, top: 36, bottom: 10 }}>
             <CartesianGrid vertical={false} stroke={GRID_STROKE} />
             <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} angle={temporal.pontos.length > 8 ? -30 : 0} textAnchor={temporal.pontos.length > 8 ? "end" : "middle"} height={temporal.pontos.length > 8 ? 50 : 30} />
             <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
@@ -580,7 +609,12 @@ function TemporalSection({ temporal, reading }) {
             <Legend {...LEGEND_PROPS} />
             <Bar yAxisId="left" dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[3, 3, 0, 0]} maxBarSize={28} />
             <Bar yAxisId="left" dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[3, 3, 0, 0]} maxBarSize={28} />
-            <Line yAxisId="right" type="monotone" dataKey="taxaConformidade" name="Taxa de conformidade" stroke={GREEN} strokeWidth={1.75} dot={dotStyle(GREEN)} activeDot={activeDotStyle(GREEN)} connectNulls />
+            {/* Rótulo só na série relevante (taxa de conformidade) — as barras de
+                inspeções/NCs já têm o próprio eixo e tooltip; rotular também elas
+                poluiria o gráfico sem ganho de leitura (pedido de ajuste de rótulos). */}
+            <Line yAxisId="right" type="monotone" dataKey="taxaConformidade" name="Taxa de conformidade" stroke={GREEN} strokeWidth={1.75} dot={dotStyle(GREEN)} activeDot={activeDotStyle(GREEN)} connectNulls>
+              <LabelList dataKey="taxaConformidade" position="top" offset={10} formatter={(v) => (v == null ? "" : pct(v))} style={{ fontSize: 10, fontWeight: 600, fill: GREEN_DARK }} />
+            </Line>
           </ComposedChart>
         </ResponsiveContainer>
       )}
@@ -636,6 +670,40 @@ const INTERDICTION_STATUS_LABEL = { aberta: "Aberta", em_tratamento: "Em tratame
 // semântica já existente na página (crítico/atenção), reservado a este
 // indicador de segurança específico.
 const INTERDICTION_COLORS = [RED, AMBER];
+// Cor do texto do rótulo quando ele cabe dentro do próprio segmento —
+// branco sobre o vermelho (bom contraste) e um tom escuro sobre o âmbar
+// (branco teria contraste ruim sobre essa cor mais clara).
+const INTERDICTION_LABEL_TEXT_COLOR = ["#fff", "#4A3600"];
+
+/**
+ * Rótulo de valor para cada segmento da barra empilhada de condições
+ * críticas (Etapa de rótulos de dados do pedido de refinamento). Quando o
+ * segmento é largo o suficiente, o número fica centrado dentro dele; quando
+ * é estreito demais (valor pequeno) para caber com folga, o rótulo sai para
+ * fora, logo à direita do próprio segmento, na cor da série — assim o
+ * número de um valor pequeno nunca fica espremido ou sobreposto ao
+ * segmento vizinho. Não altera o valor exibido, só onde ele é desenhado.
+ */
+function makeStackedBarLabel(fill, textColor) {
+  return function StackedBarLabel({ x, y, width, height, value }) {
+    if (!value) return null;
+    const cy = y + height / 2;
+    const fits = width >= 20;
+    return (
+      <text
+        x={fits ? x + width / 2 : x + width + 4}
+        y={cy}
+        dy={3.5}
+        textAnchor={fits ? "middle" : "start"}
+        fontSize={10}
+        fontWeight={600}
+        fill={fits ? textColor : fill}
+      >
+        {value}
+      </text>
+    );
+  };
+}
 
 /**
  * "Condições Críticas de Interdição" — quadros com NC aberta em PRO-01
@@ -662,7 +730,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
           <div id="risco-interdicao-chart">
             <ResponsiveContainer width="100%" height={Math.max(220, risk.porLocalidade.length * 52 + 30)}>
               <ComposedChart
-                data={risk.porLocalidade} layout="vertical" margin={{ left: 10, right: 16, top: 28 }}
+                data={risk.porLocalidade} layout="vertical" margin={{ left: 10, right: 34, top: 28 }}
                 onClick={(e) => {
                   const loc = e?.activeLabel;
                   if (loc) setSelectedLocalidade((cur) => (cur === loc ? null : loc));
@@ -688,7 +756,9 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                     key={c.codigo} dataKey={c.codigo} name={c.label} stackId="condicoes"
                     fill={INTERDICTION_COLORS[i]} barSize={22} cursor="pointer"
                     radius={i === risk.condicoesCatalogo.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey={c.codigo} content={makeStackedBarLabel(INTERDICTION_COLORS[i], INTERDICTION_LABEL_TEXT_COLOR[i])} />
+                  </Bar>
                 ))}
               </ComposedChart>
             </ResponsiveContainer>
