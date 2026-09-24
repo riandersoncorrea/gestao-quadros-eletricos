@@ -36,11 +36,18 @@ const GREEN_DARK = "#1E6746";
 const AMBER = "#E5A100";
 const RED = "#DC2626";
 const GRAY = "#9CA3AF";
-const AXIS_TICK = { fontSize: 11, fill: "#6B7280" };
+const AXIS_TICK = { fontSize: 11, fill: "#8A94A0" };
+const GRID_STROKE = "#EEF1F3";
 // Padrão único de legenda para todos os gráficos (Etapa 7 do pedido de
 // refinamento visual): sempre no canto superior esquerdo, marcadores
-// discretos, mesma tipografia.
-const LEGEND_PROPS = /** @type {const} */ ({ verticalAlign: "top", align: "left", iconType: "circle", iconSize: 8, wrapperStyle: { fontSize: 11, paddingBottom: 10 } });
+// discretos, mesma tipografia — com respiro em relação ao título e ao
+// gráfico (Etapa 6/7 da segunda rodada de refinamento).
+const LEGEND_PROPS = /** @type {const} */ ({ verticalAlign: "top", align: "left", iconType: "circle", iconSize: 7, wrapperStyle: { fontSize: 11.5, paddingBottom: 14, paddingTop: 2 } });
+// Marcadores suaves e consistentes para linhas/pontos em todos os gráficos
+// (Etapa 4 da segunda rodada): pequenos, preenchidos, sem anel branco
+// pesado, com um destaque discreto só no hover.
+const dotStyle = (color) => ({ r: 2.5, fill: color, strokeWidth: 0 });
+const activeDotStyle = (color) => ({ r: 4.5, fill: color, strokeWidth: 1.5, stroke: "#fff" });
 
 function pct(v, digits = 1) {
   return v == null ? "—" : `${v.toFixed(digits)}%`;
@@ -112,12 +119,12 @@ function EmptyState({ text = "Nenhum dado encontrado para os filtros selecionado
   );
 }
 
-/** Bloco "Análise" — interpretação de 1–3 frases sob um gráfico, sempre no mesmo formato visual em toda a página. */
+/** Bloco "Análise" — interpretação sob um gráfico, sempre no mesmo formato visual em toda a página, próxima do gráfico e com espaçamento inferior equilibrado (Etapa 1/7 da segunda rodada de refinamento). */
 function ChartReading({ text }) {
   if (!text) return null;
   return (
-    <div className="mt-4 pt-3 border-t border-border/60">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/80 mb-1">Análise</p>
+    <div className="mt-5 pt-4 border-t border-border/60">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/80 mb-1.5">Análise</p>
       <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
     </div>
   );
@@ -126,12 +133,41 @@ function ChartReading({ text }) {
 /** Legenda customizada (canto superior esquerdo) para gráficos cujas cores têm significado sem serem "séries" nomeadas do Recharts (ex.: faixas de cor por limiar). */
 function ChartLegendDots({ items }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-2">
+    <div className="flex flex-wrap items-center gap-3 mb-4">
       {items.map((it) => (
         <span key={it.label} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <span className="h-2 w-2 rounded-full shrink-0" style={{ background: it.color }} />{it.label}
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Tooltip customizado, único para todos os gráficos da página (Etapa 14 da
+ * segunda rodada de refinamento): fundo sólido, cantos arredondados, sombra
+ * leve, nome completo da categoria (nunca abreviado como no eixo) e valores
+ * já formatados por quem chama. `rows` é a lista de linhas já resolvidas
+ * pelo gráfico (evita repetir a mesma lógica de formatação em vários
+ * lugares); `title` é o cabeçalho (geralmente o rótulo do eixo X ou a
+ * categoria do ponto).
+ */
+function ChartTooltip({ active, title, rows }) {
+  if (!active || !rows?.length) return null;
+  return (
+    <div className="bg-card border border-border/70 rounded-lg px-3 py-2.5 text-xs shadow-lg min-w-[160px] max-w-[260px]">
+      {title && <p className="font-semibold text-foreground mb-1.5">{title}</p>}
+      <div className="space-y-1">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+              {r.color && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: r.color }} />}
+              <span className="truncate">{r.label}</span>
+            </span>
+            <span className="font-medium tabular-nums text-foreground shrink-0">{r.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -415,11 +451,21 @@ function DimensionChart({ dimensions, reading }) {
     <Section id="conformidade-dimensao" title="Conformidade por Dimensão" subtitle="Conforme / (Conforme + Não Conforme) — N/A não penaliza.">
       <ChartLegendDots items={DIMENSION_LEGEND} />
       <ResponsiveContainer width="100%" height={Math.max(320, data.length * 42)}>
-        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 48 }}>
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 48, top: 4 }}>
+          <CartesianGrid horizontal={false} stroke={GRID_STROKE} />
           <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
           <YAxis type="category" dataKey="dimensao" width={180} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-          <Tooltip formatter={(v, n, p) => [p.payload.percentual == null ? "sem respostas aplicáveis" : `${Number(v).toFixed(1)}%`, "Conformidade"]} />
-          <Bar dataKey="percentual" radius={[0, 4, 4, 0]} barSize={22}>
+          <Tooltip
+            cursor={{ fill: "rgba(46,103,70,0.06)" }}
+            content={({ active, payload }) => {
+              const p = payload?.[0]?.payload;
+              if (!p) return null;
+              const color = p.percentual == null ? GRAY : p.percentual >= 90 ? GREEN : p.percentual >= 70 ? AMBER : RED;
+              const value = p.percentual == null ? "sem respostas aplicáveis" : `${p.percentual.toFixed(1)}%`;
+              return <ChartTooltip active={active} title={p.dimensao} rows={[{ label: "Conformidade", value, color }]} />;
+            }}
+          />
+          <Bar dataKey="percentual" radius={[0, 4, 4, 0]} barSize={20} maxBarSize={22}>
             {data.map((d, i) => (
               <Cell key={i} fill={d.percentual == null ? GRAY : d.percentual >= 90 ? GREEN : d.percentual >= 70 ? AMBER : RED} />
             ))}
@@ -427,9 +473,9 @@ function DimensionChart({ dimensions, reading }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-2 mt-2">
+      <div className="flex flex-wrap gap-2 mt-3">
         {data.map((d) => (
-          <Badge key={d.modulo} variant="outline" className="text-[11px]">
+          <Badge key={d.modulo} variant="outline" className="text-[11px] font-normal">
             {d.dimensao}: {d.aplicaveis} resposta(s) aplicável(is)
           </Badge>
         ))}
@@ -440,32 +486,50 @@ function DimensionChart({ dimensions, reading }) {
 }
 
 function ParetoSection({ pareto, reading }) {
+  // Altura proporcional à quantidade de itens (mais itens -> mais espaço
+  // horizontal por categoria e labels rotacionados -> mais altura), sem
+  // "flutuar" no topo do card quando há poucos itens nem estourar quando há
+  // muitos (Etapa 1 da segunda rodada de refinamento visual).
+  const chartHeight = Math.max(320, Math.min(420, 210 + pareto.itens.length * 14));
   return (
     <Section
       id="pareto-nc" title="Principais Não Conformidades"
       subtitle={`Concentração de NCs abertas por requisito (Pareto) — não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
     >
       {pareto.itens.length === 0 ? <EmptyState text="Nenhuma não conformidade aberta no período selecionado." /> : (
-        <ResponsiveContainer width="100%" height={400}>
-          <ComposedChart data={pareto.itens} margin={{ left: 0, right: 20, top: 30, bottom: 80 }}>
-            <XAxis dataKey="codigo" angle={-45} textAnchor="end" interval={0} height={90} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <Tooltip
-              formatter={(v, name) => name === "% acumulado" ? [`${Number(v).toFixed(1)}%`, name] : [v, "Ocorrências"]}
-              labelFormatter={(_, p) => {
-                const d = p?.[0]?.payload;
-                if (!d) return "";
-                return d.codigo && d.titulo ? `${d.codigo} — ${d.titulo}` : (d.titulo || d.codigo || "");
-              }}
-            />
-            <Legend {...LEGEND_PROPS} />
-            <Bar yAxisId="left" dataKey="n" name="Ocorrências" fill={GREEN_DARK} radius={[4, 4, 0, 0]}>
-              <LabelList dataKey="n" position="top" style={{ fontSize: 10, fontWeight: 600 }} />
-            </Bar>
-            <Line yAxisId="right" type="monotone" dataKey="percentualAcumulado" name="% acumulado" stroke={AMBER} strokeWidth={2} dot={{ r: 3 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="flex flex-col items-center">
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <ComposedChart data={pareto.itens} margin={{ left: 16, right: 16, top: 28, bottom: 56 }}>
+              <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+              <XAxis dataKey="codigo" angle={-38} textAnchor="end" interval={0} height={56} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} />
+              <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} />
+              <Tooltip
+                cursor={{ fill: "rgba(30,103,70,0.06)" }}
+                content={({ active, payload }) => {
+                  const p = payload?.[0]?.payload;
+                  if (!p) return null;
+                  const titulo = p.codigo && p.titulo ? `${p.codigo} — ${p.titulo}` : (p.titulo || p.codigo || "");
+                  return (
+                    <ChartTooltip
+                      active={active}
+                      title={titulo}
+                      rows={[
+                        { label: "Ocorrências", value: p.n, color: GREEN_DARK },
+                        { label: "% acumulado", value: `${p.percentualAcumulado.toFixed(1)}%`, color: AMBER },
+                      ]}
+                    />
+                  );
+                }}
+              />
+              <Legend {...LEGEND_PROPS} />
+              <Bar yAxisId="left" dataKey="n" name="Ocorrências" fill={GREEN_DARK} radius={[4, 4, 0, 0]} maxBarSize={40}>
+                <LabelList dataKey="n" position="top" style={{ fontSize: 10, fontWeight: 600, fill: "#4B5563" }} />
+              </Bar>
+              <Line yAxisId="right" type="monotone" dataKey="percentualAcumulado" name="% acumulado" stroke={AMBER} strokeWidth={1.75} dot={dotStyle(AMBER)} activeDot={activeDotStyle(AMBER)} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       )}
       <ChartReading text={reading} />
     </Section>
@@ -479,16 +543,28 @@ function TemporalSection({ temporal, reading }) {
       {temporal.pontos.length < 2 ? (
         <EmptyState text="Histórico insuficiente para traçar evolução (é necessário mais de um período com inspeções)." />
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={temporal.pontos} margin={{ left: 0, right: 10, top: 24, bottom: 10 }}>
+        <ResponsiveContainer width="100%" height={360}>
+          <ComposedChart data={temporal.pontos} margin={{ left: 4, right: 16, top: 28, bottom: 10 }}>
+            <CartesianGrid vertical={false} stroke={GRID_STROKE} />
             <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} angle={temporal.pontos.length > 8 ? -30 : 0} textAnchor={temporal.pontos.length > 8 ? "end" : "middle"} height={temporal.pontos.length > 8 ? 50 : 30} />
-            <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v, name) => name === "Taxa de conformidade" ? [`${Number(v).toFixed(1)}%`, name] : [v, name]} />
+            <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} />
+            <Tooltip
+              cursor={{ fill: "rgba(107,114,128,0.06)" }}
+              content={({ active, label, payload }) => {
+                if (!payload?.length) return null;
+                const rows = payload.map((p) => ({
+                  label: p.name,
+                  color: p.color,
+                  value: p.name === "Taxa de conformidade" ? (p.value == null ? "—" : `${Number(p.value).toFixed(1)}%`) : p.value,
+                }));
+                return <ChartTooltip active={active} title={label} rows={rows} />;
+              }}
+            />
             <Legend {...LEGEND_PROPS} />
-            <Bar yAxisId="left" dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[3, 3, 0, 0]} />
-            <Bar yAxisId="left" dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[3, 3, 0, 0]} />
-            <Line yAxisId="right" type="monotone" dataKey="taxaConformidade" name="Taxa de conformidade" stroke={GREEN} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+            <Bar yAxisId="left" dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[3, 3, 0, 0]} maxBarSize={28} />
+            <Bar yAxisId="left" dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[3, 3, 0, 0]} maxBarSize={28} />
+            <Line yAxisId="right" type="monotone" dataKey="taxaConformidade" name="Taxa de conformidade" stroke={GREEN} strokeWidth={1.75} dot={dotStyle(GREEN)} activeDot={activeDotStyle(GREEN)} connectNulls />
           </ComposedChart>
         </ResponsiveContainer>
       )}
@@ -501,11 +577,25 @@ function LocalidadeSection({ byLocalidade, reading }) {
   return (
     <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Taxa = NCs abertas / inspeções realizadas na localidade — não é comparação bruta de volume.">
       {byLocalidade.length === 0 ? <EmptyState /> : (
-        <ResponsiveContainer width="100%" height={Math.max(240, byLocalidade.length * 46 + 20)}>
-          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56, top: 20 }}>
+        <ResponsiveContainer width="100%" height={Math.max(240, byLocalidade.length * 46 + 30)}>
+          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56, top: 28 }}>
+            <CartesianGrid horizontal={false} stroke={GRID_STROKE} />
             <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="localidade" width={160} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v, name) => name === "Taxa de NC" ? [`${Number(v).toFixed(1)} NCs / 100 insp.`, name] : [v, name]} />
+            <Tooltip
+              cursor={{ fill: "rgba(107,114,128,0.06)" }}
+              content={({ active, label, payload }) => {
+                if (!payload?.length) return null;
+                const rows = payload.map((p) => ({
+                  label: p.name,
+                  color: p.color,
+                  value: p.name === "Não conformidades" && p.payload.taxaNaoConformidade != null
+                    ? `${p.value} (${p.payload.taxaNaoConformidade.toFixed(1)}/100 insp.)`
+                    : p.value,
+                }));
+                return <ChartTooltip active={active} title={label} rows={rows} />;
+              }}
+            />
             <Legend {...LEGEND_PROPS} />
             <Bar dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[0, 3, 3, 0]} barSize={18} />
             <Bar dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[0, 3, 3, 0]} barSize={18}>
@@ -614,26 +704,29 @@ function HealthScatterSection({ healthVsConformity, reading }) {
         <>
           <ResponsiveContainer width="100%" height={320}>
             <ScatterChart margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <CartesianGrid vertical={false} stroke={GRID_STROKE} />
               <XAxis type="number" dataKey="conformidade" name="Conformidade" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <YAxis type="number" dataKey="indiceSaude" name="Índice de Saúde" domain={[0, 100]} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <ZAxis range={[70, 70]} />
+              <YAxis type="number" dataKey="indiceSaude" name="Índice de Saúde" domain={[0, 100]} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
+              <ZAxis range={[36, 36]} />
               <Tooltip
-                cursor={{ strokeDasharray: "3 3" }}
+                cursor={{ strokeDasharray: "3 3", stroke: "#C9CFD6" }}
                 content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const p = payload[0].payload;
+                  const p = payload?.[0]?.payload;
+                  if (!p) return null;
                   return (
-                    <div className="bg-card border border-border rounded-md p-2 text-xs shadow-md space-y-0.5">
-                      <p className="font-semibold">{p.panelTag} — {p.panelName}</p>
-                      <p>{p.localidade} · {fmtDate(p.data)}</p>
-                      <p>Conformidade: {p.conformidade.toFixed(1)}%</p>
-                      <p>Índice de Saúde: {p.indiceSaude.toFixed(0)}</p>
-                    </div>
+                    <ChartTooltip
+                      active={active}
+                      title={`${p.panelTag} — ${p.panelName}`}
+                      rows={[
+                        { label: `${p.localidade} · ${fmtDate(p.data)}`, value: "" },
+                        { label: "Conformidade", value: `${p.conformidade.toFixed(1)}%`, color: GREEN_DARK },
+                        { label: "Índice de Saúde", value: p.indiceSaude.toFixed(0), color: AMBER },
+                      ]}
+                    />
                   );
                 }}
               />
-              <Scatter data={healthVsConformity.pontos} fill={GREEN_DARK} />
+              <Scatter data={healthVsConformity.pontos} fill={GREEN_DARK} fillOpacity={0.75} />
             </ScatterChart>
           </ResponsiveContainer>
           <ChartReading text={reading} />
@@ -696,18 +789,26 @@ function PredictiveSection({ predictive, temporal }) {
             ) : (
               <>
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ left: 0, right: 10, top: 24 }}>
+                  <LineChart data={chartData} margin={{ left: 4, right: 16, top: 28 }}>
+                    <CartesianGrid vertical={false} stroke={GRID_STROKE} />
                     <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v) => [v == null ? "—" : `${Number(v).toFixed(1)}%`, ""]} />
+                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} />
+                    <Tooltip
+                      cursor={{ stroke: "#C9CFD6", strokeDasharray: "3 3" }}
+                      content={({ active, label, payload }) => {
+                        if (!payload?.length) return null;
+                        const rows = payload.filter((p) => p.value != null).map((p) => ({ label: p.name, color: p.color, value: `${Number(p.value).toFixed(1)}%` }));
+                        return <ChartTooltip active={active} title={label} rows={rows} />;
+                      }}
+                    />
                     <Legend {...LEGEND_PROPS} />
-                    <Line type="monotone" dataKey="historico" name="Histórico observado" stroke={GREEN_DARK} strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                    <Line type="monotone" dataKey="projecao" name="Cenário projetado" stroke={AMBER} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} connectNulls />
+                    <Line type="monotone" dataKey="historico" name="Histórico observado" stroke={GREEN_DARK} strokeWidth={1.75} dot={dotStyle(GREEN_DARK)} activeDot={activeDotStyle(GREEN_DARK)} connectNulls />
+                    <Line type="monotone" dataKey="projecao" name="Cenário projetado" stroke={AMBER} strokeWidth={1.75} strokeDasharray="5 4" dot={dotStyle(AMBER)} activeDot={activeDotStyle(AMBER)} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Tendência estimada: <TrendBadge trend={cp.tendencia} />. Projeção calculada por regressão linear sobre o histórico do recorte filtrado —
-                  representa um cenário estimado, não uma garantia. Intervalo aproximado dos pontos projetados:{" "}
+                  Tendência estimada: <TrendBadge trend={cp.tendencia} />. Projeção calculada por regressão linear sobre o histórico do recorte filtrado,
+                  representando um cenário estimado, não uma garantia. Intervalo aproximado dos pontos projetados:{" "}
                   {cp.projecao.map((p) => `${p.valor.toFixed(1)}% (${p.intervaloMin.toFixed(1)}%–${p.intervaloMax.toFixed(1)}%)`).join("; ")}.
                 </p>
               </>
