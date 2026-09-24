@@ -26,11 +26,21 @@ import {
   Repeat, Target, Gauge, ClipboardCheck, ShieldAlert, MapPin, Calendar,
 } from "lucide-react";
 
+// Paleta de gráficos — reaproveita a identidade visual do sistema (mesmo
+// verde já usado no Dashboard), sem introduzir cores novas e desconectadas.
+// Variações de verde cobrem múltiplas séries "neutras" (sem significado de
+// bom/ruim); âmbar e vermelho ficam reservados para os usos semânticos já
+// estabelecidos (atenção/projeção e não conformidade/crítico).
 const GREEN = "#2E9E6B";
+const GREEN_DARK = "#1E6746";
 const AMBER = "#E5A100";
 const RED = "#DC2626";
-const BLUE = "#0369A1";
 const GRAY = "#9CA3AF";
+const AXIS_TICK = { fontSize: 11, fill: "#6B7280" };
+// Padrão único de legenda para todos os gráficos (Etapa 7 do pedido de
+// refinamento visual): sempre no canto superior esquerdo, marcadores
+// discretos, mesma tipografia.
+const LEGEND_PROPS = /** @type {const} */ ({ verticalAlign: "top", align: "left", iconType: "circle", iconSize: 8, wrapperStyle: { fontSize: 11, paddingBottom: 10 } });
 
 function pct(v, digits = 1) {
   return v == null ? "—" : `${v.toFixed(digits)}%`;
@@ -102,13 +112,27 @@ function EmptyState({ text = "Nenhum dado encontrado para os filtros selecionado
   );
 }
 
-/** "Leitura dos dados" — 1–3 frases interpretativas sob um gráfico (Etapa 5/7 do pedido). */
+/** Bloco "Análise" — interpretação de 1–3 frases sob um gráfico, sempre no mesmo formato visual em toda a página. */
 function ChartReading({ text }) {
   if (!text) return null;
   return (
-    <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/60">
-      <span className="font-medium text-foreground/80">Leitura dos dados: </span>{text}
-    </p>
+    <div className="mt-4 pt-3 border-t border-border/60">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/80 mb-1">Análise</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+/** Legenda customizada (canto superior esquerdo) para gráficos cujas cores têm significado sem serem "séries" nomeadas do Recharts (ex.: faixas de cor por limiar). */
+function ChartLegendDots({ items }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 mb-2">
+      {items.map((it) => (
+        <span key={it.label} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: it.color }} />{it.label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -288,7 +312,7 @@ export default function IntelligentAnalysis() {
           <LocalidadeSection byLocalidade={analysis.byLocalidade} reading={analysis.chartDescriptions.localidade} />
           <RankingQuadrosSection rankingQuadros={analysis.rankingQuadros} onOpenPanel={setInfoPanelId} />
           <RecurrenceSection recurrence={analysis.recurrence} reading={analysis.chartDescriptions.recurrence} onOpenPanel={setInfoPanelId} />
-          <HealthScatterSection healthVsConformity={analysis.healthVsConformity} />
+          <HealthScatterSection healthVsConformity={analysis.healthVsConformity} reading={analysis.chartDescriptions.health} />
           <DiagnosticsSection diagnostics={analysis.diagnostics} />
           <PredictiveSection predictive={analysis.predictive} temporal={analysis.temporal} />
           <InsightsSection insights={analysis.insights} />
@@ -336,52 +360,64 @@ function ExecutiveVision({ kpis }) {
   );
 }
 
-function DescriptiveSection({ descriptive }) {
-  const r = descriptive.resumo;
+const DESCRIPTIVE_ICONS = { ClipboardCheck, MapPin, Target, AlertTriangle };
+
+/** Um cartão de interpretação da Análise Descritiva — categoria/ícone, resumo, interpretação e indicadores (Etapa 3 do pedido de refinamento visual). */
+function DescriptiveCard({ card }) {
+  const Icon = DESCRIPTIVE_ICONS[card.icone] || Sparkles;
   return (
-    <Section id="analise-descritiva" title="Análise Descritiva" subtitle="Números diretos do recorte filtrado, sem interpretação.">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5 text-sm">
-          <p>• {r.inspecoes} inspeção(ões) realizada(s) em {r.quadros} quadro(s).</p>
-          <p>• {r.conforme} resposta(s) Conforme, {r.naoConforme} Não Conforme, {r.naoAplicavel} N/A{r.naoVerificado ? `, ${r.naoVerificado} Não Verificado` : ""}.</p>
-          <p>• Taxa de conformidade: {pct(r.taxaConformidade)}.</p>
-          <p>• Distribuição por status: {descriptive.distribuicaoPorStatus.map((s) => `${s.status.replace(/_/g, " ")} (${s.n})`).join(" · ") || "—"}</p>
+    <div className="rounded-lg border border-border/60 p-4 bg-card h-full flex flex-col">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Icon className="h-3.5 w-3.5" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1.5">Dimensões com mais ocorrências de NC</p>
-            <ul className="text-sm space-y-1">
-              {descriptive.dimensoesComMaisOcorrencias.slice(0, 5).map((d) => (
-                <li key={d.dimensao} className="flex justify-between gap-2"><span className="truncate">{d.dimensao}</span><span className="font-medium">{d.n}</span></li>
-              ))}
-              {!descriptive.dimensoesComMaisOcorrencias.length && <li className="text-muted-foreground">Nenhuma NC no período.</li>}
-            </ul>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1.5">Perguntas com mais NC</p>
-            <ul className="text-sm space-y-1">
-              {descriptive.perguntasComMaisNc.slice(0, 5).map((p) => (
-                <li key={p.codigo || p.titulo} className="flex justify-between gap-2">
-                  <span className="truncate">{p.codigo ? `${p.codigo} — ` : ""}{p.titulo}</span><span className="font-medium shrink-0">{p.n}</span>
-                </li>
-              ))}
-              {!descriptive.perguntasComMaisNc.length && <li className="text-muted-foreground">Nenhuma NC no período.</li>}
-            </ul>
-          </div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{card.titulo}</p>
+      </div>
+      <p className="text-sm font-medium text-foreground leading-snug">{card.resumo}</p>
+      <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{card.interpretacao}</p>
+      {card.indicadores?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-auto pt-3 border-t border-border/50">
+          {card.indicadores.map((ind, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]">
+              <span className="text-muted-foreground">{ind.label}:</span>
+              <span className="font-semibold tabular-nums">{ind.value}</span>
+            </span>
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function DescriptiveSection({ descriptive }) {
+  return (
+    <Section
+      id="analise-descritiva" title="Análise Descritiva"
+      subtitle="Leitura interpretativa do recorte filtrado, derivada dos mesmos dados exibidos nos gráficos abaixo."
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        {descriptive.narrativas.map((card) => <DescriptiveCard key={card.chave} card={card} />)}
       </div>
     </Section>
   );
 }
 
+const DIMENSION_LEGEND = [
+  { label: "≥ 90% Bom", color: GREEN },
+  { label: "70–89% Atenção", color: AMBER },
+  { label: "< 70% Crítico", color: RED },
+  { label: "Sem dados", color: GRAY },
+];
+
 function DimensionChart({ dimensions, reading }) {
   const data = dimensions.map((d) => ({ ...d, percentualLabel: d.percentual == null ? "sem dados" : `${d.percentual.toFixed(1)}%` }));
   return (
     <Section id="conformidade-dimensao" title="Conformidade por Dimensão" subtitle="Conforme / (Conforme + Não Conforme) — N/A não penaliza.">
+      <ChartLegendDots items={DIMENSION_LEGEND} />
       <ResponsiveContainer width="100%" height={Math.max(320, data.length * 42)}>
         <BarChart data={data} layout="vertical" margin={{ left: 10, right: 48 }}>
-          <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-          <YAxis type="category" dataKey="dimensao" width={180} tick={{ fontSize: 11 }} />
+          <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="dimensao" width={180} tick={AXIS_TICK} axisLine={false} tickLine={false} />
           <Tooltip formatter={(v, n, p) => [p.payload.percentual == null ? "sem respostas aplicáveis" : `${Number(v).toFixed(1)}%`, "Conformidade"]} />
           <Bar dataKey="percentual" radius={[0, 4, 4, 0]} barSize={22}>
             {data.map((d, i) => (
@@ -410,20 +446,24 @@ function ParetoSection({ pareto, reading }) {
       subtitle={`Concentração de NCs abertas por requisito (Pareto) — não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
     >
       {pareto.itens.length === 0 ? <EmptyState text="Nenhuma não conformidade aberta no período selecionado." /> : (
-        <ResponsiveContainer width="100%" height={380}>
-          <ComposedChart data={pareto.itens} margin={{ left: 0, right: 20, top: 10, bottom: 80 }}>
-            <XAxis dataKey="codigo" angle={-45} textAnchor="end" interval={0} height={90} tick={{ fontSize: 11 }} />
-            <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={400}>
+          <ComposedChart data={pareto.itens} margin={{ left: 0, right: 20, top: 30, bottom: 80 }}>
+            <XAxis dataKey="codigo" angle={-45} textAnchor="end" interval={0} height={90} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(v, name) => name === "% acumulado" ? [`${Number(v).toFixed(1)}%`, name] : [v, "Ocorrências"]}
-              labelFormatter={(_, p) => p?.[0]?.payload?.titulo || ""}
+              labelFormatter={(_, p) => {
+                const d = p?.[0]?.payload;
+                if (!d) return "";
+                return d.codigo && d.titulo ? `${d.codigo} — ${d.titulo}` : (d.titulo || d.codigo || "");
+              }}
             />
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} verticalAlign="top" />
-            <Bar yAxisId="left" dataKey="n" name="Ocorrências" fill={BLUE} radius={[4, 4, 0, 0]}>
+            <Legend {...LEGEND_PROPS} />
+            <Bar yAxisId="left" dataKey="n" name="Ocorrências" fill={GREEN_DARK} radius={[4, 4, 0, 0]}>
               <LabelList dataKey="n" position="top" style={{ fontSize: 10, fontWeight: 600 }} />
             </Bar>
-            <Line yAxisId="right" type="monotone" dataKey="percentualAcumulado" name="% acumulado" stroke={RED} strokeWidth={2} dot={{ r: 3 }} />
+            <Line yAxisId="right" type="monotone" dataKey="percentualAcumulado" name="% acumulado" stroke={AMBER} strokeWidth={2} dot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>
       )}
@@ -439,13 +479,13 @@ function TemporalSection({ temporal, reading }) {
       {temporal.pontos.length < 2 ? (
         <EmptyState text="Histórico insuficiente para traçar evolução (é necessário mais de um período com inspeções)." />
       ) : (
-        <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={temporal.pontos} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
-            <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={temporal.pontos.length > 8 ? -30 : 0} textAnchor={temporal.pontos.length > 8 ? "end" : "middle"} height={temporal.pontos.length > 8 ? 50 : 30} />
-            <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={340}>
+          <ComposedChart data={temporal.pontos} margin={{ left: 0, right: 10, top: 24, bottom: 10 }}>
+            <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} angle={temporal.pontos.length > 8 ? -30 : 0} textAnchor={temporal.pontos.length > 8 ? "end" : "middle"} height={temporal.pontos.length > 8 ? 50 : 30} />
+            <YAxis yAxisId="left" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
             <Tooltip formatter={(v, name) => name === "Taxa de conformidade" ? [`${Number(v).toFixed(1)}%`, name] : [v, name]} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Legend {...LEGEND_PROPS} />
             <Bar yAxisId="left" dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[3, 3, 0, 0]} />
             <Bar yAxisId="left" dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[3, 3, 0, 0]} />
             <Line yAxisId="right" type="monotone" dataKey="taxaConformidade" name="Taxa de conformidade" stroke={GREEN} strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -461,12 +501,12 @@ function LocalidadeSection({ byLocalidade, reading }) {
   return (
     <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Taxa = NCs abertas / inspeções realizadas na localidade — não é comparação bruta de volume.">
       {byLocalidade.length === 0 ? <EmptyState /> : (
-        <ResponsiveContainer width="100%" height={Math.max(220, byLocalidade.length * 46)}>
-          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56 }}>
-            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-            <YAxis type="category" dataKey="localidade" width={160} tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={Math.max(240, byLocalidade.length * 46 + 20)}>
+          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56, top: 20 }}>
+            <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="localidade" width={160} tick={AXIS_TICK} axisLine={false} tickLine={false} />
             <Tooltip formatter={(v, name) => name === "Taxa de NC" ? [`${Number(v).toFixed(1)} NCs / 100 insp.`, name] : [v, name]} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Legend {...LEGEND_PROPS} />
             <Bar dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[0, 3, 3, 0]} barSize={18} />
             <Bar dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[0, 3, 3, 0]} barSize={18}>
               <LabelList
@@ -565,7 +605,7 @@ function RecurrenceSection({ recurrence, reading, onOpenPanel }) {
   );
 }
 
-function HealthScatterSection({ healthVsConformity }) {
+function HealthScatterSection({ healthVsConformity, reading }) {
   return (
     <Section id="is-vs-conformidade" title="Índice de Saúde × Conformidade" subtitle="Cada ponto representa uma inspeção.">
       {healthVsConformity.pontos.length === 0 ? (
@@ -574,9 +614,9 @@ function HealthScatterSection({ healthVsConformity }) {
         <>
           <ResponsiveContainer width="100%" height={320}>
             <ScatterChart margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" dataKey="conformidade" name="Conformidade" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-              <YAxis type="number" dataKey="indiceSaude" name="Índice de Saúde" domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis type="number" dataKey="conformidade" name="Conformidade" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+              <YAxis type="number" dataKey="indiceSaude" name="Índice de Saúde" domain={[0, 100]} tick={AXIS_TICK} axisLine={false} tickLine={false} />
               <ZAxis range={[70, 70]} />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
@@ -593,14 +633,10 @@ function HealthScatterSection({ healthVsConformity }) {
                   );
                 }}
               />
-              <Scatter data={healthVsConformity.pontos} fill={BLUE} />
+              <Scatter data={healthVsConformity.pontos} fill={GREEN_DARK} />
             </ScatterChart>
           </ResponsiveContainer>
-          <p className="text-xs text-muted-foreground mt-2">
-            {healthVsConformity.dadosSuficientes
-              ? `Correlação observada: r = ${healthVsConformity.correlacao.toFixed(2)} (coeficiente de Pearson). Correlação não implica causalidade.`
-              : "Dados insuficientes para calcular correlação estatística (mínimo de 5 inspeções com Índice de Saúde)."}
-          </p>
+          <ChartReading text={reading} />
         </>
       )}
     </Section>
@@ -659,13 +695,13 @@ function PredictiveSection({ predictive, temporal }) {
               <p className="text-sm text-muted-foreground">{cp.motivo}</p>
             ) : (
               <>
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={chartData} margin={{ left: 0, right: 10, top: 10 }}>
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={chartData} margin={{ left: 0, right: 10, top: 24 }}>
+                    <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={AXIS_TICK} axisLine={false} tickLine={false} />
                     <Tooltip formatter={(v) => [v == null ? "—" : `${Number(v).toFixed(1)}%`, ""]} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="historico" name="Histórico observado" stroke={BLUE} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    <Legend {...LEGEND_PROPS} />
+                    <Line type="monotone" dataKey="historico" name="Histórico observado" stroke={GREEN_DARK} strokeWidth={2} dot={{ r: 3 }} connectNulls />
                     <Line type="monotone" dataKey="projecao" name="Cenário projetado" stroke={AMBER} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>

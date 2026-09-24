@@ -71,7 +71,7 @@ export function computeIntelligentAnalysis(raw, filters) {
   const rankingQuadros = computeRankingQuadros(base);
   const healthVsConformity = computeHealthVsConformity(base);
   const diagnostics = computeDiagnostics({ kpis, filteredInspections: base.filteredInspections, dimensions, pareto, byLocalidade, recurrence, temporal, rankingQuadros });
-  const chartDescriptions = computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence });
+  const chartDescriptions = computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence, healthVsConformity });
 
   const enoughForTrend = base.filteredInspections.length >= MIN_INSPECTIONS_FOR_TREND;
   const conformityProjection = enoughForTrend

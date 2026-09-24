@@ -71,6 +71,18 @@ function isConclusiva(resposta) {
   return resposta === "conforme" || resposta === "nao_conforme";
 }
 
+/**
+ * "CÓDIGO — descrição do requisito", sempre que ambos estiverem disponíveis
+ * (a descrição vem do catálogo ativo, já resolvida em `titulo` por
+ * filterAnalysisData — nunca hardcodada aqui). Usada em todo texto
+ * analítico que cita um requisito do checklist, para nunca expor um código
+ * "PRO-01" sozinho quando a descrição já está disponível nos dados.
+ */
+export function describeRequisito(codigo, titulo) {
+  if (codigo && titulo) return `${codigo} — ${titulo}`;
+  return codigo || titulo || "requisito sem identificação";
+}
+
 /** Taxa de conformidade (0–100) de um conjunto de respostas. null se não houver respostas conclusivas. */
 export function conformityRate(responses) {
   let conforme = 0, naoConforme = 0;
@@ -250,21 +262,153 @@ export function computeDescriptive({ filteredInspections, filteredNCs, panelById
     perguntaNc.get(key).n += 1;
   }
 
-  return {
-    resumo: {
-      inspecoes: filteredInspections.length,
-      quadros: kpis.quadrosInspecionados,
-      conforme: kpis.conforme,
-      naoConforme: kpis.naoConforme,
-      naoAplicavel: kpis.naoAplicavel,
-      naoVerificado: kpis.naoVerificado,
-      taxaConformidade: kpis.taxaConformidade,
-    },
-    dimensoesComMaisOcorrencias: [...dimNc.entries()].map(([dimensao, n]) => ({ dimensao, n })).sort((a, b) => b.n - a.n),
-    perguntasComMaisNc: [...perguntaNc.values()].sort((a, b) => b.n - a.n),
-    distribuicaoPorStatus: [...porStatus.entries()].map(([status, n]) => ({ status, n })),
-    distribuicaoPorLocalidade: [...porLocalidade.entries()].map(([localidade, n]) => ({ localidade, n })).sort((a, b) => b.n - a.n),
+  const resumo = {
+    inspecoes: filteredInspections.length,
+    quadros: kpis.quadrosInspecionados,
+    conforme: kpis.conforme,
+    naoConforme: kpis.naoConforme,
+    naoAplicavel: kpis.naoAplicavel,
+    naoVerificado: kpis.naoVerificado,
+    taxaConformidade: kpis.taxaConformidade,
   };
+  const dimensoesComMaisOcorrencias = [...dimNc.entries()].map(([dimensao, n]) => ({ dimensao, n })).sort((a, b) => b.n - a.n);
+  const perguntasComMaisNc = [...perguntaNc.values()].sort((a, b) => b.n - a.n);
+  const distribuicaoPorStatus = [...porStatus.entries()].map(([status, n]) => ({ status, n }));
+  const distribuicaoPorLocalidade = [...porLocalidade.entries()].map(([localidade, n]) => ({ localidade, n })).sort((a, b) => b.n - a.n);
+
+  return {
+    resumo,
+    dimensoesComMaisOcorrencias,
+    perguntasComMaisNc,
+    distribuicaoPorStatus,
+    distribuicaoPorLocalidade,
+    narrativas: buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus }),
+  };
+}
+
+const STATUS_LABEL = {
+  aprovado: "aprovada(s)",
+  aprovado_ressalvas: "aprovada(s) com ressalvas",
+  reprovado: "reprovada(s)",
+  sem_resultado: "sem resultado registrado",
+};
+
+/**
+ * Cartões narrativos da "Análise Descritiva" (Etapa 3/4 do pedido de
+ * refinamento visual) — interpretação em linguagem natural, sempre derivada
+ * das MESMAS estruturas já calculadas acima (resumo/kpis/dimensões/
+ * perguntas), nunca uma segunda fonte de dados. Cada cartão traz um resumo
+ * de uma linha e uma interpretação mais detalhada, no formato pedido
+ * ("X concentra A, enquanto Y registra B, uma diferença de C").
+ */
+function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus }) {
+  const cards = [];
+
+  // 1. Volume e cobertura ---------------------------------------------------
+  {
+    const statusTxt = distribuicaoPorStatus.length
+      ? distribuicaoPorStatus.map((s) => `${s.n} ${STATUS_LABEL[s.status] || s.status.replace(/_/g, " ")}`).join(", ")
+      : null;
+    cards.push({
+      chave: "volume",
+      titulo: "Volume e Cobertura",
+      icone: "ClipboardCheck",
+      resumo: `${resumo.inspecoes} inspeção(ões) realizada(s) em ${resumo.quadros} quadro(s) distinto(s) no período analisado.`,
+      interpretacao: statusTxt
+        ? `Do total de inspeções do recorte, a distribuição por resultado foi: ${statusTxt}.`
+        : "Não há inspeções com resultado registrado no período selecionado.",
+      indicadores: [
+        { label: "Inspeções", value: resumo.inspecoes },
+        { label: "Quadros distintos", value: resumo.quadros },
+      ],
+    });
+  }
+
+  // 2. Distribuição por localidade ------------------------------------------
+  {
+    const locs = [...(kpis.inspecoesPorLocalidade || [])].sort((a, b) => b.inspecoes - a.inspecoes);
+    if (locs.length >= 2) {
+      const top = locs[0], bottom = locs[locs.length - 1];
+      const pctTop = kpis.inspecoesRealizadas ? (100 * top.inspecoes) / kpis.inspecoesRealizadas : null;
+      const diff = top.inspecoes - bottom.inspecoes;
+      cards.push({
+        chave: "localidades",
+        titulo: "Distribuição por Localidade",
+        icone: "MapPin",
+        resumo: `As inspeções do período estão concentradas principalmente em ${top.localidade}${pctTop != null ? `, que representa ${pctTop.toFixed(1)}% do total analisado` : ""}.`,
+        interpretacao: top.localidade === bottom.localidade
+          ? `Apenas ${top.localidade} registrou inspeções no período selecionado.`
+          : `${top.localidade} concentra ${top.inspecoes} inspeção(ões), enquanto ${bottom.localidade} registra ${bottom.inspecoes}, uma diferença de ${diff} inspeção(ões).`,
+        indicadores: locs.slice(0, 4).map((l) => ({ label: l.localidade, value: l.inspecoes })),
+      });
+    } else if (locs.length === 1) {
+      cards.push({
+        chave: "localidades",
+        titulo: "Distribuição por Localidade",
+        icone: "MapPin",
+        resumo: `${locs[0].localidade} concentra todas as ${locs[0].inspecoes} inspeção(ões) do período.`,
+        interpretacao: "Não há outra localidade com inspeções no recorte selecionado para comparação.",
+        indicadores: [{ label: locs[0].localidade, value: locs[0].inspecoes }],
+      });
+    }
+  }
+
+  // 3. Conformidade das respostas -------------------------------------------
+  if (kpis.aplicaveis > 0) {
+    cards.push({
+      chave: "conformidade",
+      titulo: "Conformidade das Respostas",
+      icone: "Target",
+      resumo: `${kpis.taxaConformidade.toFixed(1)}% das respostas aplicáveis do período foram "Conforme" (${kpis.conforme} de ${kpis.aplicaveis}).`,
+      interpretacao: `Além das respostas conformes, foram registradas ${kpis.naoConforme} não conforme(s), ${kpis.naoAplicavel} não aplicável(is)${kpis.naoVerificado ? ` e ${kpis.naoVerificado} não verificada(s)` : ""} no recorte analisado.`,
+      indicadores: [
+        { label: "Conforme", value: kpis.conforme },
+        { label: "Não conforme", value: kpis.naoConforme },
+        { label: "N/A", value: kpis.naoAplicavel },
+      ],
+    });
+  } else {
+    cards.push({
+      chave: "conformidade",
+      titulo: "Conformidade das Respostas",
+      icone: "Target",
+      resumo: "Sem respostas aplicáveis (Conforme/Não Conforme) no período selecionado.",
+      interpretacao: "Não há base suficiente para calcular a taxa de conformidade neste recorte.",
+      indicadores: [],
+    });
+  }
+
+  // 4. Concentração de não conformidades -------------------------------------
+  if (perguntasComMaisNc.length) {
+    const top = perguntasComMaisNc[0];
+    const totalNc = perguntasComMaisNc.reduce((s, p) => s + p.n, 0);
+    const pctTop = totalNc ? (100 * top.n) / totalNc : null;
+    const topDim = dimensoesComMaisOcorrencias[0];
+    cards.push({
+      chave: "concentracao_nc",
+      titulo: "Concentração de Não Conformidades",
+      icone: "AlertTriangle",
+      resumo: `${describeRequisito(top.codigo, top.titulo)} concentra ${top.n} ocorrência(s) entre as NCs abertas analisadas${pctTop != null ? `, representando ${pctTop.toFixed(1)}% do total` : ""}.`,
+      interpretacao: topDim
+        ? `A dimensão ${topDim.dimensao} é a que mais concentra não conformidades no período (${topDim.n} ocorrência(s)).`
+        : "Não há concentração relevante por dimensão a destacar no período.",
+      indicadores: [
+        { label: "Requisito líder", value: top.codigo || "—" },
+        { label: "Ocorrências", value: top.n },
+      ],
+    });
+  } else {
+    cards.push({
+      chave: "concentracao_nc",
+      titulo: "Concentração de Não Conformidades",
+      icone: "AlertTriangle",
+      resumo: "Nenhuma não conformidade aberta identificada no período selecionado.",
+      interpretacao: "Sem NCs abertas no recorte, não há concentração por requisito ou dimensão a reportar.",
+      indicadores: [],
+    });
+  }
+
+  return cards;
 }
 
 /** Conformidade por dimensão (as 8 dimensões reais do template). */
@@ -812,7 +956,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
     const top = pareto.itens[0];
     requisitos.push({
       tipo: "requisito_concentrador",
-      texto: `O requisito ${top.codigo || top.titulo} concentra o maior número de não conformidades do período (${top.n} ocorrência(s), ${top.percentual.toFixed(1)}% do total).`,
+      texto: `O requisito ${describeRequisito(top.codigo, top.titulo)} concentra o maior número de não conformidades do período (${top.n} ocorrência(s), ${top.percentual.toFixed(1)}% do total).`,
       indicador: top,
     });
   }
@@ -824,7 +968,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
     const top = recurrence.casos[0];
     recorr.push({
       tipo: "recorrencia",
-      texto: `${recurrence.resumo.totalCasos} caso(s) de reincidência identificado(s), afetando ${recurrence.resumo.quadrosAfetados} quadro(s). O requisito ${top.codigo || top.titulo} reincidiu em ${top.ocorrencias} inspeções diferentes do quadro ${top.panelTag}.`,
+      texto: `${recurrence.resumo.totalCasos} caso(s) de reincidência identificado(s), afetando ${recurrence.resumo.quadrosAfetados} quadro(s). O requisito ${describeRequisito(top.codigo, top.titulo)} reincidiu em ${top.ocorrencias} inspeções diferentes do quadro ${top.panelTag}.`,
       indicador: top,
     });
   } else {
@@ -937,7 +1081,7 @@ export function buildManagerialInsights({ kpis, diagnostics, dimensions, pareto,
 
   for (const c of (recurrence.casos || []).slice(0, 3)) {
     recorrencias.push({
-      titulo: `${c.codigo || c.titulo} — quadro ${c.panelTag}`,
+      titulo: `${describeRequisito(c.codigo, c.titulo)} — quadro ${c.panelTag}`,
       descricao: `Reincidente em ${c.ocorrencias} inspeções diferentes deste quadro. Última ocorrência: ${c.ultimaOcorrencia || "—"}.`,
       indicador: c,
     });
@@ -947,7 +1091,7 @@ export function buildManagerialInsights({ kpis, diagnostics, dimensions, pareto,
     const top = pareto.itens[0];
     concentracao.push({
       titulo: "Requisito com mais ocorrências",
-      descricao: `${top.codigo || top.titulo} responde por ${top.percentual.toFixed(1)}% das não conformidades do período (${top.n} ocorrência(s)).`,
+      descricao: `${describeRequisito(top.codigo, top.titulo)} responde por ${top.percentual.toFixed(1)}% das não conformidades do período (${top.n} ocorrência(s)).`,
       indicador: top,
     });
   }
@@ -971,7 +1115,7 @@ export function buildManagerialInsights({ kpis, diagnostics, dimensions, pareto,
  * refaz nenhum cálculo). Quando não há evidência suficiente para uma
  * leitura, o texto diz isso explicitamente em vez de forçar uma frase.
  */
-export function computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence }) {
+export function computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence, healthVsConformity }) {
   const out = {};
 
   const dimsComDados = dimensions.filter((d) => d.percentual != null);
@@ -987,7 +1131,7 @@ export function computeChartDescriptions({ dimensions, pareto, byLocalidade, tem
 
   if (pareto.itens.length) {
     const top = pareto.itens[0];
-    const parts = [`${top.codigo || top.titulo} concentra ${pct1(top.percentual)} das não conformidades do período (${top.n} ocorrência${top.n === 1 ? "" : "s"}).`];
+    const parts = [`${describeRequisito(top.codigo, top.titulo)} concentra ${pct1(top.percentual)} das não conformidades do período (${top.n} ocorrência${top.n === 1 ? "" : "s"}).`];
     if (pareto.pontos80 != null && pareto.total > 1) {
       parts.push(`Os ${pareto.pontos80} primeiros requisitos (de ${pareto.total}) já somam ~80% do total — concentração relevante em poucos itens.`);
     }
@@ -1027,9 +1171,20 @@ export function computeChartDescriptions({ dimensions, pareto, byLocalidade, tem
 
   if (recurrence.casos.length) {
     const top = recurrence.casos[0];
-    out.recurrence = `${recurrence.resumo.totalCasos} caso(s) de reincidência em ${recurrence.resumo.quadrosAfetados} quadro(s). O mais recorrente é ${top.codigo || top.titulo} no quadro ${top.panelTag}, com ${top.ocorrencias} ocorrências.`;
+    out.recurrence = `${recurrence.resumo.totalCasos} caso(s) de reincidência em ${recurrence.resumo.quadrosAfetados} quadro(s). O mais recorrente é ${describeRequisito(top.codigo, top.titulo)} no quadro ${top.panelTag}, com ${top.ocorrencias} ocorrências.`;
   } else {
     out.recurrence = "Nenhum requisito reincidente identificado no período (mesma NC em 2 ou mais inspeções diferentes do mesmo quadro).";
+  }
+
+  if (healthVsConformity) {
+    if (healthVsConformity.dadosSuficientes && healthVsConformity.correlacao != null) {
+      const r = healthVsConformity.correlacao;
+      const forca = Math.abs(r) >= 0.6 ? "forte" : Math.abs(r) >= 0.3 ? "moderada" : "fraca";
+      const sentido = r >= 0 ? "positiva" : "negativa";
+      out.health = `Observa-se uma correlação ${forca} e ${sentido} (r = ${r.toFixed(2)}) entre a taxa de conformidade e o Índice de Saúde das inspeções do período. Esse comportamento pode indicar que inspeções mais conformes tendem a apresentar Índice de Saúde mais alto — correlação não implica causalidade.`;
+    } else {
+      out.health = "Dados insuficientes no período para calcular uma correlação estatística confiável entre conformidade e Índice de Saúde.";
+    }
   }
 
   return out;
