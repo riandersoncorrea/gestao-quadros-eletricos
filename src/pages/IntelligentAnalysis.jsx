@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fetchIntelligentAnalysisRaw, computeIntelligentAnalysis } from "@/services/intelligentAnalysisService";
+import { fetchIntelligentAnalysisRaw, computeIntelligentAnalysis, getPanelSnapshotFromAnalysis } from "@/services/intelligentAnalysisService";
 import {
   ANALYSIS_PERIOD_OPTIONS, STATUS_OPTIONS, LOCALIDADE_ALL,
   resolveAnalysisPeriodRange, validateCustomRange,
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   BarChart, Bar, LineChart, Line, ComposedChart, ScatterChart, Scatter,
   XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList,
@@ -21,7 +23,7 @@ import {
 import { toast } from "sonner";
 import {
   Sparkles, FileDown, Info, TrendingUp, TrendingDown, Minus, AlertTriangle,
-  Repeat, Target, Gauge, ClipboardCheck, LayoutGrid, ShieldAlert,
+  Repeat, Target, Gauge, ClipboardCheck, ShieldAlert, MapPin, Calendar,
 } from "lucide-react";
 
 const GREEN = "#2E9E6B";
@@ -53,18 +55,23 @@ function InfoHint({ text }) {
 
 function Kpi({ icon: Icon, label, value, sub, tone, hint }) {
   const toneCls = tone === "err" ? "text-destructive" : tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-secondary" : "text-foreground";
+  const iconToneCls = tone === "err" ? "bg-destructive/10 text-destructive" : tone === "warn" ? "bg-amber-100 text-amber-700" : tone === "ok" ? "bg-secondary/15 text-secondary" : "bg-primary/10 text-primary";
   return (
-    <Card className="border-border/60 h-full">
+    <Card className="border-border/60 h-full transition-shadow hover:shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">
               {label}{hint && <InfoHint text={hint} />}
             </p>
-            <p className={`text-2xl font-bold mt-1 ${toneCls}`}>{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+            <p className={`text-2xl font-bold mt-1.5 tabular-nums ${toneCls}`}>{value}</p>
+            {sub && <p className="text-[11px] text-muted-foreground mt-1 truncate">{sub}</p>}
           </div>
-          {Icon && <Icon className="h-5 w-5 text-muted-foreground/50 shrink-0" />}
+          {Icon && (
+            <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${iconToneCls}`}>
+              <Icon className="h-4 w-4" />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -95,6 +102,30 @@ function EmptyState({ text = "Nenhum dado encontrado para os filtros selecionado
   );
 }
 
+/** "Leitura dos dados" — 1–3 frases interpretativas sob um gráfico (Etapa 5/7 do pedido). */
+function ChartReading({ text }) {
+  if (!text) return null;
+  return (
+    <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/60">
+      <span className="font-medium text-foreground/80">Leitura dos dados: </span>{text}
+    </p>
+  );
+}
+
+/** Botão de ícone "informações do quadro" — abre o modal com a ficha-resumo (Etapa 7/8 do pedido). */
+function PanelInfoButton({ panelId, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(panelId)}
+      className="inline-flex items-center justify-center h-5 w-5 rounded-full text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors shrink-0"
+      title="Ver informações do quadro"
+    >
+      <Info className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
 const TREND_ICON = { melhora: TrendingUp, piora: TrendingDown, estabilidade: Minus, aumento: TrendingUp, redução: TrendingDown };
 const TREND_LABEL = { melhora: "Melhora", piora: "Piora", estabilidade: "Estabilidade", aumento: "Aumento", redução: "Redução" };
 const TREND_COLOR = { melhora: "text-secondary", redução: "text-secondary", piora: "text-destructive", aumento: "text-destructive", estabilidade: "text-muted-foreground" };
@@ -120,6 +151,7 @@ export default function IntelligentAnalysis() {
   const [customApplied, setCustomApplied] = useState(null);
   const [customError, setCustomError] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [infoPanelId, setInfoPanelId] = useState(null);
   const reportRef = useRef(null);
 
   const filters = useMemo(() => ({
@@ -245,22 +277,29 @@ export default function IntelligentAnalysis() {
       </Card>
 
       {!analysis?.hasData ? (
-        <Card><CardContent className="p-0"><EmptyState /></CardContent></Card>
+        <Card><CardContent className="p-0"><EmptyState text="Sem dados suficientes para análise com os filtros selecionados." /></CardContent></Card>
       ) : (
         <div ref={reportRef} className="space-y-6">
           <ExecutiveVision kpis={analysis.kpis} />
           <DescriptiveSection descriptive={analysis.descriptive} />
-          <DimensionChart dimensions={analysis.dimensions} />
-          <ParetoSection pareto={analysis.pareto} />
-          <TemporalSection temporal={analysis.temporal} />
-          <LocalidadeSection byLocalidade={analysis.byLocalidade} />
-          <RecurrenceSection recurrence={analysis.recurrence} />
+          <DimensionChart dimensions={analysis.dimensions} reading={analysis.chartDescriptions.dimensions} />
+          <ParetoSection pareto={analysis.pareto} reading={analysis.chartDescriptions.pareto} />
+          <TemporalSection temporal={analysis.temporal} reading={analysis.chartDescriptions.temporal} />
+          <LocalidadeSection byLocalidade={analysis.byLocalidade} reading={analysis.chartDescriptions.localidade} />
+          <RankingQuadrosSection rankingQuadros={analysis.rankingQuadros} onOpenPanel={setInfoPanelId} />
+          <RecurrenceSection recurrence={analysis.recurrence} reading={analysis.chartDescriptions.recurrence} onOpenPanel={setInfoPanelId} />
           <HealthScatterSection healthVsConformity={analysis.healthVsConformity} />
           <DiagnosticsSection diagnostics={analysis.diagnostics} />
           <PredictiveSection predictive={analysis.predictive} temporal={analysis.temporal} />
           <InsightsSection insights={analysis.insights} />
         </div>
       )}
+
+      <PanelInfoDialog
+        panelId={infoPanelId}
+        snapshot={infoPanelId ? getPanelSnapshotFromAnalysis(analysis, infoPanelId) : null}
+        onClose={() => setInfoPanelId(null)}
+      />
     </div>
   );
 }
@@ -270,18 +309,24 @@ export default function IntelligentAnalysis() {
 // ============================================================================
 
 function ExecutiveVision({ kpis }) {
+  const porLocalidade = new Map(kpis.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
   return (
     <Section id="visao-executiva" title="Visão Executiva">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={LayoutGrid} label="Quadros inspecionados" value={kpis.quadrosInspecionados} />
         <Kpi icon={ClipboardCheck} label="Inspeções realizadas" value={kpis.inspecoesRealizadas} />
+        <Kpi icon={MapPin} label="Inspeções — Porto" value={porLocalidade.get("Porto") ?? 0} sub="localidade Porto" />
+        <Kpi icon={MapPin} label="Inspeções — Oficina" value={porLocalidade.get("Oficina") ?? 0} sub="localidade Oficina" />
         <Kpi
           icon={Target} label="Taxa de conformidade" value={pct(kpis.taxaConformidade)}
           sub={`${kpis.conforme} de ${kpis.aplicaveis} aplicáveis`}
           tone={kpis.taxaConformidade == null ? undefined : kpis.taxaConformidade >= 90 ? "ok" : kpis.taxaConformidade >= 70 ? "warn" : "err"}
           hint="Conforme / (Conforme + Não Conforme). Respostas N/A e Não Verificado não entram no cálculo."
         />
-        <Kpi icon={AlertTriangle} label="Não conformidades" value={kpis.naoConformidades} sub="respostas Não Conforme" tone={kpis.naoConformidades ? "warn" : "ok"} />
+        <Kpi
+          icon={AlertTriangle} label="Não conformidades" value={kpis.naoConformidades}
+          sub="abertas no período (mesma regra do Dashboard)" tone={kpis.naoConformidades ? "warn" : "ok"}
+          hint="Registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado — mesma definição usada no Painel."
+        />
         <Kpi
           icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "—"}
           sub={kpis.indiceSaudeMedio == null ? "sem inspeções com IS calculado" : "das inspeções com IS calculado"}
@@ -329,16 +374,16 @@ function DescriptiveSection({ descriptive }) {
   );
 }
 
-function DimensionChart({ dimensions }) {
+function DimensionChart({ dimensions, reading }) {
   const data = dimensions.map((d) => ({ ...d, percentualLabel: d.percentual == null ? "sem dados" : `${d.percentual.toFixed(1)}%` }));
   return (
     <Section id="conformidade-dimensao" title="Conformidade por Dimensão" subtitle="Conforme / (Conforme + Não Conforme) — N/A não penaliza.">
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 40 }}>
+      <ResponsiveContainer width="100%" height={Math.max(320, data.length * 42)}>
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 48 }}>
           <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-          <YAxis type="category" dataKey="dimensao" width={160} tick={{ fontSize: 11 }} />
+          <YAxis type="category" dataKey="dimensao" width={180} tick={{ fontSize: 11 }} />
           <Tooltip formatter={(v, n, p) => [p.payload.percentual == null ? "sem respostas aplicáveis" : `${Number(v).toFixed(1)}%`, "Conformidade"]} />
-          <Bar dataKey="percentual" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="percentual" radius={[0, 4, 4, 0]} barSize={22}>
             {data.map((d, i) => (
               <Cell key={i} fill={d.percentual == null ? GRAY : d.percentual >= 90 ? GREEN : d.percentual >= 70 ? AMBER : RED} />
             ))}
@@ -353,27 +398,28 @@ function DimensionChart({ dimensions }) {
           </Badge>
         ))}
       </div>
+      <ChartReading text={reading} />
     </Section>
   );
 }
 
-function ParetoSection({ pareto }) {
+function ParetoSection({ pareto, reading }) {
   return (
     <Section
       id="pareto-nc" title="Principais Não Conformidades"
-      subtitle={`Concentração de ocorrências por requisito (Pareto) — não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
+      subtitle={`Concentração de NCs abertas por requisito (Pareto) — não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
     >
-      {pareto.itens.length === 0 ? <EmptyState text="Nenhuma não conformidade no período selecionado." /> : (
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={pareto.itens} margin={{ left: 0, right: 20, bottom: 60 }}>
-            <XAxis dataKey="codigo" angle={-40} textAnchor="end" interval={0} height={70} tick={{ fontSize: 10 }} />
+      {pareto.itens.length === 0 ? <EmptyState text="Nenhuma não conformidade aberta no período selecionado." /> : (
+        <ResponsiveContainer width="100%" height={380}>
+          <ComposedChart data={pareto.itens} margin={{ left: 0, right: 20, top: 10, bottom: 80 }}>
+            <XAxis dataKey="codigo" angle={-45} textAnchor="end" interval={0} height={90} tick={{ fontSize: 11 }} />
             <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
             <Tooltip
               formatter={(v, name) => name === "% acumulado" ? [`${Number(v).toFixed(1)}%`, name] : [v, "Ocorrências"]}
               labelFormatter={(_, p) => p?.[0]?.payload?.titulo || ""}
             />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} verticalAlign="top" />
             <Bar yAxisId="left" dataKey="n" name="Ocorrências" fill={BLUE} radius={[4, 4, 0, 0]}>
               <LabelList dataKey="n" position="top" style={{ fontSize: 10, fontWeight: 600 }} />
             </Bar>
@@ -381,20 +427,21 @@ function ParetoSection({ pareto }) {
           </ComposedChart>
         </ResponsiveContainer>
       )}
+      <ChartReading text={reading} />
     </Section>
   );
 }
 
-function TemporalSection({ temporal }) {
+function TemporalSection({ temporal, reading }) {
   const granLabel = { dia: "diário", semana: "semanal", mes: "mensal" }[temporal.granularidade] || "";
   return (
     <Section id="evolucao-temporal" title="Evolução da Conformidade" subtitle={temporal.pontos.length ? `Agrupamento ${granLabel}, conforme o período e a quantidade de dados.` : undefined}>
       {temporal.pontos.length < 2 ? (
         <EmptyState text="Histórico insuficiente para traçar evolução (é necessário mais de um período com inspeções)." />
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={temporal.pontos} margin={{ left: 0, right: 10, top: 10 }}>
-            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={320}>
+          <ComposedChart data={temporal.pontos} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={temporal.pontos.length > 8 ? -30 : 0} textAnchor={temporal.pontos.length > 8 ? "end" : "middle"} height={temporal.pontos.length > 8 ? 50 : 30} />
             <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v, name) => name === "Taxa de conformidade" ? [`${Number(v).toFixed(1)}%`, name] : [v, name]} />
@@ -405,41 +452,77 @@ function TemporalSection({ temporal }) {
           </ComposedChart>
         </ResponsiveContainer>
       )}
+      <ChartReading text={reading} />
     </Section>
   );
 }
 
-function LocalidadeSection({ byLocalidade }) {
+function LocalidadeSection({ byLocalidade, reading }) {
   return (
-    <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Considere a taxa, não só o volume: localidades com mais inspeções tendem a acumular mais ocorrências.">
+    <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Taxa = NCs abertas / inspeções realizadas na localidade — não é comparação bruta de volume.">
       {byLocalidade.length === 0 ? <EmptyState /> : (
-        <ResponsiveContainer width="100%" height={Math.max(220, byLocalidade.length * 42)}>
-          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 40 }}>
+        <ResponsiveContainer width="100%" height={Math.max(220, byLocalidade.length * 46)}>
+          <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56 }}>
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-            <YAxis type="category" dataKey="localidade" width={140} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, name) => name === "Taxa de NC" ? [`${Number(v).toFixed(1)}%`, name] : [v, name]} />
+            <YAxis type="category" dataKey="localidade" width={160} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, name) => name === "Taxa de NC" ? [`${Number(v).toFixed(1)} NCs / 100 insp.`, name] : [v, name]} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[0, 3, 3, 0]} />
-            <Bar dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[0, 3, 3, 0]}>
+            <Bar dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[0, 3, 3, 0]} barSize={18} />
+            <Bar dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[0, 3, 3, 0]} barSize={18}>
               <LabelList
                 dataKey="taxaNaoConformidade"
                 position="right"
-                formatter={(v) => (v == null ? "" : `${v.toFixed(1)}% taxa`)}
+                formatter={(v) => (v == null ? "" : `${v.toFixed(1)}/100 insp.`)}
                 style={{ fontSize: 10, fill: "#374151" }}
               />
             </Bar>
           </ComposedChart>
         </ResponsiveContainer>
       )}
+      <ChartReading text={reading} />
     </Section>
   );
 }
 
-function RecurrenceSection({ recurrence }) {
+function RankingQuadrosSection({ rankingQuadros, onOpenPanel }) {
+  return (
+    <Section
+      id="quadros-criticos" title="Quadros Críticos"
+      subtitle={`Ranking por volume de NCs abertas no período. Mostrando ${rankingQuadros.itens.length} de ${rankingQuadros.total} quadro(s) com NC.`}
+    >
+      {rankingQuadros.itens.length === 0 ? <EmptyState text="Nenhum quadro com não conformidade aberta no período selecionado." /> : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Quadro</TableHead>
+                <TableHead>Localidade</TableHead>
+                <TableHead className="text-right">NCs abertas</TableHead>
+                <TableHead className="w-8"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rankingQuadros.itens.map((q) => (
+                <TableRow key={q.panelId}>
+                  <TableCell className="font-mono text-xs">{q.panelTag}</TableCell>
+                  <TableCell className="text-sm">{q.localidade}</TableCell>
+                  <TableCell className="text-right font-medium">{q.naoConformidades}</TableCell>
+                  <TableCell><PanelInfoButton panelId={q.panelId} onOpen={onOpenPanel} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function RecurrenceSection({ recurrence, reading, onOpenPanel }) {
   return (
     <Section
       id="reincidencias" title="Reincidências"
-      subtitle="Mesmo requisito Não Conforme em 2 ou mais inspeções diferentes do mesmo quadro."
+      subtitle="Mesmo requisito com NC aberta em 2 ou mais inspeções diferentes do mesmo quadro."
     >
       <div className="flex flex-wrap gap-2 mb-3">
         <Badge variant="outline">{recurrence.resumo.totalCasos} caso(s) de reincidência</Badge>
@@ -456,6 +539,7 @@ function RecurrenceSection({ recurrence }) {
                 <TableHead>Datas</TableHead>
                 <TableHead>Última ocorrência</TableHead>
                 <TableHead>Taxa de recorrência</TableHead>
+                <TableHead className="w-8"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -469,12 +553,14 @@ function RecurrenceSection({ recurrence }) {
                   <TableCell className="text-xs">
                     {c.taxa?.insuficiente ? <span className="text-muted-foreground">{c.taxa.motivo}</span> : `${c.taxa.taxa.toFixed(0)}% (${c.taxa.ocorrencias}/${c.taxa.aplicaveis})`}
                   </TableCell>
+                  <TableCell><PanelInfoButton panelId={c.panelId} onOpen={onOpenPanel} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+      <ChartReading text={reading} />
     </Section>
   );
 }
@@ -522,16 +608,24 @@ function HealthScatterSection({ healthVsConformity }) {
 }
 
 function DiagnosticsSection({ diagnostics }) {
+  const categorias = diagnostics.categorias || [];
   return (
-    <Section id="diagnostico" title="Diagnóstico dos Dados" subtitle="Padrões identificados a partir dos cálculos acima — sem atribuição de causas.">
-      {diagnostics.length === 0 ? <EmptyState text="Sem padrões relevantes a destacar no período selecionado." /> : (
-        <ul className="space-y-2">
-          {diagnostics.map((d, i) => (
-            <li key={i} className="text-sm flex gap-2">
-              <span className="text-primary mt-0.5">•</span><span>{d.texto}</span>
-            </li>
+    <Section id="diagnostico" title="Diagnóstico dos Dados" subtitle="Padrões identificados a partir dos cálculos acima, por categoria — sem atribuição de causas.">
+      {categorias.length === 0 ? <EmptyState text="Sem padrões relevantes a destacar no período selecionado." /> : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {categorias.map((cat) => (
+            <div key={cat.chave} className="rounded-lg border border-border/70 p-3">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">{cat.titulo}</p>
+              <ul className="space-y-1.5">
+                {cat.achados.map((d, i) => (
+                  <li key={i} className="text-sm flex gap-2">
+                    <span className="text-primary mt-0.5">•</span><span>{d.texto}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </Section>
   );
@@ -651,5 +745,86 @@ function InsightsSection({ insights }) {
         })}
       </div>
     </Section>
+  );
+}
+
+/**
+ * Ficha-resumo do quadro (Etapa 7/8 do pedido) — todo o conteúdo vem de
+ * `snapshot` (computePanelSnapshot, já derivado dos dados carregados pela
+ * página, sem consulta nova por clique).
+ */
+function PanelInfoDialog({ panelId, snapshot, onClose }) {
+  return (
+    <Dialog open={!!panelId} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        {!snapshot ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Quadro não encontrado nos dados atuais.</div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono">{snapshot.tag}</span>
+                {snapshot.criticidade && <Badge variant="outline" className="text-[10px]">Criticidade {snapshot.criticidade}</Badge>}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-sm">
+              <p className="text-muted-foreground -mt-2">{snapshot.nome}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Localidade</p>
+                  <p className="font-medium flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3 text-primary/60" />{snapshot.localidade}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Status</p>
+                  <p className="font-medium capitalize mt-0.5">{snapshot.status || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Última inspeção</p>
+                  <p className="font-medium flex items-center gap-1 mt-0.5"><Calendar className="h-3 w-3 text-primary/60" />{fmtDate(snapshot.ultimaInspecao)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Próxima inspeção</p>
+                  <p className="font-medium flex items-center gap-1 mt-0.5"><Calendar className="h-3 w-3 text-primary/60" />{fmtDate(snapshot.proximaInspecao)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Inspeções no período</p>
+                  <p className="font-medium mt-0.5">{snapshot.inspecoesNoPeriodo}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">NCs abertas no período</p>
+                  <p className={`font-medium mt-0.5 ${snapshot.naoConformidadesNoPeriodo ? "text-destructive" : ""}`}>{snapshot.naoConformidadesNoPeriodo}</p>
+                </div>
+              </div>
+
+              {snapshot.principaisCategorias.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Principais categorias com NC</p>
+                  <ul className="space-y-1">
+                    {snapshot.principaisCategorias.map((c) => (
+                      <li key={c.categoria} className="flex justify-between text-xs"><span>{c.categoria}</span><span className="font-medium">{c.n}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {snapshot.recorrenciasNoPeriodo.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Requisitos recorrentes</p>
+                  <ul className="space-y-1">
+                    {snapshot.recorrenciasNoPeriodo.map((r) => (
+                      <li key={r.codigo} className="flex justify-between text-xs"><span>{r.codigo ? `${r.codigo} — ` : ""}{r.titulo}</span><span className="font-medium">{r.ocorrencias}x</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <Link to={`/quadro/${snapshot.panelId}`} className="text-xs text-primary hover:underline inline-block pt-1">
+                Abrir ficha completa do quadro →
+              </Link>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

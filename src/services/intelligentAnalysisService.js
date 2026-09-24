@@ -1,5 +1,6 @@
 import * as panelRepository from "@/repositories/panelRepository";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
+import * as ncRepository from "@/repositories/ncRepository";
 import { getActiveTemplate } from "@/services/inspectionService";
 import {
   filterAnalysisData,
@@ -10,8 +11,11 @@ import {
   computeByLocalidade,
   computeTemporalEvolution,
   computeRecurrence,
+  computeRankingQuadros,
+  computePanelSnapshot,
   computeHealthVsConformity,
   computeDiagnostics,
+  computeChartDescriptions,
   computeDimensionTemporalSeries,
   countApplicableForRequisito,
   buildManagerialInsights,
@@ -31,14 +35,17 @@ import {
  * as consultas a cada mudança de filtro.
  */
 export async function fetchIntelligentAnalysisRaw() {
-  const [panels, hierarchy, inspections, responses, tpl] = await Promise.all([
+  const [panels, hierarchy, inspections, responses, tpl, nonconformities] = await Promise.all([
     panelRepository.listForDashboard(),
     panelRepository.fetchHierarchy(),
     inspectionRepository.listForAnalysis(),
     inspectionRepository.listAllResponses(),
     getActiveTemplate(),
+    // Mesma consulta em lote já usada pelo Dashboard (services/
+    // dashboardService.js) — não uma segunda definição de "NCs abertas".
+    ncRepository.listStatusSeverityForDashboard(),
   ]);
-  return { panels, hierarchy, inspections, responses, templateItems: tpl.items };
+  return { panels, hierarchy, inspections, responses, templateItems: tpl.items, nonconformities };
 }
 
 /**
@@ -61,8 +68,10 @@ export function computeIntelligentAnalysis(raw, filters) {
   const byLocalidade = computeByLocalidade(base);
   const temporal = computeTemporalEvolution(base, filters.period);
   const recurrence = computeRecurrence(base);
+  const rankingQuadros = computeRankingQuadros(base);
   const healthVsConformity = computeHealthVsConformity(base);
-  const diagnostics = computeDiagnostics({ dimensions, pareto, byLocalidade, recurrence, temporal });
+  const diagnostics = computeDiagnostics({ kpis, filteredInspections: base.filteredInspections, dimensions, pareto, byLocalidade, recurrence, temporal, rankingQuadros });
+  const chartDescriptions = computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence });
 
   const enoughForTrend = base.filteredInspections.length >= MIN_INSPECTIONS_FOR_TREND;
   const conformityProjection = enoughForTrend
@@ -81,10 +90,11 @@ export function computeIntelligentAnalysis(raw, filters) {
   });
 
   const predictive = { enoughForTrend, conformityProjection, ncTrend, dimensionTrends };
-  const insights = buildManagerialInsights({ kpis, diagnostics, dimensions, pareto, byLocalidade, recurrence, predictive: { conformityProjection } });
+  const insights = buildManagerialInsights({ kpis, diagnostics: diagnostics.achados, dimensions, pareto, byLocalidade, recurrence, predictive: { conformityProjection } });
 
   return {
     hasData: true,
+    base,
     kpis,
     descriptive,
     dimensions,
@@ -92,9 +102,27 @@ export function computeIntelligentAnalysis(raw, filters) {
     byLocalidade,
     temporal,
     recurrence: { ...recurrence, casos: recurrenceComTaxa },
+    rankingQuadros,
     healthVsConformity,
     diagnostics,
+    chartDescriptions,
     predictive,
     insights,
   };
+}
+
+/**
+ * Ficha-resumo de um quadro (Etapa 7/8 do pedido — ícone de informações),
+ * a partir do mesmo `analysis` já calculado (nenhuma consulta nova).
+ */
+export function getPanelSnapshotFromAnalysis(analysis, panelId) {
+  if (!analysis?.hasData) return null;
+  return computePanelSnapshot({
+    panelId,
+    filteredInspections: analysis.base.filteredInspections,
+    filteredNCs: analysis.base.filteredNCs,
+    panelById: analysis.base.panelById,
+    locName: analysis.base.locName,
+    recurrence: analysis.recurrence,
+  });
 }
