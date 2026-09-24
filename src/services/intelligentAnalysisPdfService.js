@@ -78,7 +78,13 @@ class PdfBuilder {
   }
 
   sectionTitle(text) {
-    this.ensureSpace(12);
+    // Respiro antes do título de cada seção — sem isso, o título ficava
+    // colado no último parágrafo/tabela/gráfico da seção anterior. Se o
+    // respiro empurrar para uma nova página, ensureSpace/newPage já reseta
+    // "y" para o topo da página, então esse espaço extra nunca "vaza" para
+    // o topo de uma página nova.
+    this.y += 6;
+    this.ensureSpace(14);
     const { doc } = this;
     doc.setFontSize(12.5);
     doc.setFont(undefined, "bold");
@@ -87,6 +93,21 @@ class PdfBuilder {
     doc.setTextColor(0);
     doc.setFont(undefined, "normal");
     this.y += 6;
+  }
+
+  /** Subtítulo em negrito dentro de uma seção (ex.: categorias do
+   * Diagnóstico, grupos de Insights, "Significado dos códigos") — mesmo
+   * respiro-antes do sectionTitle, só que mais discreto, para não parecer
+   * um novo título de seção numerada. */
+  subheading(text, size = 10) {
+    this.y += 4;
+    this.ensureSpace(8);
+    const { doc } = this;
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(size);
+    doc.text(text, MARGIN, this.y);
+    doc.setFont(undefined, "normal");
+    this.y += 5.5;
   }
 
   paragraph(text, size = 9.5) {
@@ -267,10 +288,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
     // atual; NCs manuais sem código ficam de fora, como na tela.
     const codigosLegenda = analysis.pareto.itens.filter((it) => it.codigo && it.titulo);
     if (codigosLegenda.length) {
-      pdf.ensureSpace(7);
-      doc.setFont(undefined, "bold"); doc.setFontSize(9.5);
-      doc.text("Significado dos códigos", MARGIN, pdf.y); pdf.y += 5.5;
-      doc.setFont(undefined, "normal");
+      pdf.subheading("Significado dos códigos", 9.5);
       for (const it of codigosLegenda) pdf.bullet(`${it.codigo}: ${it.titulo}`, 8.5);
     }
   } else {
@@ -356,10 +374,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   const categorias = analysis.diagnostics.categorias || [];
   if (categorias.length) {
     for (const cat of categorias) {
-      pdf.ensureSpace(7);
-      doc.setFont(undefined, "bold"); doc.setFontSize(10);
-      doc.text(cat.titulo, MARGIN, pdf.y); pdf.y += 5.5;
-      doc.setFont(undefined, "normal");
+      pdf.subheading(cat.titulo);
       for (const a of cat.achados) pdf.bullet(a.texto);
     }
   } else {
@@ -413,10 +428,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   ];
   for (const [label, items] of groups) {
     if (!items.length) continue;
-    pdf.ensureSpace(7);
-    doc.setFont(undefined, "bold"); doc.setFontSize(10);
-    doc.text(label, MARGIN, pdf.y); pdf.y += 5.5;
-    doc.setFont(undefined, "normal");
+    pdf.subheading(label);
     for (const it of items) pdf.bullet(`${it.titulo}: ${it.descricao}`);
   }
 
