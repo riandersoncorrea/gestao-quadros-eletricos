@@ -380,7 +380,7 @@ export default function InspectionForm() {
         <div>
           <h1 className="text-2xl font-bold text-primary">Nova Inspeção</h1>
           <p className="text-sm text-muted-foreground">
-            {tpl?.template ? `${tpl.template.nome} v${tpl.template.versao} · ${items.length} itens` : "Carregando template..."}
+            {tpl?.template ? `Checklist Padrão · ${items.length} itens` : "Carregando template..."}
           </p>
         </div>
       </div>
