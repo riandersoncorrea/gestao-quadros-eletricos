@@ -50,11 +50,20 @@ const dotStyle = (color) => ({ r: 2.5, fill: color, strokeWidth: 0 });
 const activeDotStyle = (color) => ({ r: 4.5, fill: color, strokeWidth: 1.5, stroke: "#fff" });
 
 function pct(v, digits = 1) {
-  return v == null ? "—" : `${v.toFixed(digits)}%`;
+  return v == null ? "-" : `${v.toFixed(digits)}%`;
 }
 function fmtDate(d) {
-  if (!d) return "—";
+  if (!d) return "-";
   try { return new Date(d + "T00:00:00").toLocaleDateString("pt-BR"); } catch { return d; }
+}
+// Preposição + artigo corretos para as localidades reais do sistema ("no
+// Porto", "na Oficina") em vez do "em X" genérico — mesma regra usada no
+// domínio (src/domain/intelligentAnalysis.js), duplicada aqui só para os
+// pontos de texto que vivem na própria UI (ex.: filtro de localidade
+// selecionada no gráfico).
+const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina" };
+function emLocalidade(nome) {
+  return LOCALIDADE_PREPOSICAO[nome] || `em ${nome}`;
 }
 
 function InfoHint({ text }) {
@@ -78,11 +87,11 @@ function Kpi({ icon: Icon, label, value, sub, tone, hint }) {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide leading-snug">
               {label}{hint && <InfoHint text={hint} />}
             </p>
             <p className={`text-2xl font-bold mt-1.5 tabular-nums ${toneCls}`}>{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-1 truncate">{sub}</p>}
+            {sub && <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{sub}</p>}
           </div>
           {Icon && (
             <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${iconToneCls}`}>
@@ -235,7 +244,7 @@ export default function IntelligentAnalysis() {
 
   const localidades = raw?.hierarchy?.localidades || [];
   const panelOptions = useMemo(
-    () => (raw?.panels || []).map((p) => ({ value: p.id, label: `${p.tag} — ${p.name}` })),
+    () => (raw?.panels || []).map((p) => ({ value: p.id, label: `${p.tag}: ${p.name}` })),
     [raw]
   );
 
@@ -256,7 +265,7 @@ export default function IntelligentAnalysis() {
   }
 
   const periodLabel = ANALYSIS_PERIOD_OPTIONS.find((o) => o.value === period)?.label || "Todo o período";
-  const localidadeLabel = localidadeId === LOCALIDADE_ALL ? "Todas as localidades" : (localidades.find((l) => l.id === localidadeId)?.nome || "—");
+  const localidadeLabel = localidadeId === LOCALIDADE_ALL ? "Todas as localidades" : (localidades.find((l) => l.id === localidadeId)?.nome || "-");
 
   if (isLoading || !raw) {
     return (
@@ -277,7 +286,7 @@ export default function IntelligentAnalysis() {
             <Sparkles className="h-5 w-5" />Análise Inteligente dos Dados
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Análise gerencial das inspeções de checklist — descritiva, diagnóstica, tendências e projeções.
+            Análise gerencial das inspeções de checklist: descritiva, diagnóstica, tendências e projeções.
           </p>
         </div>
         <Button size="sm" className="gap-2" onClick={handleExportPdf} disabled={!analysis?.hasData || exporting}>
@@ -376,8 +385,8 @@ function ExecutiveVision({ kpis, risk }) {
     <Section id="visao-executiva" title="Visão Executiva">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={ClipboardCheck} label="Inspeções realizadas" value={kpis.inspecoesRealizadas} />
-        <Kpi icon={MapPin} label="Inspeções — Porto" value={porLocalidade.get("Porto") ?? 0} sub="localidade Porto" />
-        <Kpi icon={MapPin} label="Inspeções — Oficina" value={porLocalidade.get("Oficina") ?? 0} sub="localidade Oficina" />
+        <Kpi icon={MapPin} label="Inspeções no Porto" value={porLocalidade.get("Porto") ?? 0} sub="localidade Porto" />
+        <Kpi icon={MapPin} label="Inspeções na Oficina" value={porLocalidade.get("Oficina") ?? 0} sub="localidade Oficina" />
         <Kpi
           icon={Target} label="Taxa de conformidade" value={pct(kpis.taxaConformidade)}
           sub={`${kpis.conforme} de ${kpis.aplicaveis} aplicáveis`}
@@ -387,7 +396,7 @@ function ExecutiveVision({ kpis, risk }) {
         <Kpi
           icon={AlertTriangle} label="Não conformidades" value={kpis.naoConformidades}
           sub="abertas no período (mesma regra do Dashboard)" tone={kpis.naoConformidades ? "warn" : "ok"}
-          hint="Registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado — mesma definição usada no Painel."
+          hint="Registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel."
         />
         <Kpi
           icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
@@ -395,7 +404,7 @@ function ExecutiveVision({ kpis, risk }) {
           hint={`Quadros distintos com NC aberta em ${condicoesLabel}. Um quadro com as duas condições conta uma única vez. Ocorrências no período: ${risk.condicoesCriticas}.`}
         />
         <Kpi
-          icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "—"}
+          icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "-"}
           sub={kpis.indiceSaudeMedio == null ? "sem inspeções com IS calculado" : "das inspeções com IS calculado"}
         />
       </div>
@@ -455,7 +464,7 @@ const DIMENSION_LEGEND = [
 function DimensionChart({ dimensions, reading }) {
   const data = dimensions.map((d) => ({ ...d, percentualLabel: d.percentual == null ? "sem dados" : `${d.percentual.toFixed(1)}%` }));
   return (
-    <Section id="conformidade-dimensao" title="Conformidade por Dimensão" subtitle="Conforme / (Conforme + Não Conforme) — N/A não penaliza.">
+    <Section id="conformidade-dimensao" title="Conformidade por Dimensão" subtitle="Conforme / (Conforme + Não Conforme). N/A não penaliza.">
       <ChartLegendDots items={DIMENSION_LEGEND} />
       <ResponsiveContainer width="100%" height={Math.max(320, data.length * 42)}>
         <BarChart data={data} layout="vertical" margin={{ left: 10, right: 48, top: 4 }}>
@@ -501,7 +510,7 @@ function ParetoSection({ pareto, reading }) {
   return (
     <Section
       id="pareto-nc" title="Principais Não Conformidades"
-      subtitle={`Concentração de NCs abertas por requisito (Pareto) — não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
+      subtitle={`Concentração de NCs abertas por requisito (Pareto). Não é um ranking de "piores" itens. Mostrando ${pareto.itens.length} de ${pareto.total} requisito(s) com ocorrência.`}
     >
       {pareto.itens.length === 0 ? <EmptyState text="Nenhuma não conformidade aberta no período selecionado." /> : (
         <div className="flex flex-col items-center">
@@ -516,7 +525,7 @@ function ParetoSection({ pareto, reading }) {
                 content={({ active, payload }) => {
                   const p = payload?.[0]?.payload;
                   if (!p) return null;
-                  const titulo = p.codigo && p.titulo ? `${p.codigo} — ${p.titulo}` : (p.titulo || p.codigo || "");
+                  const titulo = p.codigo && p.titulo ? `${p.codigo}: ${p.titulo}` : (p.titulo || p.codigo || "");
                   return (
                     <ChartTooltip
                       active={active}
@@ -563,7 +572,7 @@ function TemporalSection({ temporal, reading }) {
                 const rows = payload.map((p) => ({
                   label: p.name,
                   color: p.color,
-                  value: p.name === "Taxa de conformidade" ? (p.value == null ? "—" : `${Number(p.value).toFixed(1)}%`) : p.value,
+                  value: p.name === "Taxa de conformidade" ? (p.value == null ? "-" : `${Number(p.value).toFixed(1)}%`) : p.value,
                 }));
                 return <ChartTooltip active={active} title={label} rows={rows} />;
               }}
@@ -582,7 +591,7 @@ function TemporalSection({ temporal, reading }) {
 
 function LocalidadeSection({ byLocalidade, reading }) {
   return (
-    <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Taxa = NCs abertas / inspeções realizadas na localidade — não é comparação bruta de volume.">
+    <Section id="localidades" title="Não Conformidades por Localidade" subtitle="Taxa = NCs abertas / inspeções realizadas na localidade. Não é comparação bruta de volume.">
       {byLocalidade.length === 0 ? <EmptyState /> : (
         <ResponsiveContainer width="100%" height={Math.max(240, byLocalidade.length * 46 + 30)}>
           <ComposedChart data={byLocalidade} layout="vertical" margin={{ left: 10, right: 56, top: 28 }}>
@@ -669,6 +678,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                     if (!p) return null;
                     const rows = risk.condicoesCatalogo.map((c, i) => ({ label: c.label, value: p[c.codigo] || 0, color: INTERDICTION_COLORS[i] }));
                     rows.push({ label: "Total de condições críticas", value: p.total });
+                    rows.push({ label: "Quadros distintos afetados", value: p.quadros });
                     return <ChartTooltip active={active} title={label} rows={rows} />;
                   }}
                 />
@@ -687,7 +697,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
 
           {selectedLocalidade && (
             <div className="flex items-center gap-2 mt-3 text-xs">
-              <span className="text-muted-foreground">Filtrando quadros de</span>
+              <span className="text-muted-foreground">Filtrando quadros:</span>
               <Badge variant="outline">{selectedLocalidade}</Badge>
               <button type="button" className="text-primary hover:underline" onClick={() => setSelectedLocalidade(null)}>
                 Limpar filtro
@@ -697,7 +707,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
 
           <div className="mt-5 pt-4 border-t border-border/60">
             <p className="text-xs font-semibold text-foreground mb-3">
-              Quadros afetados{selectedLocalidade ? ` — ${selectedLocalidade}` : ""}
+              Quadros afetados{selectedLocalidade ? ` ${emLocalidade(selectedLocalidade)}` : ""}
             </p>
             <div className="overflow-x-auto">
               <Table>
@@ -721,7 +731,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                       <TableCell className="text-sm">{q.localidade}</TableCell>
                       <TableCell className="text-xs font-medium" title={q.condicoesDescricao}>{q.condicoesLabel}</TableCell>
                       <TableCell className="text-xs">{fmtDate(q.ultimaOcorrencia)}</TableCell>
-                      <TableCell className="text-xs">{q.responsavel || "—"}</TableCell>
+                      <TableCell className="text-xs">{q.responsavel || "-"}</TableCell>
                       <TableCell className="text-xs">
                         <Badge variant="outline" className={q.status === "aberta" ? "text-destructive border-destructive/30" : "text-amber-700 border-amber-300"}>
                           {INTERDICTION_STATUS_LABEL[q.status] || q.status}
@@ -802,7 +812,7 @@ function RecurrenceSection({ recurrence, reading, onOpenPanel }) {
               {recurrence.casos.map((c) => (
                 <TableRow key={`${c.panelId}-${c.codigo}`}>
                   <TableCell className="font-mono text-xs">{c.panelTag}</TableCell>
-                  <TableCell className="text-sm">{c.codigo ? `${c.codigo} — ` : ""}{c.titulo}</TableCell>
+                  <TableCell className="text-sm">{c.codigo ? `${c.codigo}: ` : ""}{c.titulo}</TableCell>
                   <TableCell className="text-right font-medium">{c.ocorrencias}</TableCell>
                   <TableCell className="text-xs">{c.datas.map(fmtDate).join(", ")}</TableCell>
                   <TableCell className="text-xs">{fmtDate(c.ultimaOcorrencia)}</TableCell>
@@ -842,7 +852,7 @@ function HealthScatterSection({ healthVsConformity, reading }) {
                   return (
                     <ChartTooltip
                       active={active}
-                      title={`${p.panelTag} — ${p.panelName}`}
+                      title={`${p.panelTag}: ${p.panelName}`}
                       rows={[
                         { label: `${p.localidade} · ${fmtDate(p.data)}`, value: "" },
                         { label: "Conformidade", value: `${p.conformidade.toFixed(1)}%`, color: GREEN_DARK },
@@ -865,7 +875,7 @@ function HealthScatterSection({ healthVsConformity, reading }) {
 function DiagnosticsSection({ diagnostics }) {
   const categorias = diagnostics.categorias || [];
   return (
-    <Section id="diagnostico" title="Diagnóstico dos Dados" subtitle="Padrões identificados a partir dos cálculos acima, por categoria — sem atribuição de causas.">
+    <Section id="diagnostico" title="Diagnóstico dos Dados" subtitle="Padrões identificados a partir dos cálculos acima, por categoria, sem atribuição de causas.">
       {categorias.length === 0 ? <EmptyState text="Sem padrões relevantes a destacar no período selecionado." /> : (
         <div className="grid md:grid-cols-2 gap-4">
           {categorias.map((cat) => (
@@ -1039,7 +1049,7 @@ function PanelInfoDialog({ panelId, snapshot, onClose }) {
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Status</p>
-                  <p className="font-medium capitalize mt-0.5">{snapshot.status || "—"}</p>
+                  <p className="font-medium capitalize mt-0.5">{snapshot.status || "-"}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Última inspeção</p>
@@ -1075,7 +1085,7 @@ function PanelInfoDialog({ panelId, snapshot, onClose }) {
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Requisitos recorrentes</p>
                   <ul className="space-y-1">
                     {snapshot.recorrenciasNoPeriodo.map((r) => (
-                      <li key={r.codigo} className="flex justify-between text-xs"><span>{r.codigo ? `${r.codigo} — ` : ""}{r.titulo}</span><span className="font-medium">{r.ocorrencias}x</span></li>
+                      <li key={r.codigo} className="flex justify-between text-xs"><span>{r.codigo ? `${r.codigo}: ` : ""}{r.titulo}</span><span className="font-medium">{r.ocorrencias}x</span></li>
                     ))}
                   </ul>
                 </div>

@@ -24,9 +24,9 @@ function loadImageEl(src) {
   });
 }
 
-function pct(v, digits = 1) { return v == null ? "—" : `${v.toFixed(digits)}%`; }
+function pct(v, digits = 1) { return v == null ? "-" : `${v.toFixed(digits)}%`; }
 function fmtDate(d) {
-  if (!d) return "—";
+  if (!d) return "-";
   try { return new Date(d + "T00:00:00").toLocaleDateString("pt-BR"); } catch { return d; }
 }
 
@@ -165,7 +165,7 @@ class PdfBuilder {
       }
       let x = MARGIN;
       row.forEach((cell, i) => {
-        const text = doc.splitTextToSize(String(cell ?? "—"), widths[i] - 3)[0] || "";
+        const text = doc.splitTextToSize(String(cell ?? "-"), widths[i] - 3)[0] || "";
         doc.text(text, x + 1.5, this.y + 4.5);
         x += widths[i];
       });
@@ -213,8 +213,8 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   const periodLabel = ANALYSIS_PERIOD_OPTIONS.find((o) => o.value === filters.period)?.label || "Todo o período";
   const localidadeLabel = filters.localidadeId === LOCALIDADE_ALL
     ? "Todas as localidades"
-    : (localidades.find((l) => l.id === filters.localidadeId)?.nome || "—");
-  const panelLabel = filters.panelId === "all" ? "Todos os quadros" : (panelOptions.find((p) => p.value === filters.panelId)?.label || "—");
+    : (localidades.find((l) => l.id === filters.localidadeId)?.nome || "-");
+  const panelLabel = filters.panelId === "all" ? "Todos os quadros" : (panelOptions.find((p) => p.value === filters.panelId)?.label || "-");
 
   // Capa / cabeçalho de contexto
   pdf.newPage();
@@ -230,22 +230,22 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   const locMap = new Map(k.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
   pdf.kpiRow([
     { label: "Inspeções realizadas", value: k.inspecoesRealizadas },
-    { label: "Inspeções — Porto", value: locMap.get("Porto") ?? 0 },
-    { label: "Inspeções — Oficina", value: locMap.get("Oficina") ?? 0 },
+    { label: "Inspeções no Porto", value: locMap.get("Porto") ?? 0 },
+    { label: "Inspeções na Oficina", value: locMap.get("Oficina") ?? 0 },
     { label: "Taxa de conformidade", value: pct(k.taxaConformidade) },
   ]);
   pdf.kpiRow([
     { label: "Não conformidades abertas", value: k.naoConformidades },
-    { label: "Taxa de NC / 100 insp.", value: k.taxaNcPorInspecao != null ? k.taxaNcPorInspecao.toFixed(1) : "—" },
+    { label: "Taxa de NC / 100 insp.", value: k.taxaNcPorInspecao != null ? k.taxaNcPorInspecao.toFixed(1) : "-" },
     { label: "Reincidências", value: analysis.recurrence.resumo.totalCasos },
-    { label: "Índice de Saúde médio", value: k.indiceSaudeMedio != null ? Math.round(k.indiceSaudeMedio) : "—" },
+    { label: "Índice de Saúde médio", value: k.indiceSaudeMedio != null ? Math.round(k.indiceSaudeMedio) : "-" },
   ]);
   const risk = analysis.interdictionRisk;
   pdf.kpiRow([
     { label: "Quadros com risco de interdição", value: risk.quadrosAfetados },
     { label: "Condições críticas (ocorrências)", value: risk.condicoesCriticas },
   ]);
-  pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado — mesma definição usada no Painel (Dashboard).", 8);
+  pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel (Dashboard).", 8);
   pdf.paragraph(`Risco de interdição: quadros com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. Um quadro com as duas condições conta uma única vez.`, 8);
 
   // 2. Conformidade por dimensão
@@ -308,7 +308,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
         q.localidade,
         q.condicoesLabel,
         fmtDate(q.ultimaOcorrencia),
-        q.responsavel || "—",
+        q.responsavel || "-",
         q.status === "aberta" ? "Aberta" : "Em tratamento",
       ]),
       [20, 34, 20, 20, 30, 32, 24]
@@ -325,7 +325,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
       ["Quadro", "Requisito", "Ocorrências", "Última ocorrência", "Taxa de recorrência"],
       analysis.recurrence.casos.slice(0, 25).map((c) => [
         c.panelTag,
-        `${c.codigo ? c.codigo + " — " : ""}${c.titulo}`.slice(0, 60),
+        `${c.codigo ? c.codigo + ": " : ""}${c.titulo}`.slice(0, 60),
         c.ocorrencias,
         fmtDate(c.ultimaOcorrencia),
         c.taxa?.insuficiente ? "dados insuficientes" : `${c.taxa.taxa.toFixed(0)}%`,
@@ -373,9 +373,9 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
     if (!pred.conformityProjection.insuficiente) {
       const cp = pred.conformityProjection;
       pdf.paragraph(
-        `Projeção da taxa de conformidade — tendência estimada: ${cp.tendencia}. ` +
+        `Projeção da taxa de conformidade: tendência estimada de ${cp.tendencia}. ` +
         `Cenário projetado: ${cp.projecao.map((p) => `${p.valor.toFixed(1)}% (intervalo aproximado ${p.intervaloMin.toFixed(1)}%–${p.intervaloMax.toFixed(1)}%)`).join("; ")}. ` +
-        `Projeção calculada por regressão linear sobre o histórico do recorte filtrado — representa um cenário estimado, não uma garantia.`
+        `Projeção calculada por regressão linear sobre o histórico do recorte filtrado, representa um cenário estimado, não uma garantia.`
       );
     } else {
       pdf.paragraph(pred.conformityProjection.motivo);
@@ -409,11 +409,11 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.sectionTitle("11. Observações Metodológicas");
   pdf.paragraph(`Período analisado: ${periodLabel}. Localidade: ${localidadeLabel}. Quadro: ${panelLabel}.`);
   pdf.paragraph(`Total de inspeções consideradas no recorte: ${k.inspecoesRealizadas}.`);
-  pdf.paragraph("Duas métricas distintas, nunca misturadas: (A) 'Não conformidades' — registros da tabela de Não Conformidades do processo, com status Aberta ou Em Tratamento, dentro do período selecionado (mesma definição usada no Painel/Dashboard); (B) 'Taxa de conformidade' — respostas Conforme / (Conforme + Não Conforme) do checklist, sem ciclo de vida próprio. Respostas 'Não Aplicável' e 'Não Verificado' não entram no denominador de (B).");
+  pdf.paragraph("Duas métricas distintas, nunca misturadas: (A) 'Não conformidades', registros da tabela de Não Conformidades do processo, com status Aberta ou Em Tratamento, dentro do período selecionado (mesma definição usada no Painel/Dashboard); (B) 'Taxa de conformidade', respostas Conforme / (Conforme + Não Conforme) do checklist, sem ciclo de vida próprio. Respostas 'Não Aplicável' e 'Não Verificado' não entram no denominador de (B).");
   pdf.paragraph("Taxa de NC = Não conformidades abertas / inspeções realizadas no recorte (não é NCs sobre respostas de checklist).");
   pdf.paragraph("Reincidência = mesmo requisito com NC aberta em 2 ou mais inspeções diferentes do mesmo quadro.");
   pdf.paragraph(`Risco de interdição = quadros distintos com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. "Quadros afetados" conta cada quadro uma única vez, mesmo com as duas condições; "condições críticas" conta as ocorrências.`);
-  pdf.paragraph("Método preditivo: regressão linear simples (mínimos quadrados) sobre a série temporal de cada indicador — método determinístico, reproduzível e auditável. Projeções exigem histórico mínimo (6 inspeções e 4 períodos de tempo com dados); abaixo disso, a página informa 'dados insuficientes' em vez de projetar.");
+  pdf.paragraph("Método preditivo: regressão linear simples (mínimos quadrados) sobre a série temporal de cada indicador, método determinístico, reproduzível e auditável. Projeções exigem histórico mínimo (6 inspeções e 4 períodos de tempo com dados); abaixo disso, a página informa 'dados insuficientes' em vez de projetar.");
   pdf.paragraph("Correlações estatísticas (Índice de Saúde × Conformidade) são sempre apresentadas como associação observada, nunca como relação de causa e efeito.");
   pdf.paragraph("Limitações: a análise reflete somente os dados registrados dentro do recorte de filtros selecionado; quadros ou períodos sem inspeção não são representados.");
 

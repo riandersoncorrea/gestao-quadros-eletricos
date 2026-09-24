@@ -71,30 +71,41 @@ function isConclusiva(resposta) {
   return resposta === "conforme" || resposta === "nao_conforme";
 }
 
-/** Data no formato pt-BR (dd/MM/aaaa) para uso em textos analíticos — o restante da página (tabelas, modal) já usa esse mesmo formato. */
+/** Data no formato pt-BR (dd/MM/aaaa) para uso em textos analíticos: o restante da página (tabelas, modal) já usa esse mesmo formato. */
 function fmtDateBR(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try { return format(parseISO(iso), "dd/MM/yyyy"); } catch { return iso; }
 }
 
+// Preposição + artigo corretos para as localidades reais do sistema ("no
+// Porto", "na Oficina"), em vez do "em X" genérico — pedido de ajuste de
+// texto. Qualquer localidade fora dessa lista cai no "em X" neutro, sem
+// travar caso o cadastro de localidades mude no futuro.
+const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina" };
+function emLocalidade(nome) {
+  return LOCALIDADE_PREPOSICAO[nome] || `em ${nome}`;
+}
+
 /**
- * "CÓDIGO — descrição do requisito", sempre que ambos estiverem disponíveis
+ * "CÓDIGO: descrição do requisito", sempre que ambos estiverem disponíveis
  * (a descrição vem do catálogo ativo, já resolvida em `titulo` por
- * filterAnalysisData — nunca hardcodada aqui). Usada em todo texto
+ * filterAnalysisData, nunca hardcodada aqui). Usada em todo texto
  * analítico que cita um requisito do checklist, para nunca expor um código
- * "PRO-01" sozinho quando a descrição já está disponível nos dados.
+ * "PRO-01" sozinho quando a descrição já está disponível nos dados. Usa
+ * dois-pontos como separador (não travessão), padronizado em toda a
+ * página conforme pedido de ajuste de texto.
  */
 export function describeRequisito(codigo, titulo) {
-  if (codigo && titulo) return `${codigo} — ${titulo}`;
+  if (codigo && titulo) return `${codigo}: ${titulo}`;
   return codigo || titulo || "requisito sem identificação";
 }
 
 /**
  * Mesma resolução código → descrição de `describeRequisito`, mas no formato
  * para uso dentro de frases corridas ("o requisito PRO-01, referente a
- * X, concentra..."), em vez do rótulo compacto "PRO-01 — X" usado em
- * tabelas/badges. Evita o estilo "código — descrição — número" encadeado
- * como se fosse frase (Etapa 10/11 do pedido de refinamento de textos).
+ * X, concentra..."), em vez do rótulo compacto "PRO-01: X" usado em
+ * tabelas/badges. Evita encadear código, descrição e número como se fosse
+ * uma frase só (Etapa 10/11 do pedido de refinamento de textos).
  */
 export function requisitoFrase(codigo, titulo) {
   if (codigo && titulo) return `${codigo}, referente a ${titulo},`;
@@ -373,14 +384,14 @@ function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias,
       let interpretacao = `${top.localidade} concentra ${top.inspecoes} inspeção(ões), enquanto ${bottom.localidade} registra ${bottom.inspecoes}, uma diferença de ${diff} inspeção(ões) entre as duas localidades.`;
       if (quadrosTop != null && quadrosBottom != null) {
         interpretacao += quadrosTop !== quadrosBottom
-          ? ` Essa concentração deve ser lida junto à quantidade de quadros existentes em cada localidade: ${top.localidade} tem ${quadrosTop} quadro(s) distinto(s) inspecionado(s) no recorte, contra ${quadrosBottom} em ${bottom.localidade}, então um volume maior de inspeções não significa necessariamente uma cobertura proporcionalmente maior.`
+          ? ` Essa concentração deve ser lida junto à quantidade de quadros existentes em cada localidade: ${top.localidade} tem ${quadrosTop} quadro(s) distinto(s) inspecionado(s) no recorte, contra ${quadrosBottom} ${emLocalidade(bottom.localidade)}, então um volume maior de inspeções não significa necessariamente uma cobertura proporcionalmente maior.`
           : ` As duas localidades têm a mesma quantidade de quadros distintos inspecionados (${quadrosTop}), o que reforça que a diferença de volume reflete mais frequência de visitas do que diferença de tamanho do parque.`;
       }
       cards.push({
         chave: "localidades",
         titulo: "Distribuição por Localidade",
         icone: "MapPin",
-        resumo: `As inspeções do período estão concentradas principalmente em ${top.localidade}${pctTop != null ? `, que representa ${pctTop.toFixed(1)}% do total analisado` : ""}.`,
+        resumo: `As inspeções do período estão concentradas principalmente ${emLocalidade(top.localidade)}${pctTop != null ? `, que representa ${pctTop.toFixed(1)}% do total analisado` : ""}.`,
         interpretacao,
         indicadores: locs.slice(0, 4).map((l) => ({ label: l.localidade, value: l.inspecoes })),
       });
@@ -448,7 +459,7 @@ function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias,
       resumo: `${describeRequisito(top.codigo, top.titulo)} é o requisito com mais ocorrências entre as NCs abertas do período.`,
       interpretacao,
       indicadores: [
-        { label: "Requisito líder", value: top.codigo || "—" },
+        { label: "Requisito líder", value: top.codigo || "-" },
         { label: "Ocorrências", value: top.n },
       ],
     });
@@ -684,8 +695,8 @@ export function computeRecurrence({ filteredNCs, panelById, allInspectionById })
       const datas = [...g.inspections.values()].filter(Boolean).sort();
       return {
         panelId: g.panelId,
-        panelTag: panel?.tag || "—",
-        panelName: panel?.name || "—",
+        panelTag: panel?.tag || "-",
+        panelName: panel?.name || "-",
         codigo: g.codigo,
         titulo: g.titulo,
         ocorrencias: g.inspections.size,
@@ -724,8 +735,8 @@ export function computeRankingQuadros({ filteredNCs, panelById, locName }, limit
       const localidade = panel?.localidade_id ? (locName.get(panel.localidade_id) || "Sem nome") : "Sem localidade";
       return {
         panelId,
-        panelTag: panel?.tag || "—",
-        panelName: panel?.name || "—",
+        panelTag: panel?.tag || "-",
+        panelName: panel?.name || "-",
         localidade,
         naoConformidades,
       };
@@ -780,8 +791,8 @@ export function computeInterdictionRisk({ filteredNCs, panelById, locName, allIn
         .sort();
       return {
         panelId: g.panelId,
-        panelTag: panel?.tag || "—",
-        panelName: panel?.name || "—",
+        panelTag: panel?.tag || "-",
+        panelName: panel?.name || "-",
         localidade,
         condicoes: INTERDICTION_RISK_CODES.filter((c) => g.codigos.has(c)),
         // Rótulo compacto ("PRO-01 + ATR-01") para a tabela — a descrição
@@ -812,20 +823,29 @@ export function computeInterdictionRisk({ filteredNCs, panelById, locName, allIn
     };
   });
 
-  const porLocalidadeMap = new Map(); // localidade -> { localidade, [codigo]: n, total }
+  // Cada localidade guarda tanto o total de OCORRÊNCIAS (uma por NC, pode
+  // passar do número de quadros quando um quadro tem NC repetida do mesmo
+  // código) quanto o total de QUADROS DISTINTOS afetados ali — os dois
+  // números não precisam bater com "quadrosAfetados" do recorte inteiro
+  // (que já deduplica entre localidades), então ambos ficam explícitos no
+  // gráfico/tooltip para não parecer inconsistente com o KPI.
+  const porLocalidadeMap = new Map(); // localidade -> { localidade, [codigo]: n, total, quadros:Set }
   for (const nc of ncsCriticas) {
     const panel = panelById.get(nc.panel_id);
     const localidade = panel?.localidade_id ? (locName.get(panel.localidade_id) || "Sem nome") : "Sem localidade";
     if (!porLocalidadeMap.has(localidade)) {
-      const base = { localidade, total: 0 };
+      const base = { localidade, total: 0, quadros: new Set() };
       for (const c of INTERDICTION_RISK_CODES) base[c] = 0;
       porLocalidadeMap.set(localidade, base);
     }
     const entry = porLocalidadeMap.get(localidade);
     entry[nc.codigo] = (entry[nc.codigo] || 0) + 1;
     entry.total += 1;
+    if (nc.panel_id) entry.quadros.add(nc.panel_id);
   }
-  const porLocalidade = [...porLocalidadeMap.values()].sort((a, b) => b.total - a.total);
+  const porLocalidade = [...porLocalidadeMap.values()]
+    .map((entry) => ({ ...entry, quadros: entry.quadros.size }))
+    .sort((a, b) => b.total - a.total);
 
   return {
     condicoesCatalogo,
@@ -857,9 +877,11 @@ function buildInterdictionRiskReading({ quadrosAfetados, condicoesCriticas, porC
   if (porLocalidade.length >= 2) {
     const top = porLocalidade[0];
     const pct = condicoesCriticas ? (100 * top.total) / condicoesCriticas : null;
-    partes.push(`${top.localidade} concentra a maior parte dos casos${pct != null ? `, com ${pct.toFixed(1)}% do total` : ""}.`);
+    partes.push(
+      `${top.localidade} concentra a maior parte dos casos${pct != null ? `, com ${pct.toFixed(1)}% do total` : ""}: ${top.total} ocorrência(s) em ${top.quadros} quadro(s) distinto(s).`
+    );
   } else if (porLocalidade.length === 1) {
-    partes.push(`Todos os casos identificados estão em ${porLocalidade[0].localidade}.`);
+    partes.push(`Todos os casos identificados estão ${emLocalidade(porLocalidade[0].localidade)}.`);
   }
 
   const [pro01, atr01] = porCondicao;
@@ -913,9 +935,9 @@ export function computePanelSnapshot({ panelId, filteredInspections, filteredNCs
 
   return {
     panelId,
-    tag: panel.tag || "—",
-    nome: panel.name || "—",
-    localidade: panel.localidade_id ? (locName.get(panel.localidade_id) || "—") : "—",
+    tag: panel.tag || "-",
+    nome: panel.name || "-",
+    localidade: panel.localidade_id ? (locName.get(panel.localidade_id) || "-") : "-",
     status: panel.status || null,
     criticidade: panel.criticality || null,
     ultimaInspecao: panel.last_inspection_date || null,
@@ -960,9 +982,9 @@ export function computeHealthVsConformity({ filteredInspections, filteredRespons
     const panel = panelById.get(resolvePanelId(i));
     pontos.push({
       inspectionId: i.id,
-      panelTag: panel?.tag || "—",
-      panelName: panel?.name || "—",
-      localidade: panel?.localidade_id ? (locName.get(panel.localidade_id) || "—") : "—",
+      panelTag: panel?.tag || "-",
+      panelName: panel?.name || "-",
+      localidade: panel?.localidade_id ? (locName.get(panel.localidade_id) || "-") : "-",
       data: i.inspection_date,
       conformidade,
       indiceSaude: i.health_index_resultado,
@@ -1078,7 +1100,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
   if (kpis.inspecoesRealizadas < 5) {
     volInsp.push({
       tipo: "amostra_pequena",
-      texto: `A amostra do período (${kpis.inspecoesRealizadas} inspeção(ões)) é pequena — os padrões abaixo devem ser lidos com cautela.`,
+      texto: `A amostra do período (${kpis.inspecoesRealizadas} inspeção(ões)) é pequena: os padrões abaixo devem ser lidos com cautela.`,
       indicador: { inspecoes: kpis.inspecoesRealizadas },
     });
   }
@@ -1114,7 +1136,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
     const top = locsComTaxa[0];
     locs.push({
       tipo: "localidade_taxa",
-      texto: `A localidade ${top.localidade} apresenta a maior taxa de NC por inspeção do período (${top.taxaNaoConformidade.toFixed(1)} NCs a cada 100 inspeções — ${top.naoConformidades} NC(s) em ${top.inspecoes} inspeção(ões)).`,
+      texto: `A localidade ${top.localidade} apresenta a maior taxa de NC por inspeção do período (${top.taxaNaoConformidade.toFixed(1)} NCs a cada 100 inspeções: ${top.naoConformidades} NC(s) em ${top.inspecoes} inspeção(ões)).`,
       indicador: top,
     });
     if (locsComTaxa.length >= 2) {
@@ -1136,7 +1158,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
     const top = rankingQuadros.itens[0];
     quadrosCriticos.push({
       tipo: "quadro_critico",
-      texto: `O quadro ${top.panelTag} concentra o maior número de não conformidades abertas no período (${top.naoConformidades}), em ${top.localidade}.`,
+      texto: `O quadro ${top.panelTag} concentra o maior número de não conformidades abertas no período (${top.naoConformidades}), ${emLocalidade(top.localidade)}.`,
       indicador: top,
     });
     if (kpis.naoConformidades > 0) {
@@ -1146,7 +1168,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
       if (top3.length >= 2 && pct >= 40) {
         quadrosCriticos.push({
           tipo: "concentracao_quadros",
-          texto: `Os ${top3.length} quadros com mais ocorrências concentram ${pct.toFixed(1)}% das não conformidades abertas do período — possível ponto de atenção prioritário.`,
+          texto: `Os ${top3.length} quadros com mais ocorrências concentram ${pct.toFixed(1)}% das não conformidades abertas do período, um possível ponto de atenção prioritário.`,
           indicador: { top3, pct },
         });
       }
@@ -1206,7 +1228,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
   if (pareto.pontos80 != null && pareto.total > 1) {
     paretoAchados.push({
       tipo: "pareto_80",
-      texto: `Os ${pareto.pontos80} requisito(s) com mais ocorrências (de ${pareto.total} distintos) concentram aproximadamente 80% das não conformidades do período — padrão compatível com concentração tipo Pareto.`,
+      texto: `Os ${pareto.pontos80} requisito(s) com mais ocorrências (de ${pareto.total} distintos) concentram aproximadamente 80% das não conformidades do período, um padrão compatível com concentração tipo Pareto.`,
       indicador: { pontos80: pareto.pontos80, total: pareto.total },
     });
   }
@@ -1228,7 +1250,7 @@ export function computeDiagnostics({ kpis, filteredInspections, dimensions, pare
   if (filteredInspections.some((i) => i.health_index_resultado == null)) {
     const semIS = filteredInspections.filter((i) => i.health_index_resultado == null).length;
     if (semIS === filteredInspections.length) {
-      limitacoes.push({ tipo: "sem_indice_saude", texto: "Nenhuma inspeção do recorte possui Índice de Saúde calculado — a correlação Índice de Saúde × Conformidade não pôde ser avaliada.", indicador: null });
+      limitacoes.push({ tipo: "sem_indice_saude", texto: "Nenhuma inspeção do recorte possui Índice de Saúde calculado, portanto a correlação Índice de Saúde × Conformidade não pôde ser avaliada.", indicador: null });
     }
   }
   add("qualidade_dados", "Qualidade/Limitação dos Dados", limitacoes);
@@ -1441,9 +1463,9 @@ export function computeChartDescriptions({ dimensions, pareto, byLocalidade, tem
   return out;
 }
 
-function pct1(v) { return v == null ? "—" : `${v.toFixed(1)}%`; }
+function pct1(v) { return v == null ? "-" : `${v.toFixed(1)}%`; }
 
 // Taxa de NC por inspeção pode ultrapassar 100% (uma inspeção pode gerar
 // mais de uma NC), então evitamos o sufixo "%" para não sugerir um valor
 // limitado a 100 — expressamos como razão por 100 inspeções.
-function ncRate100(v) { return v == null ? "—" : `${v.toFixed(1)} NCs a cada 100 inspeções`; }
+function ncRate100(v) { return v == null ? "-" : `${v.toFixed(1)} NCs a cada 100 inspeções`; }
