@@ -95,6 +95,20 @@ class PdfBuilder {
     this.y += 6;
   }
 
+  /**
+   * Título de seção que é seguida por um gráfico (chartImage) — reserva o
+   * espaço do título + do gráfico ANTES de desenhar o título, para os dois
+   * migrarem juntos para a página seguinte quando não couberem. Sem isso, o
+   * título ficava sozinho no fim de uma página, com o gráfico "solto" na
+   * seguinte e um vão em branco embaixo do título.
+   * `chartReserveMm` é o maxHeightMm já usado na chamada a chartImage()
+   * logo depois.
+   */
+  sectionTitleWithChart(text, chartReserveMm) {
+    this.ensureSpace(chartReserveMm + 14);
+    this.sectionTitle(text);
+  }
+
   /** Subtítulo em negrito dentro de uma seção (ex.: categorias do
    * Diagnóstico, grupos de Insights, "Significado dos códigos") — mesmo
    * respiro-antes do sectionTitle, só que mais discreto, para não parecer
@@ -270,13 +284,13 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.paragraph(`Risco de interdição: quadros com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. Um quadro com as duas condições conta uma única vez.`, 8);
 
   // 2. Conformidade por dimensão
-  pdf.sectionTitle("2. Conformidade por Dimensão");
+  pdf.sectionTitleWithChart("2. Conformidade por Dimensão", 100);
   await pdf.chartImage("conformidade-dimensao", 100);
   pdf.paragraph(analysis.chartDescriptions.dimensions, 9);
 
   // 3. Principais não conformidades (Pareto)
-  pdf.sectionTitle("3. Principais Não Conformidades");
   if (analysis.pareto.itens.length) {
+    pdf.sectionTitleWithChart("3. Principais Não Conformidades", 100);
     await pdf.chartImage("pareto-nc", 100);
     pdf.paragraph(analysis.chartDescriptions.pareto, 9);
     // Significado dos códigos exibidos no gráfico acima — texto nativo do
@@ -292,24 +306,27 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
       for (const it of codigosLegenda) pdf.bullet(`${it.codigo}: ${it.titulo}`, 8.5);
     }
   } else {
+    pdf.sectionTitle("3. Principais Não Conformidades");
     pdf.paragraph("Nenhuma não conformidade aberta no período selecionado.");
   }
 
   // 4. Distribuição por localidade
-  pdf.sectionTitle("4. Distribuição por Localidade");
   if (analysis.byLocalidade.length) {
+    pdf.sectionTitleWithChart("4. Distribuição por Localidade", 110);
     await pdf.chartImage("localidades", 110);
     pdf.paragraph(analysis.chartDescriptions.localidade, 9);
   } else {
+    pdf.sectionTitle("4. Distribuição por Localidade");
     pdf.paragraph("Sem dados de localidade para o recorte selecionado.");
   }
 
   // 5. Evolução temporal
-  pdf.sectionTitle("5. Evolução Temporal");
   if (analysis.temporal.pontos.length >= 2) {
+    pdf.sectionTitleWithChart("5. Evolução Temporal", 100);
     await pdf.chartImage("evolucao-temporal", 100);
     pdf.paragraph(analysis.chartDescriptions.temporal, 9);
   } else {
+    pdf.sectionTitle("5. Evolução Temporal");
     pdf.paragraph("Histórico insuficiente para traçar evolução temporal (é necessário mais de um período com inspeções).");
   }
 
@@ -326,12 +343,8 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   }
 
   // 5c. Condições críticas de interdição
-  // Reserva o espaço do gráfico junto com o título — sem isso, o título
-  // pode ficar sozinho no fim de uma página e o gráfico "solto" na
-  // seguinte (Etapa 11 do pedido: nada importante quebrado entre páginas).
-  pdf.ensureSpace(105);
-  pdf.sectionTitle("5c. Condições Críticas de Interdição");
   if (risk.quadrosAfetados > 0) {
+    pdf.sectionTitleWithChart("5c. Condições Críticas de Interdição", 100);
     await pdf.chartImage("risco-interdicao-chart", 100);
     pdf.table(
       ["Quadro", "Nome", "Localidade", "Condição", "Última ocorrência", "Responsável", "Status"],
@@ -347,6 +360,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
       [20, 34, 20, 20, 30, 32, 24]
     );
   } else {
+    pdf.sectionTitle("5c. Condições Críticas de Interdição");
     pdf.paragraph("Nenhum quadro com condição crítica de interdição identificada no período selecionado.");
   }
 
@@ -382,8 +396,8 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   }
 
   // 8. Índice de Saúde × Conformidade
-  pdf.sectionTitle("8. Índice de Saúde × Conformidade");
   if (analysis.healthVsConformity.pontos.length) {
+    pdf.sectionTitleWithChart("8. Índice de Saúde × Conformidade", 100);
     await pdf.chartImage("is-vs-conformidade", 100);
     pdf.paragraph(
       analysis.healthVsConformity.dadosSuficientes
@@ -391,6 +405,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
         : "Dados insuficientes para calcular correlação estatística (mínimo de 5 inspeções com Índice de Saúde)."
     );
   } else {
+    pdf.sectionTitle("8. Índice de Saúde × Conformidade");
     pdf.paragraph("Nenhuma inspeção com Índice de Saúde calculado no período selecionado.");
   }
 
