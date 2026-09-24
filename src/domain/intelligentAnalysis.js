@@ -734,6 +734,155 @@ export function computeRankingQuadros({ filteredNCs, panelById, locName }, limit
   return { itens: ranked.slice(0, limit), total: ranked.length };
 }
 
+// Códigos do checklist associados à condição de risco de interdição (Etapa
+// "add interdiction risk indicator" do pedido) — DR (PRO-01) e condutor de
+// proteção/PE (ATR-01). Só os CÓDIGOS ficam fixos aqui; a descrição de
+// cada um vem sempre do catálogo ativo (itemById), nunca hardcoded.
+export const INTERDICTION_RISK_CODES = ["PRO-01", "ATR-01"];
+
+/**
+ * Indicador de risco de interdição: quadros com NC aberta (mesma regra A
+ * do cabeçalho — isOpenNonconformity, já aplicada em `filteredNCs`) num
+ * dos requisitos críticos de segurança acima. Não é uma segunda definição
+ * de NC — reaproveita exatamente as mesmas NCs já usadas pelo resto da
+ * Análise Inteligente e pelo Dashboard. Um quadro com as duas condições
+ * conta uma única vez em `quadrosAfetados`; `condicoesCriticas` é a
+ * contagem de ocorrências (uma por NC), propositalmente separada.
+ */
+export function computeInterdictionRisk({ filteredNCs, panelById, locName, allInspectionById, itemById }) {
+  const itemByCodigo = new Map();
+  for (const it of itemById.values()) {
+    if (INTERDICTION_RISK_CODES.includes(it.codigo) && !itemByCodigo.has(it.codigo)) itemByCodigo.set(it.codigo, it);
+  }
+  const condicoesCatalogo = INTERDICTION_RISK_CODES.map((codigo) => {
+    const titulo = itemByCodigo.get(codigo)?.titulo || null;
+    return { codigo, titulo, label: describeRequisito(codigo, titulo) };
+  });
+
+  const ncsCriticas = filteredNCs.filter((nc) => INTERDICTION_RISK_CODES.includes(nc.codigo));
+
+  const porQuadro = new Map(); // panelId -> { panelId, codigos:Set, ncs:[] }
+  for (const nc of ncsCriticas) {
+    if (!nc.panel_id) continue;
+    if (!porQuadro.has(nc.panel_id)) porQuadro.set(nc.panel_id, { panelId: nc.panel_id, codigos: new Set(), ncs: [] });
+    const g = porQuadro.get(nc.panel_id);
+    g.codigos.add(nc.codigo);
+    g.ncs.push(nc);
+  }
+
+  const quadros = [...porQuadro.values()]
+    .map((g) => {
+      const panel = panelById.get(g.panelId);
+      const localidade = panel?.localidade_id ? (locName.get(panel.localidade_id) || "Sem nome") : "Sem localidade";
+      const datas = g.ncs
+        .map((nc) => (nc.inspection_id ? allInspectionById.get(nc.inspection_id)?.inspection_date : null) || nc.created_at)
+        .filter(Boolean)
+        .sort();
+      return {
+        panelId: g.panelId,
+        panelTag: panel?.tag || "—",
+        panelName: panel?.name || "—",
+        localidade,
+        condicoes: INTERDICTION_RISK_CODES.filter((c) => g.codigos.has(c)),
+        // Rótulo compacto ("PRO-01 + ATR-01") para a tabela — a descrição
+        // completa de cada código fica em `condicoesDescricao` (usada como
+        // título/hover na UI), evitando código "pelado" sem contexto sem
+        // sobrecarregar a linha da tabela (Etapa 7/13 do pedido).
+        condicoesLabel: INTERDICTION_RISK_CODES.filter((c) => g.codigos.has(c)).join(" + "),
+        condicoesDescricao: INTERDICTION_RISK_CODES.filter((c) => g.codigos.has(c))
+          .map((c) => describeRequisito(c, itemByCodigo.get(c)?.titulo))
+          .join("; "),
+        ultimaOcorrencia: datas[datas.length - 1] || null,
+        // "aberta" é o status mais urgente da NC (ver isOpenNonconformity) — se o
+        // quadro tiver qualquer NC crítica ainda "aberta", ela prevalece sobre
+        // uma eventual segunda condição já "em_tratamento".
+        status: g.ncs.some((nc) => nc.status === "aberta") ? "aberta" : "em_tratamento",
+        responsavel: panel?.responsible_engineer || null,
+      };
+    })
+    .sort((a, b) => b.condicoes.length - a.condicoes.length || a.panelTag.localeCompare(b.panelTag));
+
+  const porCondicao = condicoesCatalogo.map(({ codigo, titulo }) => {
+    const doCodigo = ncsCriticas.filter((nc) => nc.codigo === codigo);
+    return {
+      codigo,
+      titulo,
+      ocorrencias: doCodigo.length,
+      quadros: new Set(doCodigo.map((nc) => nc.panel_id)).size,
+    };
+  });
+
+  const porLocalidadeMap = new Map(); // localidade -> { localidade, [codigo]: n, total }
+  for (const nc of ncsCriticas) {
+    const panel = panelById.get(nc.panel_id);
+    const localidade = panel?.localidade_id ? (locName.get(panel.localidade_id) || "Sem nome") : "Sem localidade";
+    if (!porLocalidadeMap.has(localidade)) {
+      const base = { localidade, total: 0 };
+      for (const c of INTERDICTION_RISK_CODES) base[c] = 0;
+      porLocalidadeMap.set(localidade, base);
+    }
+    const entry = porLocalidadeMap.get(localidade);
+    entry[nc.codigo] = (entry[nc.codigo] || 0) + 1;
+    entry.total += 1;
+  }
+  const porLocalidade = [...porLocalidadeMap.values()].sort((a, b) => b.total - a.total);
+
+  return {
+    condicoesCatalogo,
+    quadrosAfetados: porQuadro.size,
+    condicoesCriticas: ncsCriticas.length,
+    porCondicao,
+    porLocalidade,
+    quadros,
+    leitura: buildInterdictionRiskReading({ quadrosAfetados: porQuadro.size, condicoesCriticas: ncsCriticas.length, porCondicao, porLocalidade, quadros }),
+  };
+}
+
+/**
+ * Texto analítico dinâmico do indicador de risco de interdição (Etapa 8 do
+ * pedido) — sempre derivado dos mesmos números já calculados acima, nunca
+ * um texto fixo. Proporcional à quantidade de dados: com poucos casos, o
+ * texto fica mais simples.
+ */
+function buildInterdictionRiskReading({ quadrosAfetados, condicoesCriticas, porCondicao, porLocalidade, quadros }) {
+  if (quadrosAfetados === 0) {
+    return "Não há quadros com condição crítica associada a risco de interdição no período selecionado.";
+  }
+
+  const partes = [];
+  partes.push(
+    `${quadrosAfetados} quadro(s) apresentam pelo menos uma condição crítica associada a risco de interdição no período, somando ${condicoesCriticas} ocorrência(s) entre os dois requisitos monitorados.`
+  );
+
+  if (porLocalidade.length >= 2) {
+    const top = porLocalidade[0];
+    const pct = condicoesCriticas ? (100 * top.total) / condicoesCriticas : null;
+    partes.push(`${top.localidade} concentra a maior parte dos casos${pct != null ? `, com ${pct.toFixed(1)}% do total` : ""}.`);
+  } else if (porLocalidade.length === 1) {
+    partes.push(`Todos os casos identificados estão em ${porLocalidade[0].localidade}.`);
+  }
+
+  const [pro01, atr01] = porCondicao;
+  if (pro01 && atr01 && (pro01.ocorrencias || atr01.ocorrencias)) {
+    if (pro01.ocorrencias === atr01.ocorrencias) {
+      partes.push(`${describeRequisito(pro01.codigo, pro01.titulo)} e ${describeRequisito(atr01.codigo, atr01.titulo)} aparecem com a mesma frequência entre os casos identificados.`);
+    } else {
+      const maior = pro01.ocorrencias > atr01.ocorrencias ? pro01 : atr01;
+      const menor = pro01.ocorrencias > atr01.ocorrencias ? atr01 : pro01;
+      partes.push(
+        `${describeRequisito(maior.codigo, maior.titulo)} responde pela maior parte das ocorrências, com ${maior.ocorrencias} registro(s)${menor.ocorrencias ? `, contra ${menor.ocorrencias} de ${menor.codigo}` : ""}.`
+      );
+    }
+  }
+
+  const multiCondicao = quadros.filter((q) => q.condicoes.length > 1).length;
+  if (multiCondicao > 0) {
+    partes.push(`${multiCondicao} quadro(s) apresentam as duas condições ao mesmo tempo, o que reforça a necessidade de atenção prioritária nesses pontos.`);
+  }
+
+  return partes.join(" ");
+}
+
 /**
  * Ficha-resumo de um quadro específico, montada só a partir dos dados já
  * carregados pela Análise Inteligente (raw + recorte filtrado) — nenhuma

@@ -340,12 +340,13 @@ export default function IntelligentAnalysis() {
         <Card><CardContent className="p-0"><EmptyState text="Sem dados suficientes para análise com os filtros selecionados." /></CardContent></Card>
       ) : (
         <div ref={reportRef} className="space-y-6">
-          <ExecutiveVision kpis={analysis.kpis} />
+          <ExecutiveVision kpis={analysis.kpis} risk={analysis.interdictionRisk} />
           <DescriptiveSection descriptive={analysis.descriptive} />
           <DimensionChart dimensions={analysis.dimensions} reading={analysis.chartDescriptions.dimensions} />
           <ParetoSection pareto={analysis.pareto} reading={analysis.chartDescriptions.pareto} />
           <TemporalSection temporal={analysis.temporal} reading={analysis.chartDescriptions.temporal} />
           <LocalidadeSection byLocalidade={analysis.byLocalidade} reading={analysis.chartDescriptions.localidade} />
+          <InterdictionRiskSection risk={analysis.interdictionRisk} onOpenPanel={setInfoPanelId} />
           <RankingQuadrosSection rankingQuadros={analysis.rankingQuadros} onOpenPanel={setInfoPanelId} />
           <RecurrenceSection recurrence={analysis.recurrence} reading={analysis.chartDescriptions.recurrence} onOpenPanel={setInfoPanelId} />
           <HealthScatterSection healthVsConformity={analysis.healthVsConformity} reading={analysis.chartDescriptions.health} />
@@ -368,8 +369,9 @@ export default function IntelligentAnalysis() {
 // Seções
 // ============================================================================
 
-function ExecutiveVision({ kpis }) {
+function ExecutiveVision({ kpis, risk }) {
   const porLocalidade = new Map(kpis.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
+  const condicoesLabel = risk.condicoesCatalogo.map((c) => c.label).join(" · ");
   return (
     <Section id="visao-executiva" title="Visão Executiva">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -386,6 +388,11 @@ function ExecutiveVision({ kpis }) {
           icon={AlertTriangle} label="Não conformidades" value={kpis.naoConformidades}
           sub="abertas no período (mesma regra do Dashboard)" tone={kpis.naoConformidades ? "warn" : "ok"}
           hint="Registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado — mesma definição usada no Painel."
+        />
+        <Kpi
+          icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
+          sub="Quadros com NC em PRO-01 ou ATR-01" tone={risk.quadrosAfetados ? "err" : "ok"}
+          hint={`Quadros distintos com NC aberta em ${condicoesLabel}. Um quadro com as duas condições conta uma única vez. Ocorrências no período: ${risk.condicoesCriticas}.`}
         />
         <Kpi
           icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "—"}
@@ -610,6 +617,125 @@ function LocalidadeSection({ byLocalidade, reading }) {
         </ResponsiveContainer>
       )}
       <ChartReading text={reading} />
+    </Section>
+  );
+}
+
+const INTERDICTION_STATUS_LABEL = { aberta: "Aberta", em_tratamento: "Em tratamento" };
+// Cores fixas por posição do código em INTERDICTION_RISK_CODES (PRO-01,
+// ATR-01) — uso pontual de vermelho/âmbar coerente com a convenção
+// semântica já existente na página (crítico/atenção), reservado a este
+// indicador de segurança específico.
+const INTERDICTION_COLORS = [RED, AMBER];
+
+/**
+ * "Condições Críticas de Interdição" — quadros com NC aberta em PRO-01
+ * (DR) ou ATR-01 (condutor de proteção/PE). Toda a agregação vem de
+ * `risk` (computeInterdictionRisk, já calculado a partir das mesmas NCs
+ * usadas pelo resto da página); este componente só formata.
+ */
+function InterdictionRiskSection({ risk, onOpenPanel }) {
+  const [selectedLocalidade, setSelectedLocalidade] = useState(null);
+  const quadrosVisiveis = selectedLocalidade
+    ? risk.quadros.filter((q) => q.localidade === selectedLocalidade)
+    : risk.quadros;
+
+  return (
+    <Section
+      id="risco-interdicao" title="Condições Críticas de Interdição"
+      subtitle={`Quadros com NC em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}.`}
+    >
+      {risk.quadrosAfetados === 0 ? (
+        <EmptyState text="Nenhum quadro com condição crítica de interdição identificada no período selecionado." />
+      ) : (
+        <>
+          {/* id próprio (separado da tabela abaixo) para o PDF capturar só o gráfico + leitura, sem a lista de quadros — ver intelligentAnalysisPdfService.js */}
+          <div id="risco-interdicao-chart">
+            <ResponsiveContainer width="100%" height={Math.max(220, risk.porLocalidade.length * 52 + 30)}>
+              <ComposedChart
+                data={risk.porLocalidade} layout="vertical" margin={{ left: 10, right: 16, top: 28 }}
+                onClick={(e) => {
+                  const loc = e?.activeLabel;
+                  if (loc) setSelectedLocalidade((cur) => (cur === loc ? null : loc));
+                }}
+              >
+                <CartesianGrid horizontal={false} stroke={GRID_STROKE} />
+                <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="localidade" width={110} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <Tooltip
+                  cursor={{ fill: "rgba(220,38,38,0.05)" }}
+                  content={({ active, label, payload }) => {
+                    const p = payload?.[0]?.payload;
+                    if (!p) return null;
+                    const rows = risk.condicoesCatalogo.map((c, i) => ({ label: c.label, value: p[c.codigo] || 0, color: INTERDICTION_COLORS[i] }));
+                    rows.push({ label: "Total de condições críticas", value: p.total });
+                    return <ChartTooltip active={active} title={label} rows={rows} />;
+                  }}
+                />
+                <Legend {...LEGEND_PROPS} />
+                {risk.condicoesCatalogo.map((c, i) => (
+                  <Bar
+                    key={c.codigo} dataKey={c.codigo} name={c.label} stackId="condicoes"
+                    fill={INTERDICTION_COLORS[i]} barSize={22} cursor="pointer"
+                    radius={i === risk.condicoesCatalogo.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
+                  />
+                ))}
+              </ComposedChart>
+            </ResponsiveContainer>
+            <ChartReading text={risk.leitura} />
+          </div>
+
+          {selectedLocalidade && (
+            <div className="flex items-center gap-2 mt-3 text-xs">
+              <span className="text-muted-foreground">Filtrando quadros de</span>
+              <Badge variant="outline">{selectedLocalidade}</Badge>
+              <button type="button" className="text-primary hover:underline" onClick={() => setSelectedLocalidade(null)}>
+                Limpar filtro
+              </button>
+            </div>
+          )}
+
+          <div className="mt-5 pt-4 border-t border-border/60">
+            <p className="text-xs font-semibold text-foreground mb-3">
+              Quadros afetados{selectedLocalidade ? ` — ${selectedLocalidade}` : ""}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quadro</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Localidade</TableHead>
+                    <TableHead>Condição crítica</TableHead>
+                    <TableHead>Última ocorrência</TableHead>
+                    <TableHead>Responsável</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quadrosVisiveis.map((q) => (
+                    <TableRow key={q.panelId}>
+                      <TableCell className="font-mono text-xs">{q.panelTag}</TableCell>
+                      <TableCell className="text-sm">{q.panelName}</TableCell>
+                      <TableCell className="text-sm">{q.localidade}</TableCell>
+                      <TableCell className="text-xs font-medium" title={q.condicoesDescricao}>{q.condicoesLabel}</TableCell>
+                      <TableCell className="text-xs">{fmtDate(q.ultimaOcorrencia)}</TableCell>
+                      <TableCell className="text-xs">{q.responsavel || "—"}</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant="outline" className={q.status === "aberta" ? "text-destructive border-destructive/30" : "text-amber-700 border-amber-300"}>
+                          {INTERDICTION_STATUS_LABEL[q.status] || q.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell><PanelInfoButton panelId={q.panelId} onOpen={onOpenPanel} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </>
+      )}
     </Section>
   );
 }

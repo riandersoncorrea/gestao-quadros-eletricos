@@ -240,7 +240,13 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
     { label: "Reincidências", value: analysis.recurrence.resumo.totalCasos },
     { label: "Índice de Saúde médio", value: k.indiceSaudeMedio != null ? Math.round(k.indiceSaudeMedio) : "—" },
   ]);
+  const risk = analysis.interdictionRisk;
+  pdf.kpiRow([
+    { label: "Quadros com risco de interdição", value: risk.quadrosAfetados },
+    { label: "Condições críticas (ocorrências)", value: risk.condicoesCriticas },
+  ]);
   pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado — mesma definição usada no Painel (Dashboard).", 8);
+  pdf.paragraph(`Risco de interdição: quadros com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. Um quadro com as duas condições conta uma única vez.`, 8);
 
   // 2. Conformidade por dimensão
   pdf.sectionTitle("2. Conformidade por Dimensão");
@@ -284,6 +290,31 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
     );
   } else {
     pdf.paragraph("Nenhum quadro com não conformidade aberta no período selecionado.");
+  }
+
+  // 5c. Condições críticas de interdição
+  // Reserva o espaço do gráfico junto com o título — sem isso, o título
+  // pode ficar sozinho no fim de uma página e o gráfico "solto" na
+  // seguinte (Etapa 11 do pedido: nada importante quebrado entre páginas).
+  pdf.ensureSpace(105);
+  pdf.sectionTitle("5c. Condições Críticas de Interdição");
+  if (risk.quadrosAfetados > 0) {
+    await pdf.chartImage("risco-interdicao-chart", 100);
+    pdf.table(
+      ["Quadro", "Nome", "Localidade", "Condição", "Última ocorrência", "Responsável", "Status"],
+      risk.quadros.map((q) => [
+        q.panelTag,
+        q.panelName,
+        q.localidade,
+        q.condicoesLabel,
+        fmtDate(q.ultimaOcorrencia),
+        q.responsavel || "—",
+        q.status === "aberta" ? "Aberta" : "Em tratamento",
+      ]),
+      [20, 34, 20, 20, 30, 32, 24]
+    );
+  } else {
+    pdf.paragraph("Nenhum quadro com condição crítica de interdição identificada no período selecionado.");
   }
 
   // 6. Reincidências
@@ -381,6 +412,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.paragraph("Duas métricas distintas, nunca misturadas: (A) 'Não conformidades' — registros da tabela de Não Conformidades do processo, com status Aberta ou Em Tratamento, dentro do período selecionado (mesma definição usada no Painel/Dashboard); (B) 'Taxa de conformidade' — respostas Conforme / (Conforme + Não Conforme) do checklist, sem ciclo de vida próprio. Respostas 'Não Aplicável' e 'Não Verificado' não entram no denominador de (B).");
   pdf.paragraph("Taxa de NC = Não conformidades abertas / inspeções realizadas no recorte (não é NCs sobre respostas de checklist).");
   pdf.paragraph("Reincidência = mesmo requisito com NC aberta em 2 ou mais inspeções diferentes do mesmo quadro.");
+  pdf.paragraph(`Risco de interdição = quadros distintos com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. "Quadros afetados" conta cada quadro uma única vez, mesmo com as duas condições; "condições críticas" conta as ocorrências.`);
   pdf.paragraph("Método preditivo: regressão linear simples (mínimos quadrados) sobre a série temporal de cada indicador — método determinístico, reproduzível e auditável. Projeções exigem histórico mínimo (6 inspeções e 4 períodos de tempo com dados); abaixo disso, a página informa 'dados insuficientes' em vez de projetar.");
   pdf.paragraph("Correlações estatísticas (Índice de Saúde × Conformidade) são sempre apresentadas como associação observada, nunca como relação de causa e efeito.");
   pdf.paragraph("Limitações: a análise reflete somente os dados registrados dentro do recorte de filtros selecionado; quadros ou períodos sem inspeção não são representados.");

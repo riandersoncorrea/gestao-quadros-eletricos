@@ -127,7 +127,10 @@ export async function updateCoordinates(panelId, latitude, longitude) {
 export async function listForDashboard() {
   const { data, error } = await supabase
     .from("electrical_panels")
-    .select("id, tag, name, status, criticality, health_index, localidade_id, next_inspection_date");
+    // responsible_engineer somado aqui (consulta em lote já existente) para
+    // a Análise Inteligente poder exibir o responsável nos quadros com
+    // risco de interdição, sem nova consulta por quadro.
+    .select("id, tag, name, status, criticality, health_index, localidade_id, next_inspection_date, responsible_engineer");
   if (error) throw error;
   return data;
 }

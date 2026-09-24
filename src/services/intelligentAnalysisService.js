@@ -13,6 +13,7 @@ import {
   computeRecurrence,
   computeRankingQuadros,
   computePanelSnapshot,
+  computeInterdictionRisk,
   computeHealthVsConformity,
   computeDiagnostics,
   computeChartDescriptions,
@@ -69,6 +70,7 @@ export function computeIntelligentAnalysis(raw, filters) {
   const temporal = computeTemporalEvolution(base, filters.period);
   const recurrence = computeRecurrence(base);
   const rankingQuadros = computeRankingQuadros(base);
+  const interdictionRisk = computeInterdictionRisk(base);
   const healthVsConformity = computeHealthVsConformity(base);
   const diagnostics = computeDiagnostics({ kpis, filteredInspections: base.filteredInspections, dimensions, pareto, byLocalidade, recurrence, temporal, rankingQuadros });
   const chartDescriptions = computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence, healthVsConformity });
@@ -103,6 +105,7 @@ export function computeIntelligentAnalysis(raw, filters) {
     temporal,
     recurrence: { ...recurrence, casos: recurrenceComTaxa },
     rankingQuadros,
+    interdictionRisk,
     healthVsConformity,
     diagnostics,
     chartDescriptions,
