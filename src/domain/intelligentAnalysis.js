@@ -271,8 +271,14 @@ export function computeExecutiveKpis({ filteredInspections, filteredResponses, f
   };
 }
 
-/** Análise descritiva: contagens e distribuições diretas dos dados filtrados. */
-export function computeDescriptive({ filteredInspections, filteredNCs, panelById, locName }, kpis) {
+/**
+ * Análise descritiva: contagens e distribuições diretas dos dados
+ * filtrados. `risk` é o resultado já calculado por computeInterdictionRisk
+ * (mesmo objeto usado pelo KPI "Quadros com risco de interdição" e pelo
+ * gráfico "Condições Críticas de Interdição") — reaproveitado aqui só para
+ * gerar o cartão narrativo correspondente, sem recalcular nada.
+ */
+export function computeDescriptive({ filteredInspections, filteredNCs, panelById, locName }, kpis, risk) {
   const porStatus = new Map();
   for (const i of filteredInspections) {
     const k = i.overall_result || "sem_resultado";
@@ -323,7 +329,7 @@ export function computeDescriptive({ filteredInspections, filteredNCs, panelById
     perguntasComMaisNc,
     distribuicaoPorStatus,
     distribuicaoPorLocalidade,
-    narrativas: buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus, quadrosPorLocalidadeMap }),
+    narrativas: buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus, quadrosPorLocalidadeMap, risk }),
   };
 }
 
@@ -342,7 +348,7 @@ const STATUS_LABEL = {
  * de uma linha e uma interpretação mais detalhada, no formato pedido
  * ("X concentra A, enquanto Y registra B, uma diferença de C").
  */
-function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus, quadrosPorLocalidadeMap }) {
+function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias, perguntasComMaisNc, distribuicaoPorStatus, quadrosPorLocalidadeMap, risk }) {
   const cards = [];
 
   // 1. Volume e cobertura ---------------------------------------------------
@@ -474,7 +480,88 @@ function buildDescriptiveNarratives({ resumo, kpis, dimensoesComMaisOcorrencias,
     });
   }
 
+  // 5. Condições críticas de interdição --------------------------------------
+  // Mesmos números do KPI "Quadros com risco de interdição" e do gráfico
+  // "Condições Críticas de Interdição" (risk = computeInterdictionRisk,
+  // calculado uma única vez em intelligentAnalysisService.js) — este
+  // cartão só narra esses dados em linguagem natural, sem recalculá-los.
+  if (risk) cards.push(buildInterdictionRiskDescriptiveCard(risk));
+
   return cards;
+}
+
+/**
+ * Cartão narrativo "Condições Críticas de Interdição" da Análise
+ * Descritiva — reaproveita integralmente `risk` (computeInterdictionRisk),
+ * a mesma fonte usada pelo KPI e pelo gráfico do indicador; não é uma
+ * segunda regra de negócio. Responde, em linguagem gerencial: quantos
+ * quadros e ocorrências existem, qual condição predomina, como os casos se
+ * distribuem entre PRO-01 e ATR-01, e qual localidade concentra mais
+ * quadros afetados (e em que proporção).
+ */
+function buildInterdictionRiskDescriptiveCard(risk) {
+  const { quadrosAfetados, condicoesCriticas, porCondicao, porLocalidade } = risk;
+
+  if (quadrosAfetados === 0) {
+    return {
+      chave: "risco_interdicao",
+      titulo: "Condições Críticas de Interdição",
+      icone: "ShieldAlert",
+      resumo: "Nenhum quadro com condição crítica de interdição foi identificado no período selecionado.",
+      interpretacao: "Não foram identificadas condições críticas de interdição no período e nas localidades selecionadas.",
+      indicadores: [],
+    };
+  }
+
+  const partes = [];
+  partes.push(
+    `Foram identificados ${quadrosAfetados} quadro(s) com condição crítica associada a risco de interdição no período, somando ${condicoesCriticas} ocorrência(s).`
+  );
+
+  const [pro01, atr01] = porCondicao;
+  if (pro01 && atr01 && (pro01.ocorrencias || atr01.ocorrencias)) {
+    if (pro01.ocorrencias === atr01.ocorrencias) {
+      partes.push(
+        `${requisitoFrase(pro01.codigo, pro01.titulo)} e ${requisitoFrase(atr01.codigo, atr01.titulo)} aparecem com a mesma frequência entre os casos identificados.`
+      );
+    } else {
+      const maior = pro01.ocorrencias > atr01.ocorrencias ? pro01 : atr01;
+      const menor = pro01.ocorrencias > atr01.ocorrencias ? atr01 : pro01;
+      const pctMaior = condicoesCriticas ? (100 * maior.ocorrencias) / condicoesCriticas : null;
+      partes.push(
+        `A condição predominante é ${requisitoFrase(maior.codigo, maior.titulo)} responsável por ${maior.ocorrencias} ocorrência(s)${pctMaior != null ? ` (${pctMaior.toFixed(1)}% do total)` : ""}, contra ${menor.ocorrencias} de ${menor.codigo}.`
+      );
+      if (pctMaior != null && pctMaior >= 70) {
+        partes.push("Essa concentração numa única condição indica um ponto de origem bem definido para a maior parte dos casos.");
+      }
+    }
+  }
+
+  if (porLocalidade.length >= 2) {
+    const top = porLocalidade[0];
+    const pctQuadros = quadrosAfetados ? (100 * top.quadros) / quadrosAfetados : null;
+    partes.push(
+      `${top.localidade} concentra a maior parte dos quadros afetados${pctQuadros != null ? `, com ${pctQuadros.toFixed(1)}% do total` : ""}: ${top.quadros} de ${quadrosAfetados} quadro(s).`
+    );
+  } else if (porLocalidade.length === 1) {
+    partes.push(`Todos os quadros afetados estão ${emLocalidade(porLocalidade[0].localidade)}.`);
+  }
+
+  partes.push("Esses quadros merecem acompanhamento prioritário nas tratativas em andamento.");
+
+  const localidadeTop = porLocalidade[0];
+  return {
+    chave: "risco_interdicao",
+    titulo: "Condições Críticas de Interdição",
+    icone: "ShieldAlert",
+    resumo: `${quadrosAfetados} quadro(s) com condição crítica de interdição identificados no período.`,
+    interpretacao: partes.join(" "),
+    indicadores: [
+      { label: "Quadros afetados", value: quadrosAfetados },
+      { label: "Ocorrências", value: condicoesCriticas },
+      ...(localidadeTop ? [{ label: localidadeTop.localidade, value: localidadeTop.quadros }] : []),
+    ],
+  };
 }
 
 /** Conformidade por dimensão (as 8 dimensões reais do template). */

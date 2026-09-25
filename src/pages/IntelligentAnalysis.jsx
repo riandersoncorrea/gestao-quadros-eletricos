@@ -412,7 +412,7 @@ function ExecutiveVision({ kpis, risk }) {
   );
 }
 
-const DESCRIPTIVE_ICONS = { ClipboardCheck, MapPin, Target, AlertTriangle };
+const DESCRIPTIVE_ICONS = { ClipboardCheck, MapPin, Target, AlertTriangle, ShieldAlert };
 
 /** Um cartão de interpretação da Análise Descritiva — categoria/ícone, resumo, interpretação e indicadores (Etapa 3 do pedido de refinamento visual). */
 function DescriptiveCard({ card }) {

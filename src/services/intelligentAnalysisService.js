@@ -63,14 +63,18 @@ export function computeIntelligentAnalysis(raw, filters) {
   }
 
   const kpis = computeExecutiveKpis(base);
-  const descriptive = computeDescriptive(base, kpis);
+  // Calculado antes de computeDescriptive para ser reaproveitado pelo novo
+  // cartão narrativo "Condições Críticas de Interdição" da Análise
+  // Descritiva — mesmo resultado usado pelo KPI e pelo gráfico do
+  // indicador, nenhum segundo cálculo.
+  const interdictionRisk = computeInterdictionRisk(base);
+  const descriptive = computeDescriptive(base, kpis, interdictionRisk);
   const dimensions = computeConformityByDimension(base);
   const pareto = computeParetoNaoConformidades(base);
   const byLocalidade = computeByLocalidade(base);
   const temporal = computeTemporalEvolution(base, filters.period);
   const recurrence = computeRecurrence(base);
   const rankingQuadros = computeRankingQuadros(base);
-  const interdictionRisk = computeInterdictionRisk(base);
   const healthVsConformity = computeHealthVsConformity(base);
   const diagnostics = computeDiagnostics({ kpis, filteredInspections: base.filteredInspections, dimensions, pareto, byLocalidade, recurrence, temporal, rankingQuadros });
   const chartDescriptions = computeChartDescriptions({ dimensions, pareto, byLocalidade, temporal, recurrence, healthVsConformity });
