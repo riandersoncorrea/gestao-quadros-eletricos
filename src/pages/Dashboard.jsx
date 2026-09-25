@@ -216,9 +216,15 @@ export default function Dashboard() {
 
         <ChartCard title="NCs abertas por severidade" action={<Link to="/nao-conformidades" className="text-xs text-primary hover:underline">ver</Link>}>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={d.ncPorSeveridade} margin={{ left: 0, right: 10 }}>
+            {/* margin.top e o domínio do eixo Y com folga de 15% acima do
+                maior valor são só deste gráfico (não são um padrão global) —
+                sem isso, o rótulo da barra mais alta (ex.: "411") encostava
+                no limite superior do card e podia ficar cortado. A folga é
+                proporcional ao valor, então continua funcionando para
+                qualquer número, não só para o cenário atual. */}
+            <BarChart data={d.ncPorSeveridade} margin={{ top: 20, left: 0, right: 10 }}>
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} domain={[0, (dataMax) => Math.max(1, Math.ceil(dataMax * 1.15))]} />
               <Tooltip />
               <Bar dataKey="n" radius={[4, 4, 0, 0]}>
                 {d.ncPorSeveridade.map((e, i) => <Cell key={i} fill={sevColor[e.label] || GRAY} />)}
