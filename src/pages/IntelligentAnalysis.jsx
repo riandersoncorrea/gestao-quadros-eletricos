@@ -380,7 +380,6 @@ export default function IntelligentAnalysis() {
 
 function ExecutiveVision({ kpis, risk }) {
   const porLocalidade = new Map(kpis.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
-  const condicoesLabel = risk.condicoesCatalogo.map((c) => c.label).join(" · ");
   return (
     <Section id="visao-executiva" title="Visão Executiva">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -400,8 +399,8 @@ function ExecutiveVision({ kpis, risk }) {
         />
         <Kpi
           icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
-          sub="Quadros com NC em PRO-01 ou ATR-01" tone={risk.quadrosAfetados ? "err" : "ok"}
-          hint={`Quadros distintos com NC aberta em ${condicoesLabel}. Um quadro com as duas condições conta uma única vez. Ocorrências no período: ${risk.condicoesCriticas}.`}
+          sub={risk.regraLabel} tone={risk.quadrosAfetados ? "err" : "ok"}
+          hint={`Quadros distintos com ${risk.regraDescricao} (NCs abertas). Um quadro conta uma única vez, mesmo com a condição em mais de uma inspeção. Ocorrências (inspeções) no período: ${risk.ocorrencias}.`}
         />
         <Kpi
           icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "-"}
@@ -665,15 +664,6 @@ function LocalidadeSection({ byLocalidade, reading }) {
 }
 
 const INTERDICTION_STATUS_LABEL = { aberta: "Aberta", em_tratamento: "Em tratamento" };
-// Cores fixas por posição do código em INTERDICTION_RISK_CODES (PRO-01,
-// ATR-01) — uso pontual de vermelho/âmbar coerente com a convenção
-// semântica já existente na página (crítico/atenção), reservado a este
-// indicador de segurança específico.
-const INTERDICTION_COLORS = [RED, AMBER];
-// Cor do texto do rótulo quando ele cabe dentro do próprio segmento —
-// branco sobre o vermelho (bom contraste) e um tom escuro sobre o âmbar
-// (branco teria contraste ruim sobre essa cor mais clara).
-const INTERDICTION_LABEL_TEXT_COLOR = ["#fff", "#4A3600"];
 
 /**
  * Rótulo de valor para cada segmento da barra empilhada de condições
@@ -706,10 +696,10 @@ function makeStackedBarLabel(fill, textColor) {
 }
 
 /**
- * "Condições Críticas de Interdição" — quadros com NC aberta em PRO-01
- * (DR) ou ATR-01 (condutor de proteção/PE). Toda a agregação vem de
- * `risk` (computeInterdictionRisk, já calculado a partir das mesmas NCs
- * usadas pelo resto da página); este componente só formata.
+ * "Condições Críticas de Interdição" — quadros com PRO-01 (DR) não
+ * conforme em área molhada + ATR-01 (condutor de proteção/PE) não conforme
+ * na mesma inspeção. Toda a agregação vem de `risk` (computeInterdictionRisk,
+ * a mesma fonte do KPI e da Análise Descritiva); este componente só formata.
  */
 function InterdictionRiskSection({ risk, onOpenPanel }) {
   const [selectedLocalidade, setSelectedLocalidade] = useState(null);
@@ -720,7 +710,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
   return (
     <Section
       id="risco-interdicao" title="Condições Críticas de Interdição"
-      subtitle={`Quadros com NC em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}.`}
+      subtitle={`Quadros com ${risk.regraDescricao}.`}
     >
       {risk.quadrosAfetados === 0 ? (
         <EmptyState text="Nenhum quadro com condição crítica de interdição identificada no período selecionado." />
@@ -744,22 +734,20 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                   content={({ active, label, payload }) => {
                     const p = payload?.[0]?.payload;
                     if (!p) return null;
-                    const rows = risk.condicoesCatalogo.map((c, i) => ({ label: c.label, value: p[c.codigo] || 0, color: INTERDICTION_COLORS[i] }));
-                    rows.push({ label: "Total de condições críticas", value: p.total });
-                    rows.push({ label: "Quadros distintos afetados", value: p.quadros });
+                    const rows = [
+                      { label: "Ocorrências (inspeções)", value: p.total, color: RED },
+                      { label: "Quadros distintos afetados", value: p.quadros },
+                    ];
                     return <ChartTooltip active={active} title={label} rows={rows} />;
                   }}
                 />
                 <Legend {...LEGEND_PROPS} />
-                {risk.condicoesCatalogo.map((c, i) => (
-                  <Bar
-                    key={c.codigo} dataKey={c.codigo} name={c.label} stackId="condicoes"
-                    fill={INTERDICTION_COLORS[i]} barSize={22} cursor="pointer"
-                    radius={i === risk.condicoesCatalogo.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
-                  >
-                    <LabelList dataKey={c.codigo} content={makeStackedBarLabel(INTERDICTION_COLORS[i], INTERDICTION_LABEL_TEXT_COLOR[i])} />
-                  </Bar>
-                ))}
+                <Bar
+                  dataKey="total" name={risk.regraLabel}
+                  fill={RED} barSize={22} cursor="pointer" radius={[0, 3, 3, 0]}
+                >
+                  <LabelList dataKey="total" content={makeStackedBarLabel(RED, "#fff")} />
+                </Bar>
               </ComposedChart>
             </ResponsiveContainer>
             <ChartReading text={risk.leitura} />

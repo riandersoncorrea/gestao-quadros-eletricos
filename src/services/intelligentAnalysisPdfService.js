@@ -278,10 +278,10 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   const risk = analysis.interdictionRisk;
   pdf.kpiRow([
     { label: "Quadros com risco de interdição", value: risk.quadrosAfetados },
-    { label: "Condições críticas (ocorrências)", value: risk.condicoesCriticas },
+    { label: "Ocorrências (inspeções)", value: risk.ocorrencias },
   ]);
   pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel (Dashboard).", 8);
-  pdf.paragraph(`Risco de interdição: quadros com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. Um quadro com as duas condições conta uma única vez.`, 8);
+  pdf.paragraph(`Risco de interdição: quadros com ${risk.regraDescricao} (NCs abertas). Um quadro conta uma única vez.`, 8);
 
   // 2. Conformidade por dimensão
   pdf.sectionTitleWithChart("2. Conformidade por Dimensão", 100);
@@ -454,7 +454,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.paragraph("Duas métricas distintas, nunca misturadas: (A) 'Não conformidades', registros da tabela de Não Conformidades do processo, com status Aberta ou Em Tratamento, dentro do período selecionado (mesma definição usada no Painel/Dashboard); (B) 'Taxa de conformidade', respostas Conforme / (Conforme + Não Conforme) do checklist, sem ciclo de vida próprio. Respostas 'Não Aplicável' e 'Não Verificado' não entram no denominador de (B).");
   pdf.paragraph("Taxa de NC = Não conformidades abertas / inspeções realizadas no recorte (não é NCs sobre respostas de checklist).");
   pdf.paragraph("Reincidência = mesmo requisito com NC aberta em 2 ou mais inspeções diferentes do mesmo quadro.");
-  pdf.paragraph(`Risco de interdição = quadros distintos com NC aberta em ${risk.condicoesCatalogo.map((c) => c.label).join(" ou ")}. "Quadros afetados" conta cada quadro uma única vez, mesmo com as duas condições; "condições críticas" conta as ocorrências.`);
+  pdf.paragraph(`Risco de interdição = quadros distintos com ${risk.regraDescricao} (NCs abertas). PRO-01 não conforme é sempre crítica, mas sem área molhada (Sim) e ATR-01 não conforme na mesma inspeção não configura risco de interdição. "Quadros afetados" conta cada quadro uma única vez; "ocorrências" conta as inspeções.`);
   pdf.paragraph("Método preditivo: regressão linear simples (mínimos quadrados) sobre a série temporal de cada indicador, método determinístico, reproduzível e auditável. Projeções exigem histórico mínimo (6 inspeções e 4 períodos de tempo com dados); abaixo disso, a página informa 'dados insuficientes' em vez de projetar.");
   pdf.paragraph("Correlações estatísticas (Índice de Saúde × Conformidade) são sempre apresentadas como associação observada, nunca como relação de causa e efeito.");
   pdf.paragraph("Limitações: a análise reflete somente os dados registrados dentro do recorte de filtros selecionado; quadros ou períodos sem inspeção não são representados.");

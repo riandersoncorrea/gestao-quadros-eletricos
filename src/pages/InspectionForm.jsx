@@ -6,7 +6,7 @@ import {
   getActiveTemplate, ordersForPanel, createInspection, computeOverall,
   checkPanelVigencia, InspectionVigenteError,
 } from "@/services/inspectionService";
-import { WET_AREA_CHECK_CODE, isWetAreaCritical } from "@/domain/inspectionRules";
+import { WET_AREA_CHECK_CODE, hasWetArea } from "@/domain/inspectionRules";
 import { uploadFile } from "@/storage/storageService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -566,8 +566,8 @@ export default function InspectionForm() {
                                 {r.area_molhada == null ? (
                                   <span className="text-muted-foreground">Aguardando resposta complementar</span>
                                 ) : (
-                                  <span className={`font-medium ${isWetAreaCritical(r.area_molhada) ? "text-destructive" : "text-foreground"}`}>
-                                    {isWetAreaCritical(r.area_molhada) ? "Crítica — área molhada" : "Não crítica"}
+                                  <span className="font-medium text-destructive">
+                                    Crítica — área molhada: {hasWetArea(r.area_molhada) ? "Sim" : "Não"}
                                   </span>
                                 )}
                                 <button type="button" className="text-primary hover:underline shrink-0 font-medium"
@@ -849,7 +849,8 @@ export default function InspectionForm() {
       {/* Pop-up complementar de PRO-01 — não pode ser fechado sem responder
           (sem botão de fechar, clique fora ou Esc não fazem nada; ver
           onOpenChange abaixo) para nunca deixar PRO-01 "não conforme" sem
-          a informação que define a criticidade. */}
+          a informação usada no risco de interdição (ver
+          domain/inspectionRules.js#isInterdictionRisk). */}
       <Dialog open={!!wetAreaPrompt} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideClose>
           <DialogHeader>

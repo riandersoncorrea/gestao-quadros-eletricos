@@ -142,7 +142,10 @@ export async function listForAnalysis() {
 export async function listAllResponses() {
   const { data, error } = await supabase
     .from("inspection_responses")
-    .select("id, inspection_id, template_item_id, modulo, titulo, resposta");
+    // area_molhada: resposta complementar de PRO-01, usada pela regra de
+    // risco de interdição da Análise Inteligente (domain/inspectionRules.js
+    // #isInterdictionRisk).
+    .select("id, inspection_id, template_item_id, modulo, titulo, resposta, area_molhada");
   if (error) throw error;
   return data;
 }
