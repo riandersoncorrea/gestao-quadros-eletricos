@@ -84,6 +84,40 @@ export function computeOverall(responses, items) {
 }
 
 /**
+ * Código do item de checklist para o qual a "Não Conforme" exige a
+ * resposta complementar de área molhada (ver isWetAreaCritical abaixo).
+ * Só PRO-01 — nenhum outro item do checklist dispara esse fluxo.
+ */
+export const WET_AREA_CHECK_CODE = "PRO-01";
+
+/**
+ * A condição só é crítica quando a resposta complementar for
+ * explicitamente `true` (Sim). `null`/`undefined` (não respondido — não
+ * deveria ocorrer numa inspeção nova, já validado na UI, mas pode ocorrer
+ * em inspeções antigas anteriores a esta regra) e `false` (Não) nunca são
+ * tratados como crítico — nunca se assume criticidade por ausência de
+ * resposta.
+ */
+export function isWetAreaCritical(areaMolhada) {
+  return areaMolhada === true;
+}
+
+/**
+ * Severidade de uma resposta "não conforme". Para PRO-01, a severidade não
+ * é mais uma escolha livre do inspetor: é sempre derivada da resposta
+ * complementar de área molhada (ver isWetAreaCritical) — 'critica' quando
+ * o quadro alimenta pontos de utilização em área molhada, 'media' caso
+ * contrário. Para os demais itens, mantém o comportamento anterior
+ * (severidade escolhida manualmente pelo inspetor, 'media' por padrão).
+ */
+function resolveSeveridade(r, it) {
+  if (it?.codigo === WET_AREA_CHECK_CODE) {
+    return isWetAreaCritical(r.area_molhada) ? "critica" : "media";
+  }
+  return r.severidade || "media";
+}
+
+/**
  * Gera as linhas de não-conformidade criadas automaticamente a partir das
  * respostas "não conforme" de uma inspeção.
  */
@@ -104,7 +138,7 @@ export function buildAutoNonconformities({ responses, items, inspectionId, panel
           (r.descricao || "").trim() ||
           `${it?.codigo ? it.codigo + " — " : ""}${it?.titulo || "Item não conforme"}`,
         evidencia_url: r.evidencia_url || null,
-        severidade: r.severidade || "media",
+        severidade: resolveSeveridade(r, it),
         recomendacao: r.recomendacao || null,
         status: "aberta",
         origem: "inspecao",

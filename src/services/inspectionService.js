@@ -103,6 +103,7 @@ export async function createInspection({ header, responses, measurements, thermo
       motivo: r.motivo || null,
       observacao: r.observacao || null,
       evidencia_url: r.evidencia_url || null,
+      area_molhada: r.area_molhada ?? null,
     };
   });
   await inspectionRepository.insertResponses(respRows);

@@ -6,6 +6,7 @@ import {
   getActiveTemplate, ordersForPanel, createInspection, computeOverall,
   checkPanelVigencia, InspectionVigenteError,
 } from "@/services/inspectionService";
+import { WET_AREA_CHECK_CODE, isWetAreaCritical } from "@/domain/inspectionRules";
 import { uploadFile } from "@/storage/storageService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,10 @@ export default function InspectionForm() {
   // existir uma inspeção vigente criada nesse meio-tempo (aviso "save").
   const [vigenciaDialog, setVigenciaDialog] = useState(null); // { conflict, onConfirm, onCancel } | null
   const dismissedVigenciaKeyRef = useRef(null);
+  // Pop-up complementar de PRO-01 (área molhada) — guarda o id do item de
+  // template aguardando resposta. Enquanto não for null, o modal fica
+  // aberto e não pode ser fechado sem responder Sim/Não (ver JSX do Dialog).
+  const [wetAreaPrompt, setWetAreaPrompt] = useState(null);
 
   useEffect(() => {
     if (user) setHeader((s) => (s.inspector_name ? s : { ...s, inspector_name: user.full_name || user.email }));
@@ -185,6 +190,26 @@ export default function InspectionForm() {
     }
     return [...m.values()];
   }, [items]);
+
+  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+
+  /**
+   * Muda a resposta principal de um item (Conforme/Não Conforme/N/A/Não
+   * Verificado). Para PRO-01, isola a regra de "área molhada" (ver
+   * domain/inspectionRules.js#WET_AREA_CHECK_CODE):
+   *  - ao virar "não conforme", abre o pop-up complementar;
+   *  - ao sair de "não conforme" (voltou undefined, ou virou outra
+   *    resposta), limpa a resposta complementar já registrada — nunca deve
+   *    sobrar uma condição crítica "órfã" associada a uma PRO-01 que não
+   *    está mais "não conforme".
+   */
+  const handleRespostaClick = (it, value) => {
+    const current = responses[it.id]?.resposta;
+    const next = current === value ? undefined : value;
+    const isWetAreaItem = it.codigo === WET_AREA_CHECK_CODE;
+    setResp(it.id, isWetAreaItem && next !== "nao_conforme" ? { resposta: next, area_molhada: null } : { resposta: next });
+    if (isWetAreaItem && next === "nao_conforme") setWetAreaPrompt(it.id);
+  };
 
   const localidadeOptions = useMemo(
     () => (hierarchy?.localidades || []).map((l) => ({ value: l.id, label: l.nome })),
@@ -362,6 +387,12 @@ export default function InspectionForm() {
         toast.error("Itens 'Não Verificado' precisam de motivo");
         return false;
       }
+      if (r.resposta === "nao_conforme" && itemById.get(r.template_item_id)?.codigo === WET_AREA_CHECK_CODE && r.area_molhada == null) {
+        setTab("checklist");
+        setWetAreaPrompt(r.template_item_id);
+        toast.error("Responda se o quadro/painel alimenta pontos de utilização em áreas molhadas (PRO-01)");
+        return false;
+      }
     }
     if (answeredCount === 0) {
       setTab("checklist");
@@ -502,7 +533,7 @@ export default function InspectionForm() {
                         <div className="flex flex-wrap gap-1.5">
                           {RESP.map((o) => (
                             <button key={o.v} type="button"
-                              onClick={() => setResp(it.id, { resposta: r.resposta === o.v ? undefined : o.v })}
+                              onClick={() => handleRespostaClick(it, o.v)}
                               className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
                                 r.resposta === o.v ? o.cls + " shadow-sm" : "bg-background border-border text-muted-foreground hover:bg-muted"
                               }`}>
@@ -530,12 +561,28 @@ export default function InspectionForm() {
                           <div className="grid gap-2 sm:grid-cols-2">
                             <Input placeholder="Recomendação / ação sugerida"
                               value={r.recomendacao || ""} onChange={(e) => setResp(it.id, { recomendacao: e.target.value })} />
-                            <Select value={r.severidade || "media"} onValueChange={(v) => setResp(it.id, { severidade: v })}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {SEV.map((s) => <SelectItem key={s.v} value={s.v}>{s.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            {it.codigo === WET_AREA_CHECK_CODE ? (
+                              <div className="flex items-center justify-between gap-2 rounded-md border border-input bg-background px-3 h-9 text-xs">
+                                {r.area_molhada == null ? (
+                                  <span className="text-muted-foreground">Aguardando resposta complementar</span>
+                                ) : (
+                                  <span className={`font-medium ${isWetAreaCritical(r.area_molhada) ? "text-destructive" : "text-foreground"}`}>
+                                    {isWetAreaCritical(r.area_molhada) ? "Crítica — área molhada" : "Não crítica"}
+                                  </span>
+                                )}
+                                <button type="button" className="text-primary hover:underline shrink-0 font-medium"
+                                  onClick={() => setWetAreaPrompt(it.id)}>
+                                  {r.area_molhada == null ? "Responder" : "Alterar"}
+                                </button>
+                              </div>
+                            ) : (
+                              <Select value={r.severidade || "media"} onValueChange={(v) => setResp(it.id, { severidade: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {SEV.map((s) => <SelectItem key={s.v} value={s.v}>{s.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         </div>
                       )}
@@ -795,6 +842,34 @@ export default function InspectionForm() {
           <DialogFooter className="gap-2 sm:gap-2">
             <Button type="button" variant="outline" onClick={() => vigenciaDialog?.onCancel()}>Cancelar</Button>
             <Button type="button" onClick={() => vigenciaDialog?.onConfirm()}>Continuar mesmo assim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pop-up complementar de PRO-01 — não pode ser fechado sem responder
+          (sem botão de fechar, clique fora ou Esc não fazem nada; ver
+          onOpenChange abaixo) para nunca deixar PRO-01 "não conforme" sem
+          a informação que define a criticidade. */}
+      <Dialog open={!!wetAreaPrompt} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" hideClose>
+          <DialogHeader>
+            <DialogTitle>Informação complementar</DialogTitle>
+            <DialogDescription>
+              O quadro/painel alimenta pontos de utilização localizados em áreas molhadas?
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Considere áreas como cozinhas, copas-cozinhas, lavanderias, áreas de serviço, garagens e outras dependências internas molhadas em uso normal ou sujeitas a lavagens.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" className="flex-1 h-11 text-base"
+              onClick={() => { setResp(wetAreaPrompt, { area_molhada: false }); setWetAreaPrompt(null); }}>
+              Não
+            </Button>
+            <Button type="button" className="flex-1 h-11 text-base"
+              onClick={() => { setResp(wetAreaPrompt, { area_molhada: true }); setWetAreaPrompt(null); }}>
+              Sim
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

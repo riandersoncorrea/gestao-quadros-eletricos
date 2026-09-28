@@ -186,6 +186,9 @@ export default function InspectionDetail() {
                   </div>
                   {r.justificativa && <p className="text-xs text-muted-foreground mt-1">Justificativa: {r.justificativa}</p>}
                   {r.motivo && <p className="text-xs text-muted-foreground mt-1">Motivo: {r.motivo}</p>}
+                  {r.area_molhada != null && (
+                    <p className="text-xs text-muted-foreground mt-1">Área molhada: {r.area_molhada ? "Sim" : "Não"}</p>
+                  )}
                   {r.observacao && <p className="text-xs text-muted-foreground mt-1">Obs.: {r.observacao}</p>}
                   {r.evidencia_url && <a href={r.evidencia_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">ver evidência</a>}
                 </div>
