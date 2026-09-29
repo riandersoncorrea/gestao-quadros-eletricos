@@ -1018,17 +1018,23 @@ export function computeInterdictionRisk({ filteredNCs, allResponses = [], panelB
       a.panelTag.localeCompare(b.panelTag)
     );
 
-  // Cada localidade guarda as OCORRÊNCIAS (inspeções) por origem e os
+  // Cada localidade guarda as ocorrências POR REQUISITO (PRO-01, ATR-01 —
+  // séries do gráfico), o total de condições (soma dos requisitos) e os
   // QUADROS DISTINTOS — explícitos no gráfico/tooltip para não parecer
   // inconsistente com o KPI (que conta quadros).
-  const porLocalidadeMap = new Map(); // localidade -> { localidade, total, legado, novaRegra, quadros:Set }
+  const porLocalidadeMap = new Map(); // localidade -> { localidade, [codigo]: n, total, quadros:Set }
   for (const o of ocorrencias) {
     const localidade = localidadeDe(o.panelId);
-    if (!porLocalidadeMap.has(localidade)) porLocalidadeMap.set(localidade, { localidade, total: 0, legado: 0, novaRegra: 0, quadros: new Set() });
+    if (!porLocalidadeMap.has(localidade)) {
+      const base = { localidade, total: 0, quadros: new Set() };
+      for (const c of INTERDICTION_RISK_CODES) base[c] = 0;
+      porLocalidadeMap.set(localidade, base);
+    }
     const entry = porLocalidadeMap.get(localidade);
-    entry.total += 1;
-    if (o.origem === INTERDICTION_ORIGEM.novaRegra) entry.novaRegra += 1;
-    else entry.legado += 1;
+    for (const c of o.codigos) {
+      entry[c] += 1;
+      entry.total += 1;
+    }
     if (o.panelId) entry.quadros.add(o.panelId);
   }
   const porLocalidade = [...porLocalidadeMap.values()]
@@ -1085,9 +1091,10 @@ function buildInterdictionRiskReading(risk) {
 
   if (porLocalidade.length >= 2) {
     const top = porLocalidade[0];
-    const pct = ocorrencias ? (100 * top.total) / ocorrencias : null;
+    const totalCondicoes = porLocalidade.reduce((soma, l) => soma + l.total, 0);
+    const pct = totalCondicoes ? (100 * top.total) / totalCondicoes : null;
     partes.push(
-      `${top.localidade} concentra a maior parte dos casos${pct != null ? `, com ${pct.toFixed(1)}% do total` : ""}: ${top.total} ocorrência(s) em ${top.quadros} quadro(s) distinto(s).`
+      `${top.localidade} concentra a maior parte dos casos${pct != null ? `, com ${pct.toFixed(1)}% do total` : ""}: ${top.total} condição(ões) crítica(s) em ${top.quadros} quadro(s) distinto(s).`
     );
   } else if (porLocalidade.length === 1) {
     partes.push(`Todos os casos identificados estão ${emLocalidade(porLocalidade[0].localidade)}.`);

@@ -665,15 +665,15 @@ function LocalidadeSection({ byLocalidade, reading }) {
 }
 
 const INTERDICTION_STATUS_LABEL = { aberta: "Aberta", em_tratamento: "Em tratamento" };
-// Séries do gráfico por origem da ocorrência (ver computeInterdictionRisk):
-// vermelho para a regra atual (condição composta) e âmbar para a regra
-// anterior — mesma convenção crítico/atenção já usada na página. Texto do
-// rótulo interno: branco sobre o vermelho, tom escuro sobre o âmbar
-// (branco teria contraste ruim nessa cor mais clara).
-const INTERDICTION_SERIES = [
-  { dataKey: "novaRegra", name: "Regra atual", fill: RED, labelColor: "#fff" },
-  { dataKey: "legado", name: "Regra anterior", fill: AMBER, labelColor: "#4A3600" },
-];
+// Cores fixas por posição do código em INTERDICTION_RISK_CODES (PRO-01,
+// ATR-01) — uso pontual de vermelho/âmbar coerente com a convenção
+// semântica já existente na página (crítico/atenção), reservado a este
+// indicador de segurança específico.
+const INTERDICTION_COLORS = [RED, AMBER];
+// Cor do texto do rótulo quando ele cabe dentro do próprio segmento —
+// branco sobre o vermelho (bom contraste) e um tom escuro sobre o âmbar
+// (branco teria contraste ruim sobre essa cor mais clara).
+const INTERDICTION_LABEL_TEXT_COLOR = ["#fff", "#4A3600"];
 
 /**
  * Rótulo de valor para cada segmento da barra empilhada de condições
@@ -745,22 +745,20 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                   content={({ active, label, payload }) => {
                     const p = payload?.[0]?.payload;
                     if (!p) return null;
-                    const rows = [
-                      ...INTERDICTION_SERIES.map((serie) => ({ label: serie.name, value: p[serie.dataKey], color: serie.fill })),
-                      { label: "Total de ocorrências (inspeções)", value: p.total },
-                      { label: "Quadros distintos afetados", value: p.quadros },
-                    ];
+                    const rows = risk.condicoesCatalogo.map((c, i) => ({ label: c.label, value: p[c.codigo] || 0, color: INTERDICTION_COLORS[i] }));
+                    rows.push({ label: "Total de condições críticas", value: p.total });
+                    rows.push({ label: "Quadros distintos afetados", value: p.quadros });
                     return <ChartTooltip active={active} title={label} rows={rows} />;
                   }}
                 />
                 <Legend {...LEGEND_PROPS} />
-                {INTERDICTION_SERIES.map((serie, i) => (
+                {risk.condicoesCatalogo.map((c, i) => (
                   <Bar
-                    key={serie.dataKey} dataKey={serie.dataKey} name={serie.name} stackId="origem"
-                    fill={serie.fill} barSize={22} cursor="pointer"
-                    radius={i === INTERDICTION_SERIES.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
+                    key={c.codigo} dataKey={c.codigo} name={c.label} stackId="condicoes"
+                    fill={INTERDICTION_COLORS[i]} barSize={22} cursor="pointer"
+                    radius={i === risk.condicoesCatalogo.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
                   >
-                    <LabelList dataKey={serie.dataKey} content={makeStackedBarLabel(serie.fill, serie.labelColor)} />
+                    <LabelList dataKey={c.codigo} content={makeStackedBarLabel(INTERDICTION_COLORS[i], INTERDICTION_LABEL_TEXT_COLOR[i])} />
                   </Bar>
                 ))}
               </ComposedChart>
