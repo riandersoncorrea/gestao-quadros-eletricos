@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/repositories/pagination";
 
 export async function getActiveTemplateRow() {
   const { data, error } = await supabase
@@ -138,22 +139,24 @@ export async function listForAnalysis() {
   return data;
 }
 
-/** Todas as respostas de checklist (todas as inspeções) — usado para agregações client-side na Análise Inteligente dos Dados. */
+/**
+ * Todas as respostas de checklist (todas as inspeções) — usado para
+ * agregações client-side na Análise Inteligente dos Dados. A tabela passa
+ * de 1000 linhas (~60 por inspeção), então é lida paginada — ver
+ * repositories/pagination.js.
+ */
 export async function listAllResponses() {
-  const { data, error } = await supabase
-    .from("inspection_responses")
-    // area_molhada: resposta complementar de PRO-01, usada pela regra de
-    // risco de interdição da Análise Inteligente (domain/inspectionRules.js
-    // #isInterdictionRisk).
-    .select("id, inspection_id, template_item_id, modulo, titulo, resposta, area_molhada");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("inspection_responses")
+      // area_molhada: resposta complementar de PRO-01, usada pela regra de
+      // risco de interdição da Análise Inteligente (domain/inspectionRules.js
+      // #isInterdictionRisk).
+      .select("id, inspection_id, template_item_id, modulo, titulo, resposta, area_molhada")
+      .order("id", { ascending: true })
+  );
 }
 
-// O PostgREST do Supabase devolve no máximo 1000 linhas por requisição
-// (max_rows do projeto) e corta o excedente SEM erro — por isso consultas
-// que podem passar disso precisam paginar com .range().
-const SUPABASE_MAX_ROWS = 1000;
 // Ids por requisição num filtro .in(...) — mantém a URL da requisição
 // (GET com todos os ids) num tamanho seguro conforme o volume cresce.
 const IN_FILTER_CHUNK_SIZE = 100;
@@ -162,22 +165,6 @@ function chunk(list, size) {
   const out = [];
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
   return out;
-}
-
-/**
- * Lê TODAS as linhas de uma consulta, página a página (SUPABASE_MAX_ROWS
- * por vez). `buildQuery` devolve a consulta já filtrada e com ordenação
- * estável (necessária para as páginas não se sobreporem nem pularem
- * linhas).
- */
-async function fetchAllPages(buildQuery) {
-  const rows = [];
-  for (let from = 0; ; from += SUPABASE_MAX_ROWS) {
-    const { data, error } = await buildQuery().range(from, from + SUPABASE_MAX_ROWS - 1);
-    if (error) throw error;
-    rows.push(...data);
-    if (data.length < SUPABASE_MAX_ROWS) return rows;
-  }
 }
 
 /**

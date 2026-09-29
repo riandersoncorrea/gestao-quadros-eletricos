@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/repositories/pagination";
 
 export async function list() {
   const { data, error } = await supabase
@@ -57,12 +58,15 @@ export async function getStatusSeverityForPanel(panelId) {
 // cada NC com o requisito do checklist (código) e a inspeção de origem —
 // sem criar uma segunda consulta/definição de "NC aberta". O Dashboard
 // ignora essas duas colunas extras, sem nenhuma mudança de comportamento.
+// Paginada (ver repositories/pagination.js) para não perder NCs quando a
+// tabela passar de 1000 linhas.
 export async function listStatusSeverityForDashboard() {
-  const { data, error } = await supabase
-    .from("nonconformities")
-    .select("id, panel_id, status, severidade, categoria, created_at, inspection_id, template_item_id");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("nonconformities")
+      .select("id, panel_id, status, severidade, categoria, created_at, inspection_id, template_item_id")
+      .order("id", { ascending: true })
+  );
 }
 
 export async function listStatusSeverityForMap() {
