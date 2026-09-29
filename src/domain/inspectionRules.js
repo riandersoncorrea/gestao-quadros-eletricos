@@ -91,11 +91,17 @@ export function computeOverall(responses, items) {
 export const WET_AREA_CHECK_CODE = "PRO-01";
 
 /**
- * Código do item de checklist (condutor de proteção/PE) que, junto com
- * PRO-01 não conforme em área molhada, caracteriza o risco de interdição
- * (ver isInterdictionRisk).
+ * Código do item de checklist (condutor de proteção/PE) cuja "Não
+ * Conforme" é sempre crítica e, sozinha, já caracteriza risco de
+ * interdição (ver interdictionRiskConditions).
  */
 export const INTERDICTION_GROUNDING_CODE = "ATR-01";
+
+/**
+ * Itens cuja "Não Conforme" é sempre 'critica' (severidade fixa, não
+ * escolhida pelo inspetor) — ver resolveSeveridade.
+ */
+export const ALWAYS_CRITICAL_CODES = [WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE];
 
 /**
  * A resposta complementar de área molhada só conta quando for
@@ -110,33 +116,43 @@ export function hasWetArea(areaMolhada) {
 }
 
 /**
- * Risco de interdição de UMA inspeção — condição composta, distinta da
- * severidade da NC (PRO-01 não conforme é sempre crítica, ver
- * resolveSeveridade). Só existe quando, na MESMA inspeção:
- *  1. PRO-01 = Não Conforme;
- *  2. a resposta complementar de área molhada de PRO-01 = Sim;
- *  3. ATR-01 = Não Conforme.
- * `pro01`/`atr01` são as respostas (inspection_responses) desses dois
- * itens dentro de uma mesma inspeção — nunca de inspeções diferentes.
+ * Condições de risco de interdição de UMA inspeção — distintas da
+ * severidade da NC (PRO-01 e ATR-01 não conformes são sempre críticas, ver
+ * resolveSeveridade). `pro01`/`atr01` são as respostas
+ * (inspection_responses) desses dois itens dentro de uma MESMA inspeção —
+ * nunca de inspeções diferentes.
+ *  - pro01: PRO-01 = Não Conforme E área molhada = Sim (a resposta de
+ *    área molhada só define o risco decorrente do PRO-01, não a
+ *    criticidade);
+ *  - atr01: ATR-01 = Não Conforme (independe da área molhada).
  */
-export function isInterdictionRisk({ pro01, atr01 }) {
-  return (
-    pro01?.resposta === "nao_conforme" &&
-    hasWetArea(pro01.area_molhada) &&
-    atr01?.resposta === "nao_conforme"
-  );
+export function interdictionRiskConditions({ pro01, atr01 }) {
+  return {
+    pro01: pro01?.resposta === "nao_conforme" && hasWetArea(pro01.area_molhada),
+    atr01: atr01?.resposta === "nao_conforme",
+  };
 }
 
 /**
- * Severidade de uma resposta "não conforme". PRO-01 não conforme é sempre
- * 'critica', independentemente da resposta de área molhada — essa resposta
- * não define a criticidade, só a condição adicional de risco de interdição
- * (ver isInterdictionRisk). Para os demais itens, mantém o comportamento
- * anterior (severidade escolhida manualmente pelo inspetor, 'media' por
- * padrão).
+ * Há risco de interdição na inspeção se ao menos uma das condições de
+ * interdictionRiskConditions for verdadeira:
+ *   (PRO-01 NC E área molhada = Sim) OU (ATR-01 NC).
+ */
+export function isInterdictionRisk(responses) {
+  const c = interdictionRiskConditions(responses);
+  return c.pro01 || c.atr01;
+}
+
+/**
+ * Severidade de uma resposta "não conforme". PRO-01 e ATR-01 não conformes
+ * são sempre 'critica' (ALWAYS_CRITICAL_CODES) — no PRO-01,
+ * independentemente da resposta de área molhada, que só define o risco de
+ * interdição (ver interdictionRiskConditions). Para os demais itens,
+ * mantém o comportamento anterior (severidade escolhida manualmente pelo
+ * inspetor, 'media' por padrão).
  */
 function resolveSeveridade(r, it) {
-  if (it?.codigo === WET_AREA_CHECK_CODE) return "critica";
+  if (ALWAYS_CRITICAL_CODES.includes(it?.codigo)) return "critica";
   return r.severidade || "media";
 }
 

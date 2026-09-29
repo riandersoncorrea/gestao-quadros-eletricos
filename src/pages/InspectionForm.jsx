@@ -6,7 +6,7 @@ import {
   getActiveTemplate, ordersForPanel, createInspection, computeOverall,
   checkPanelVigencia, InspectionVigenteError,
 } from "@/services/inspectionService";
-import { WET_AREA_CHECK_CODE, hasWetArea } from "@/domain/inspectionRules";
+import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, hasWetArea } from "@/domain/inspectionRules";
 import { uploadFile } from "@/storage/storageService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -574,6 +574,11 @@ export default function InspectionForm() {
                                   onClick={() => setWetAreaPrompt(it.id)}>
                                   {r.area_molhada == null ? "Responder" : "Alterar"}
                                 </button>
+                              </div>
+                            ) : it.codigo === INTERDICTION_GROUNDING_CODE ? (
+                              // Severidade fixa (domain/inspectionRules.js#ALWAYS_CRITICAL_CODES)
+                              <div className="flex items-center rounded-md border border-input bg-background px-3 h-9 text-xs">
+                                <span className="font-medium text-destructive">Crítica — risco de interdição</span>
                               </div>
                             ) : (
                               <Select value={r.severidade || "media"} onValueChange={(v) => setResp(it.id, { severidade: v })}>

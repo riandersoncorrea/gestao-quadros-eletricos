@@ -52,7 +52,7 @@
 import { format, parseISO, differenceInCalendarDays, startOfWeek, startOfMonth } from "date-fns";
 import { isOpenNonconformity } from "@/domain/nonconformityRules";
 import { isWithinRange, matchesLocalidade } from "@/domain/dashboardFilters";
-import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, isInterdictionRisk } from "@/domain/inspectionRules";
+import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, interdictionRiskConditions } from "@/domain/inspectionRules";
 
 export const MIN_CORRELATION_POINTS = 5;
 export const RECURRENCE_MIN_OCCURRENCES = 2;
@@ -508,7 +508,7 @@ function buildInterdictionRiskDescriptiveCard(risk) {
   const { quadrosAfetados, ocorrencias, pro01SemRisco, porLocalidade, condicoesCatalogo } = risk;
   const [pro01, atr01] = condicoesCatalogo;
   const semRiscoTexto = pro01SemRisco
-    ? `${pro01SemRisco} inspeção(ões) registradas na regra atual com ${requisitoFrase(pro01.codigo, pro01.titulo)} não conforme seguem classificadas como críticas, mas não configuram risco de interdição por não reunirem área molhada e ${atr01.codigo} não conforme na mesma inspeção.`
+    ? `${pro01SemRisco} inspeção(ões) registradas na regra atual com ${requisitoFrase(pro01.codigo, pro01.titulo)} não conforme seguem classificadas como críticas, mas o ${pro01.codigo} não gera risco de interdição nelas por o quadro não alimentar pontos em área molhada (só entram no indicador se também tiverem ${atr01.codigo} não conforme).`
     : null;
 
   if (quadrosAfetados === 0) {
@@ -524,7 +524,7 @@ function buildInterdictionRiskDescriptiveCard(risk) {
 
   const partes = [];
   partes.push(
-    `Foram identificados ${quadrosAfetados} quadro(s) com risco de interdição no período, somando ${ocorrencias} ocorrência(s). Pela regra atual, cada ocorrência é uma inspeção em que ${requisitoFrase(pro01.codigo, pro01.titulo)} e ${requisitoFrase(atr01.codigo, atr01.titulo)} estão não conformes e o quadro alimenta pontos de utilização em área molhada.`
+    `Foram identificados ${quadrosAfetados} quadro(s) com risco de interdição no período, somando ${ocorrencias} ocorrência(s). Pela regra atual, cada ocorrência é uma inspeção com ${requisitoFrase(pro01.codigo, pro01.titulo)} não conforme em quadro que alimenta pontos de utilização em área molhada, ou com ${requisitoFrase(atr01.codigo, atr01.titulo)} não conforme.`
   );
   const origem = interdictionOriginSentence(risk);
   if (origem) partes.push(origem);
@@ -831,8 +831,8 @@ export function computeRankingQuadros({ filteredNCs, panelById, locName }, limit
 // catálogo ativo (itemById), nunca hardcoded.
 export const INTERDICTION_RISK_CODES = [WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE];
 
-// Início da regra atual de risco de interdição (PRO-01 NC + área molhada +
-// ATR-01 NC). NCs criadas ANTES deste instante seguem a regra anterior
+// Início da regra atual de risco de interdição ((PRO-01 NC + área molhada)
+// OU ATR-01 NC). NCs criadas ANTES deste instante seguem a regra anterior
 // (qualquer NC aberta em PRO-01 ou ATR-01) — os quadros que já constavam
 // como risco de interdição continuam contando enquanto a NC estiver aberta;
 // quadros novos só entram pela regra atual. Meia-noite de 29/09/2026 no
@@ -857,12 +857,13 @@ export const INTERDICTION_ORIGEM = { legado: "legado", novaRegra: "nova_regra" }
  *  - REGRA ANTERIOR (NCs criadas antes do início da regra atual): mantém o
  *    critério antigo — NC aberta em PRO-01 OU ATR-01 —, para que os quadros
  *    que já constavam como risco continuem contando.
- *  - REGRA ATUAL (NCs criadas a partir do início): só conta quando, na
- *    MESMA inspeção (domain/inspectionRules.js#isInterdictionRisk),
- *    PRO-01 não conforme + área molhada = Sim + ATR-01 não conforme.
- *    PRO-01 + ATR-01 não conformes sem área molhada = Sim NÃO é risco (a
- *    NC de PRO-01 continua crítica, só não entra aqui); nem PRO-01 com
- *    área molhada sem ATR-01, nem ATR-01 isolada.
+ *  - REGRA ATUAL (NCs criadas a partir do início): conta quando, na
+ *    MESMA inspeção (domain/inspectionRules.js#interdictionRiskConditions),
+ *    (PRO-01 não conforme E área molhada = Sim) OU ATR-01 não conforme.
+ *    PRO-01 não conforme com área molhada = Não continua crítica, mas o
+ *    PRO-01 não gera risco nessa inspeção (ela só entra se também tiver
+ *    ATR-01 não conforme). Cada condição só conta com a NC do respectivo
+ *    requisito aberta.
  *
  * Parte das NCs abertas já recortadas pelos filtros (`filteredNCs`, mesma
  * regra A do cabeçalho — isOpenNonconformity); a resposta de área molhada
@@ -884,8 +885,8 @@ export function computeInterdictionRisk({ filteredNCs, allResponses = [], panelB
   const [pro01Cat, atr01Cat] = condicoesCatalogo;
   const inicioRegra = fmtDateBR(INTERDICTION_RULE_START.slice(0, 10));
   // Textos das regras, únicos para KPI, gráfico, tabela, PDF e textos.
-  const regraLabel = `${pro01Cat.codigo} não conforme + área molhada (Sim) + ${atr01Cat.codigo} não conforme`;
-  const regraDescricao = `${pro01Cat.label} não conforme, em quadro que alimenta pontos de utilização em área molhada, e ${atr01Cat.label} não conforme, na mesma inspeção`;
+  const regraLabel = `(${pro01Cat.codigo} não conforme + área molhada Sim) ou ${atr01Cat.codigo} não conforme`;
+  const regraDescricao = `${pro01Cat.label} não conforme em quadro que alimenta pontos de utilização em área molhada, ou ${atr01Cat.label} não conforme (avaliado por inspeção)`;
   const regraAnteriorDescricao = `NC aberta em ${pro01Cat.label} ou ${atr01Cat.label}, registrada antes de ${inicioRegra}`;
 
   const ncsRelevantes = filteredNCs.filter((nc) => INTERDICTION_RISK_CODES.includes(nc.codigo));
@@ -938,27 +939,28 @@ export function computeInterdictionRisk({ filteredNCs, allResponses = [], panelB
   }
 
   // Avalia a regra por inspeção — nunca cruzando inspeções diferentes.
-  let pro01SemRisco = 0; // inspeções (regra atual) com NC aberta em PRO-01 (crítica) que não configuram risco
+  // Cada condição exige a resposta da inspeção (interdictionRiskConditions)
+  // E a NC do requisito ainda aberta (NC encerrada sai do indicador).
+  let pro01SemRisco = 0; // inspeções (regra atual) com NC aberta em PRO-01 (crítica) sem área molhada = Sim
   for (const [inspectionId, g] of ncsPorInspecao) {
-    const temNcPro01 = g.porCodigo.has(pro01Cat.codigo);
-    const temNcAtr01 = g.porCodigo.has(atr01Cat.codigo);
     const resp = respostasPorInspecao.get(inspectionId) || {};
-    const risco =
-      temNcPro01 && temNcAtr01 &&
-      isInterdictionRisk({ pro01: resp[pro01Cat.codigo], atr01: resp[atr01Cat.codigo] });
-    if (risco) {
-      const ncs = [...g.porCodigo.values()].flat();
-      ocorrencias.push({
-        origem: INTERDICTION_ORIGEM.novaRegra,
-        inspectionId,
-        panelId: g.panelId,
-        data: dataDaOcorrencia(inspectionId, ncs),
-        codigos: [...INTERDICTION_RISK_CODES],
-        ncs,
-      });
-    } else if (temNcPro01) {
-      pro01SemRisco++;
-    }
+    const cond = interdictionRiskConditions({ pro01: resp[pro01Cat.codigo], atr01: resp[atr01Cat.codigo] });
+    const temNcPro01 = g.porCodigo.has(pro01Cat.codigo);
+    const codigos = [
+      ...(cond.pro01 && temNcPro01 ? [pro01Cat.codigo] : []),
+      ...(cond.atr01 && g.porCodigo.has(atr01Cat.codigo) ? [atr01Cat.codigo] : []),
+    ];
+    if (temNcPro01 && !cond.pro01) pro01SemRisco++;
+    if (!codigos.length) continue;
+    const ncs = codigos.flatMap((c) => g.porCodigo.get(c));
+    ocorrencias.push({
+      origem: INTERDICTION_ORIGEM.novaRegra,
+      inspectionId,
+      panelId: g.panelId,
+      data: dataDaOcorrencia(inspectionId, ncs),
+      codigos,
+      ncs,
+    });
   }
 
   const localidadeDe = (panelId) => {
@@ -979,16 +981,22 @@ export function computeInterdictionRisk({ filteredNCs, allResponses = [], panelB
       const datas = lista.map((o) => o.data).filter(Boolean).sort();
       const ncs = lista.flatMap((o) => o.ncs);
       const temNovaRegra = lista.some((o) => o.origem === INTERDICTION_ORIGEM.novaRegra);
-      const codigosLegado = INTERDICTION_RISK_CODES.filter((c) =>
-        lista.some((o) => o.origem === INTERDICTION_ORIGEM.legado && o.codigos.includes(c))
+      const codigosDe = (origem) => INTERDICTION_RISK_CODES.filter((c) =>
+        lista.some((o) => o.origem === origem && o.codigos.includes(c))
       );
+      const codigosNovaRegra = codigosDe(INTERDICTION_ORIGEM.novaRegra);
+      const codigosLegado = codigosDe(INTERDICTION_ORIGEM.legado);
       // Rótulo compacto para a tabela; a regra completa fica em
       // `condicoesDescricao` (título/hover na UI).
       const rotulos = [];
       const descricoes = [];
-      if (temNovaRegra) {
-        rotulos.push(`${pro01Cat.codigo} + ${atr01Cat.codigo} (área molhada)`);
-        descricoes.push(regraDescricao);
+      if (codigosNovaRegra.length) {
+        rotulos.push(codigosNovaRegra.map((c) => (c === pro01Cat.codigo ? `${c} (área molhada)` : c)).join(" + "));
+        descricoes.push(codigosNovaRegra.map((c) =>
+          c === pro01Cat.codigo
+            ? `${pro01Cat.label} não conforme, em área molhada`
+            : `${describeRequisito(c, itemByCodigo.get(c)?.titulo)} não conforme`
+        ).join("; "));
       }
       if (codigosLegado.length) {
         rotulos.push(`${codigosLegado.join(" + ")} (regra anterior)`);
@@ -1077,7 +1085,7 @@ function buildInterdictionRiskReading(risk) {
   const { quadrosAfetados, ocorrencias, pro01SemRisco, porLocalidade, quadros, condicoesCatalogo } = risk;
   const [pro01, atr01] = condicoesCatalogo.map((c) => c.codigo);
   const semRiscoTexto = pro01SemRisco
-    ? ` ${pro01SemRisco} inspeção(ões) com ${pro01} não conforme (crítica) registradas na regra atual não se enquadram como risco de interdição por não reunirem área molhada e ${atr01} não conforme na mesma inspeção.`
+    ? ` ${pro01SemRisco} inspeção(ões) registradas na regra atual têm ${pro01} não conforme (crítica) sem área molhada: nelas o ${pro01} não gera risco de interdição (só entram no indicador se também tiverem ${atr01} não conforme).`
     : "";
 
   if (quadrosAfetados === 0) {

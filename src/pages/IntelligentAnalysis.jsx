@@ -707,8 +707,8 @@ function makeStackedBarLabel(fill, textColor) {
 
 /**
  * "Condições Críticas de Interdição" — quadros com PRO-01 (DR) não
- * conforme em área molhada + ATR-01 (condutor de proteção/PE) não conforme
- * na mesma inspeção, mais os quadros que já constavam pela regra anterior.
+ * conforme em área molhada ou ATR-01 (condutor de proteção/PE) não
+ * conforme (por inspeção), mais os que já constavam pela regra anterior.
  * Toda a agregação vem de `risk` (computeInterdictionRisk, a mesma fonte do
  * KPI e da Análise Descritiva); este componente só formata.
  */
