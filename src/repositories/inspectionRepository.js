@@ -150,13 +150,50 @@ export async function listAllResponses() {
   return data;
 }
 
+// O PostgREST do Supabase devolve no máximo 1000 linhas por requisição
+// (max_rows do projeto) e corta o excedente SEM erro — por isso consultas
+// que podem passar disso precisam paginar com .range().
+const SUPABASE_MAX_ROWS = 1000;
+// Ids por requisição num filtro .in(...) — mantém a URL da requisição
+// (GET com todos os ids) num tamanho seguro conforme o volume cresce.
+const IN_FILTER_CHUNK_SIZE = 100;
+
+function chunk(list, size) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Lê TODAS as linhas de uma consulta, página a página (SUPABASE_MAX_ROWS
+ * por vez). `buildQuery` devolve a consulta já filtrada e com ordenação
+ * estável (necessária para as páginas não se sobreporem nem pularem
+ * linhas).
+ */
+async function fetchAllPages(buildQuery) {
+  const rows = [];
+  for (let from = 0; ; from += SUPABASE_MAX_ROWS) {
+    const { data, error } = await buildQuery().range(from, from + SUPABASE_MAX_ROWS - 1);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < SUPABASE_MAX_ROWS) return rows;
+  }
+}
+
 /**
  * Respostas de um conjunto de códigos de pergunta (ex.: exportação do Form
- * Segurança) para um conjunto de inspeções — duas consultas em lote, nunca
- * uma por inspeção. inspection_responses não guarda `codigo` (só
+ * Segurança) para um conjunto de inspeções — consultas em lote, nunca uma
+ * por inspeção. inspection_responses não guarda `codigo` (só
  * `template_item_id`, ver getInspectionAggregate acima), então primeiro
- * resolve os códigos para os ids do catálogo, depois busca as respostas
- * por inspection_id + template_item_id.
+ * resolve os códigos para os ids do catálogo (de TODAS as versões de
+ * template, não só da ativa), depois busca as respostas por
+ * inspection_id + template_item_id.
+ *
+ * As respostas são lidas em lotes de IN_FILTER_CHUNK_SIZE inspeções, cada
+ * lote paginado (fetchAllPages): uma única requisição com todas as
+ * inspeções passava de 1000 linhas (inspeções × códigos) e o Supabase
+ * descartava o excedente em silêncio — as inspeções que ficavam de fora
+ * saíam no Excel só com a TAG.
  */
 export async function getResponsesByCodesForInspections(inspectionIds, codigos) {
   if (!inspectionIds.length || !codigos.length) return [];
@@ -169,15 +206,22 @@ export async function getResponsesByCodesForInspections(inspectionIds, codigos) 
   if (!items.length) return [];
 
   const codigoByItemId = new Map(items.map((i) => [i.id, i.codigo]));
+  const itemIds = items.map((i) => i.id);
 
-  const { data: responses, error: respError } = await supabase
-    .from("inspection_responses")
-    .select("inspection_id, template_item_id, resposta")
-    .in("inspection_id", inspectionIds)
-    .in("template_item_id", items.map((i) => i.id));
-  if (respError) throw respError;
+  const lotes = await Promise.all(
+    chunk([...new Set(inspectionIds)], IN_FILTER_CHUNK_SIZE).map((ids) =>
+      fetchAllPages(() =>
+        supabase
+          .from("inspection_responses")
+          .select("id, inspection_id, template_item_id, resposta")
+          .in("inspection_id", ids)
+          .in("template_item_id", itemIds)
+          .order("id", { ascending: true })
+      )
+    )
+  );
 
-  return responses.map((r) => ({
+  return lotes.flat().map((r) => ({
     inspection_id: r.inspection_id,
     codigo: codigoByItemId.get(r.template_item_id),
     resposta: r.resposta,
