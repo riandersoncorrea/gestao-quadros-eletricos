@@ -399,8 +399,9 @@ function ExecutiveVision({ kpis, risk }) {
         />
         <Kpi
           icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
-          sub={risk.regraLabel} tone={risk.quadrosAfetados ? "err" : "ok"}
-          hint={`Quadros distintos com ${risk.regraDescricao} (NCs abertas). Um quadro conta uma única vez, mesmo com a condição em mais de uma inspeção. Ocorrências (inspeções) no período: ${risk.ocorrencias}.`}
+          sub={risk.quadrosLegado ? `${risk.quadrosNovaRegra} pela regra atual · ${risk.quadrosLegado} da regra anterior` : risk.regraLabel}
+          tone={risk.quadrosAfetados ? "err" : "ok"}
+          hint={`Regra atual: ${risk.regraDescricao} (NCs abertas). Regra anterior, mantida para os quadros que já constavam: ${risk.regraAnteriorDescricao}. Um quadro conta uma única vez. Ocorrências (inspeções) no período: ${risk.ocorrencias}.`}
         />
         <Kpi
           icon={Gauge} label="Índice de Saúde médio" value={kpis.indiceSaudeMedio != null ? Math.round(kpis.indiceSaudeMedio) : "-"}
@@ -664,6 +665,15 @@ function LocalidadeSection({ byLocalidade, reading }) {
 }
 
 const INTERDICTION_STATUS_LABEL = { aberta: "Aberta", em_tratamento: "Em tratamento" };
+// Séries do gráfico por origem da ocorrência (ver computeInterdictionRisk):
+// vermelho para a regra atual (condição composta) e âmbar para a regra
+// anterior — mesma convenção crítico/atenção já usada na página. Texto do
+// rótulo interno: branco sobre o vermelho, tom escuro sobre o âmbar
+// (branco teria contraste ruim nessa cor mais clara).
+const INTERDICTION_SERIES = [
+  { dataKey: "novaRegra", name: "Regra atual", fill: RED, labelColor: "#fff" },
+  { dataKey: "legado", name: "Regra anterior", fill: AMBER, labelColor: "#4A3600" },
+];
 
 /**
  * Rótulo de valor para cada segmento da barra empilhada de condições
@@ -698,8 +708,9 @@ function makeStackedBarLabel(fill, textColor) {
 /**
  * "Condições Críticas de Interdição" — quadros com PRO-01 (DR) não
  * conforme em área molhada + ATR-01 (condutor de proteção/PE) não conforme
- * na mesma inspeção. Toda a agregação vem de `risk` (computeInterdictionRisk,
- * a mesma fonte do KPI e da Análise Descritiva); este componente só formata.
+ * na mesma inspeção, mais os quadros que já constavam pela regra anterior.
+ * Toda a agregação vem de `risk` (computeInterdictionRisk, a mesma fonte do
+ * KPI e da Análise Descritiva); este componente só formata.
  */
 function InterdictionRiskSection({ risk, onOpenPanel }) {
   const [selectedLocalidade, setSelectedLocalidade] = useState(null);
@@ -710,7 +721,7 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
   return (
     <Section
       id="risco-interdicao" title="Condições Críticas de Interdição"
-      subtitle={`Quadros com ${risk.regraDescricao}.`}
+      subtitle={`Regra atual: quadros com ${risk.regraDescricao}. Mantidos da regra anterior: ${risk.regraAnteriorDescricao}.`}
     >
       {risk.quadrosAfetados === 0 ? (
         <EmptyState text="Nenhum quadro com condição crítica de interdição identificada no período selecionado." />
@@ -735,19 +746,23 @@ function InterdictionRiskSection({ risk, onOpenPanel }) {
                     const p = payload?.[0]?.payload;
                     if (!p) return null;
                     const rows = [
-                      { label: "Ocorrências (inspeções)", value: p.total, color: RED },
+                      ...INTERDICTION_SERIES.map((serie) => ({ label: serie.name, value: p[serie.dataKey], color: serie.fill })),
+                      { label: "Total de ocorrências (inspeções)", value: p.total },
                       { label: "Quadros distintos afetados", value: p.quadros },
                     ];
                     return <ChartTooltip active={active} title={label} rows={rows} />;
                   }}
                 />
                 <Legend {...LEGEND_PROPS} />
-                <Bar
-                  dataKey="total" name={risk.regraLabel}
-                  fill={RED} barSize={22} cursor="pointer" radius={[0, 3, 3, 0]}
-                >
-                  <LabelList dataKey="total" content={makeStackedBarLabel(RED, "#fff")} />
-                </Bar>
+                {INTERDICTION_SERIES.map((serie, i) => (
+                  <Bar
+                    key={serie.dataKey} dataKey={serie.dataKey} name={serie.name} stackId="origem"
+                    fill={serie.fill} barSize={22} cursor="pointer"
+                    radius={i === INTERDICTION_SERIES.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}
+                  >
+                    <LabelList dataKey={serie.dataKey} content={makeStackedBarLabel(serie.fill, serie.labelColor)} />
+                  </Bar>
+                ))}
               </ComposedChart>
             </ResponsiveContainer>
             <ChartReading text={risk.leitura} />
