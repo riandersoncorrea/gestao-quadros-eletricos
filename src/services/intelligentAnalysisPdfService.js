@@ -279,8 +279,10 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.kpiRow([
     { label: "Quadros com risco de interdição", value: risk.quadrosAfetados },
     { label: "Ocorrências (inspeções)", value: risk.ocorrencias },
+    { label: "NCs corrigidas", value: k.ncsCorrigidas },
+    { label: "Taxa de correção", value: pct(k.taxaCorrecao) },
   ]);
-  pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel (Dashboard).", 8);
+  pdf.paragraph("Não conformidades: registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel (Dashboard). NCs corrigidas: status Concluída, com os mesmos filtros; taxa de correção = corrigidas / (abertas + corrigidas).", 8);
   pdf.paragraph(`Risco de interdição: quadros com ${risk.regraDescricao} (NCs abertas), mais os que já constavam pela regra anterior (${risk.regraAnteriorDescricao}): ${risk.quadrosNovaRegra} pela regra atual e ${risk.quadrosLegado} da regra anterior. Um quadro conta uma única vez.`, 8);
 
   // 2. Conformidade por dimensão
