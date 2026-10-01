@@ -7,6 +7,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleRoute from '@/components/RoleRoute';
+import { GENERAL_ROLES } from '@/auth/roles';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PageLoadingFallback from '@/components/PageLoadingFallback';
 
@@ -66,26 +67,36 @@ const AuthenticatedApp = () => {
 
         <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
           <Route element={<AppLayout />}>
-            <Route path="/mapa" element={<MapPage />} />
-            <Route path="/quadros" element={<PanelList />} />
-            <Route path="/quadro/:id" element={<PanelDetail />} />
-            <Route path="/inventario" element={<InventoryList />} />
-            <Route path="/inventario/novo" element={<InventoryForm />} />
-            <Route path="/inventario/editar/:id" element={<InventoryForm />} />
-            <Route path="/inspecoes" element={<InspectionList />} />
-            <Route path="/inspecoes/nova" element={<InspectionForm />} />
-            <Route path="/inspecoes/:id" element={<InspectionDetail />} />
-            <Route path="/informacoes" element={<InfoFundamentais />} />
+            {/* Perfil do próprio usuário: todos os perfis, inclusive Inspetor. */}
             <Route path="/perfil" element={<Profile />} />
 
-            {/* Editor não tem acesso: Painel, Não Conformidades, Ações, Relatório */}
+            {/* Páginas gerais: todos os perfis exceto Inspetor (que só
+                acessa Não Conformidades e Ações). */}
+            <Route element={<RoleRoute allow={GENERAL_ROLES} />}>
+              <Route path="/mapa" element={<MapPage />} />
+              <Route path="/quadros" element={<PanelList />} />
+              <Route path="/quadro/:id" element={<PanelDetail />} />
+              <Route path="/inventario" element={<InventoryList />} />
+              <Route path="/inventario/novo" element={<InventoryForm />} />
+              <Route path="/inventario/editar/:id" element={<InventoryForm />} />
+              <Route path="/inspecoes" element={<InspectionList />} />
+              <Route path="/inspecoes/nova" element={<InspectionForm />} />
+              <Route path="/inspecoes/:id" element={<InspectionDetail />} />
+              <Route path="/informacoes" element={<InfoFundamentais />} />
+            </Route>
+
+            {/* Editor e Inspetor não têm acesso: Painel, Relatório, Análise */}
             <Route element={<RoleRoute allow={['admin', 'viewer']} />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/relatorio" element={<ExecutiveReport />} />
+              <Route path="/analise-inteligente" element={<IntelligentAnalysis />} />
+            </Route>
+
+            {/* Não Conformidades e Ações: as mesmas de antes + Inspetor (Editor não tem acesso) */}
+            <Route element={<RoleRoute allow={['admin', 'viewer', 'inspetor']} />}>
               <Route path="/nao-conformidades" element={<NonconformityList />} />
               <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
               <Route path="/acoes" element={<ActionList />} />
-              <Route path="/relatorio" element={<ExecutiveReport />} />
-              <Route path="/analise-inteligente" element={<IntelligentAnalysis />} />
             </Route>
 
             {/* Editor não tem acesso: QR Codes (agora só admin) */}

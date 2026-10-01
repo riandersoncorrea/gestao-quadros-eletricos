@@ -12,12 +12,13 @@ import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Users, Search, ShieldCheck, Calendar, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ROLE_LABEL } from "@/auth/roles";
 
-const ROLE_LABEL = { admin: "Administrador", editor: "Editor", viewer: "Visualizador" };
 const ROLE_BADGE = {
   admin: "bg-primary/15 text-primary border-primary/20",
   editor: "bg-secondary/15 text-secondary border-secondary/20",
   viewer: "bg-accent/15 text-accent-foreground border-accent/20",
+  inspetor: "bg-amber-100 text-amber-800 border-amber-200",
 };
 
 export default function UserManagement() {
@@ -170,6 +171,7 @@ export default function UserManagement() {
                           <SelectItem value="admin">Administrador</SelectItem>
                           <SelectItem value="editor">Editor</SelectItem>
                           <SelectItem value="viewer">Visualizador</SelectItem>
+                          <SelectItem value="inspetor">Inspetor</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
