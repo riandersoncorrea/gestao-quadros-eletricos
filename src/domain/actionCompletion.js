@@ -13,6 +13,7 @@ const isBlank = (v) => !String(v ?? "").trim();
 /**
  * Lista (em texto para o usuário) do que falta para concluir a ação.
  * Vazia = pode concluir.
+ * @param {{ numero_nota?: string | null, om?: string | null, fotos_corretiva?: string[] | null }} [action]
  */
 export function missingCompletionRequirements({ numero_nota, om, fotos_corretiva } = {}) {
   const missing = [];
