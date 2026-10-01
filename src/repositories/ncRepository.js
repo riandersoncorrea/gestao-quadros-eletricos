@@ -64,7 +64,7 @@ export async function listStatusSeverityForDashboard() {
   return fetchAllPages(() =>
     supabase
       .from("nonconformities")
-      .select("id, panel_id, status, severidade, categoria, created_at, inspection_id, template_item_id")
+      .select("id, panel_id, status, severidade, categoria, created_at, concluida_em, inspection_id, template_item_id")
       .order("id", { ascending: true })
   );
 }

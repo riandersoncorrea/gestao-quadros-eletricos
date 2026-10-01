@@ -196,7 +196,7 @@ export default function Dashboard() {
         <Kpi icon={ClipboardCheck} label="Inspeções vencidas" value={d.inspecoesVencidas} sub="próxima data no passado" tone={d.inspecoesVencidas ? "warn" : "ok"} to="/inventario" />
         <Kpi icon={ClipboardCheck} label="Inspeções realizadas" value={d.inspecoesTotais} sub="histórico total" to="/inspecoes" />
         <Kpi icon={TrendingDown} label="Quadros priorizados" value={d.ranking.length} sub="pior saúde / mais NCs" />
-        <Kpi icon={CheckCircle2} label="NCs corrigidas" value={d.ncCorrigidas} sub="NCs com status concluída" tone={d.ncCorrigidas ? "ok" : undefined} to="/nao-conformidades?status=concluida" />
+        <Kpi icon={CheckCircle2} label="NCs corrigidas" value={d.ncCorrigidas} sub="concluídas no período" tone={d.ncCorrigidas ? "ok" : undefined} to="/nao-conformidades?status=concluida" />
       </div>
 
       {/* Charts */}
