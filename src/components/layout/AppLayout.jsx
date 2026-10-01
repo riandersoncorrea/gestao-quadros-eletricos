@@ -27,14 +27,15 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import logoSistema from "@/assets/logo-sistema.png";
 import logoGerencia from "@/assets/sao-luis-efc-logo.png";
+import { ROLE_LABEL } from "@/auth/roles";
 
 const NAV_ITEMS = [
   { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "viewer"] },
   { path: "/mapa", icon: Map, label: "Mapa", roles: ["admin", "editor", "viewer"] },
   { path: "/inventario", icon: ClipboardList, label: "Inventário", roles: ["admin", "editor", "viewer"] },
   { path: "/inspecoes", icon: ClipboardCheck, label: "Checklists", roles: ["admin", "editor", "viewer"] },
-  { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "viewer"] },
-  { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "viewer"] },
+  { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "viewer", "inspetor"] },
+  { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "viewer", "inspetor"] },
   { path: "/analise-inteligente", icon: Sparkles, label: "Análise Inteligente", roles: ["admin", "viewer"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
@@ -58,16 +59,13 @@ export default function AppLayout() {
     refetchInterval: 60000,
   });
 
-  const roleLabel = {
-    admin: "Administrador",
-    editor: "Editor",
-    viewer: "Visualizador",
-  };
+  const roleLabel = ROLE_LABEL;
 
   const roleBadgeColor = {
     admin: "bg-primary/15 text-primary",
     editor: "bg-secondary/15 text-secondary",
     viewer: "bg-accent/15 text-accent-foreground",
+    inspetor: "bg-amber-100 text-amber-800",
   };
 
   return (

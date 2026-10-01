@@ -5,7 +5,7 @@ import { getNonconformity, updateNonconformity } from "@/services/ncService";
 import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
 import { listAssignableAdmins } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
-import { isOpenAction } from "@/domain/actionRules";
+import { isOpenAction, actionStatusOptions } from "@/domain/actionRules";
 import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
@@ -35,7 +35,7 @@ export default function NonconformityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit } = useUserRole();
+  const { canEdit, canTreatActions, isInspetor } = useUserRole();
   const [newAction, setNewAction] = useState(null);
   // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
   const [treatingId, setTreatingId] = useState(null);
@@ -118,12 +118,13 @@ export default function NonconformityDetail() {
           {(panel || nc.tag) && (
             <p className="text-xs flex items-center gap-1">
               <Zap className="h-3 w-3 text-primary/60" />
-              {nc.panel_id
+              {/* Inspetor não acessa o detalhe do quadro: só o texto. */}
+              {nc.panel_id && !isInspetor
                 ? <Link to={`/quadro/${nc.panel_id}`} className="text-primary hover:underline font-mono">{panel?.tag || nc.tag}</Link>
-                : <span className="font-mono">{nc.tag}</span>}
+                : <span className="font-mono">{panel?.tag || nc.tag}</span>}
             </p>
           )}
-          {nc.inspection_id && (
+          {nc.inspection_id && !isInspetor && (
             <p className="text-xs">
               <Link to={`/inspecoes/${nc.inspection_id}`} className="text-primary hover:underline flex items-center gap-1">
                 <ClipboardCheck className="h-3 w-3" />ver inspeção de origem
@@ -211,16 +212,19 @@ export default function NonconformityDetail() {
                     <FileText className="h-3 w-3" />PDF de evidência da correção
                   </a>
                 )}
-                {canEdit && (
+                {canTreatActions && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF. */}
-                    <Select value={a.status} onValueChange={(v) => {
-                      if (v === "concluida") setTreatingId(a.id);
-                      else patchAction.mutate({ actionId: a.id, values: { status: v } });
-                    }}>
-                      <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{Object.entries(ACT_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
-                    </Select>
+                    {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF.
+                        Inspetor só muda o status de ações em aberto (não cancela nem reabre). */}
+                    {(canEdit || isOpenAction(a.status)) && (
+                      <Select value={a.status} onValueChange={(v) => {
+                        if (v === "concluida") setTreatingId(a.id);
+                        else patchAction.mutate({ actionId: a.id, values: { status: v } });
+                      }}>
+                        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{actionStatusOptions(Object.entries(ACT_STATUS), isInspetor).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    )}
                     {isOpenAction(a.status) && (
                       <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setTreatingId(a.id)}>
                         <Wrench className="h-3.5 w-3.5" />Tratar / concluir
@@ -231,9 +235,11 @@ export default function NonconformityDetail() {
                         <FileText className="h-3.5 w-3.5" />Evidência
                       </Button>
                     )}
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAction.mutate(a.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {canEdit && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAction.mutate(a.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

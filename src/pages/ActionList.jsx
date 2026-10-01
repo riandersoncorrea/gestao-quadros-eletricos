@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listActions, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
 import { listAssignableAdmins } from "@/services/userService";
-import { isOpenAction } from "@/domain/actionRules";
+import { isOpenAction, actionStatusOptions } from "@/domain/actionRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
@@ -29,7 +29,7 @@ const ACT_STATUS = {
 const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } };
 
 export default function ActionList() {
-  const { canEdit } = useUserRole();
+  const { canEdit, canTreatActions, isInspetor } = useUserRole();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -219,15 +219,16 @@ export default function ActionList() {
                       </a>
                     )}
                   </div>
-                  {canEdit && (
+                  {canTreatActions && (canEdit || isOpenAction(a.status)) && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF. */}
+                      {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF.
+                          Inspetor só muda o status de ações em aberto (não cancela nem reabre). */}
                       <Select value={a.status} onValueChange={(v) => {
                         if (v === "concluida") setTreatingId(a.id);
                         else patch.mutate({ id: a.id, status: v });
                       }}>
                         <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>{Object.entries(ACT_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
+                        <SelectContent>{actionStatusOptions(Object.entries(ACT_STATUS), isInspetor).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
                       </Select>
                       {isOpenAction(a.status) && (
                         <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setTreatingId(a.id)}>
