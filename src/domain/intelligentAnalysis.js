@@ -49,9 +49,10 @@
 //       respostas, como sempre foi.
 //    C) NCs CORRIGIDAS — mesma tabela `nonconformities`, com
 //       isCorrectedNonconformity(status) (status "concluida", a mesma regra
-//       do KPI "NCs corrigidas" do Dashboard) e os MESMOS filtros das NCs
-//       abertas (período sobre created_at, localidade, quadro, resultado da
-//       inspeção). Ficam numa coleção à parte (filteredCorrectedNCs): nunca
+//       do KPI "NCs corrigidas" do Dashboard), CONCLUÍDAS dentro do período
+//       (concluida_em) e com os mesmos demais filtros das NCs abertas
+//       (localidade, quadro, resultado da inspeção). Ficam numa coleção à
+//       parte (filteredCorrectedNCs): nunca
 //       entram nas contagens de "NC" da regra A (Pareto, reincidência,
 //       ranking, risco de interdição continuam só com NCs abertas).
 // ============================================================================
@@ -195,9 +196,9 @@ export function filterAnalysisData(raw, filters) {
   // inspeção) — ver regra 6 no cabeçalho deste arquivo. Reaproveita
   // matchesLocalidade (dashboardFilters.js), a mesma função usada pelo
   // Dashboard para recortar NCs por localidade via panel_id. Os filtros
-  // abaixo valem igualmente para as NCs corrigidas (regra 6C).
+  // abaixo (exceto o de data) valem igualmente para as NCs corrigidas
+  // (regra 6C), que usam a data de conclusão em vez da de abertura.
   const ncsNoRecorte = nonconformities
-    .filter((nc) => isWithinRange(nc.created_at, dateRange))
     .filter((nc) => localidadeId === "all" || matchesLocalidade(nc.panel_id, localidadeId, panelLocMap))
     .filter((nc) => panelId === "all" || nc.panel_id === panelId)
     .filter((nc) => {
@@ -211,6 +212,7 @@ export function filterAnalysisData(raw, filters) {
     });
   const filteredNCs = ncsNoRecorte
     .filter((nc) => isOpenNonconformity(nc.status))
+    .filter((nc) => isWithinRange(nc.created_at, dateRange))
     .map((nc) => {
       const item = itemById.get(nc.template_item_id);
       return {
@@ -222,7 +224,9 @@ export function filterAnalysisData(raw, filters) {
       };
     });
 
-  const filteredCorrectedNCs = ncsNoRecorte.filter((nc) => isCorrectedNonconformity(nc.status));
+  const filteredCorrectedNCs = ncsNoRecorte
+    .filter((nc) => isCorrectedNonconformity(nc.status))
+    .filter((nc) => isWithinRange(nc.concluida_em, dateRange));
 
   return {
     filteredInspections, filteredResponses: enrichedResponses, filteredNCs, filteredCorrectedNCs,
@@ -274,9 +278,9 @@ export function computeExecutiveKpis({ filteredInspections, filteredResponses, f
   // uma NC por inspeção, não por resposta; ver regra 6 no cabeçalho.
   const taxaNcPorInspecao = inspecoesRealizadas ? (100 * filteredNCs.length) / inspecoesRealizadas : null;
 
-  // NCs corrigidas (regra 6C) e proporção de correção entre as NCs do
-  // recorte que ainda estão abertas ou já foram corrigidas (canceladas não
-  // entram: não são nem pendência nem correção).
+  // NCs corrigidas (regra 6C: concluídas no período) e proporção de
+  // correção = corrigidas no período / (abertas no período + corrigidas no
+  // período). Canceladas não entram: não são nem pendência nem correção.
   const ncsCorrigidas = filteredCorrectedNCs.length;
   const ncsTratadasOuPendentes = ncsCorrigidas + filteredNCs.length;
   const taxaCorrecao = ncsTratadasOuPendentes ? (100 * ncsCorrigidas) / ncsTratadasOuPendentes : null;
@@ -745,14 +749,13 @@ export function computeTemporalEvolution({ filteredInspections, filteredResponse
     if (!buckets.has(key)) buckets.set(key, novoBucket(key, label));
     buckets.get(key).naoConformidades += 1;
   }
-  // NCs corrigidas no mesmo grão e pela mesma data das abertas (created_at
-  // — a NC não guarda data própria de conclusão). Só somam em períodos que
-  // já existem na série: criar um período novo só por causa de uma NC
-  // corrigida mudaria o eixo e os pontos usados pelas projeções
-  // (intelligentAnalysisPredictive.js), que devem continuar iguais.
+  // NCs corrigidas no mesmo grão, pela data de conclusão (concluida_em).
+  // Só somam em períodos que já existem na série: criar um período novo só
+  // por causa de uma NC corrigida mudaria o eixo e os pontos usados pelas
+  // projeções (intelligentAnalysisPredictive.js), que devem continuar iguais.
   for (const nc of filteredCorrectedNCs) {
-    if (!nc.created_at) continue;
-    const b = buckets.get(bucketKeyAndLabel(nc.created_at, granularidade).key);
+    if (!nc.concluida_em) continue;
+    const b = buckets.get(bucketKeyAndLabel(nc.concluida_em, granularidade).key);
     if (b) b.ncsCorrigidas += 1;
   }
 

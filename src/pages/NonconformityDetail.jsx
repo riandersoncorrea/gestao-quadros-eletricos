@@ -105,6 +105,7 @@ export default function NonconformityDetail() {
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             {ORIGEM[nc.origem] || nc.origem} · aberta em {fmt(nc.created_at)}
+            {nc.concluida_em && <> · concluída em {fmt(nc.concluida_em)}</>}
           </p>
         </div>
       </div>

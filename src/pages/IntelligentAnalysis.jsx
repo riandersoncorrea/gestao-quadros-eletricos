@@ -401,7 +401,7 @@ function ExecutiveVision({ kpis, risk }) {
           icon={CheckCircle2} label="NCs corrigidas" value={kpis.ncsCorrigidas}
           sub={kpis.taxaCorrecao == null ? "sem NCs no período" : `${pct(kpis.taxaCorrecao)} das NCs abertas ou corrigidas`}
           tone={kpis.ncsCorrigidas ? "ok" : undefined}
-          hint="NCs com status Concluída, abertas dentro do período selecionado (mesmos filtros das NCs abertas), mesma definição do KPI do Dashboard. Percentual = corrigidas / (abertas + corrigidas); canceladas não entram."
+          hint="NCs com status Concluída, concluídas dentro do período selecionado (demais filtros iguais aos das NCs abertas), mesma definição do KPI do Dashboard. Percentual = corrigidas / (abertas + corrigidas); canceladas não entram."
         />
         <Kpi
           icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
