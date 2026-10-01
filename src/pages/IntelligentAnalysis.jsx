@@ -23,7 +23,7 @@ import {
 import { toast } from "sonner";
 import {
   Sparkles, FileDown, Info, TrendingUp, TrendingDown, Minus, AlertTriangle,
-  Repeat, Target, Gauge, ClipboardCheck, ShieldAlert, MapPin, Calendar,
+  Repeat, Target, Gauge, ClipboardCheck, ShieldAlert, MapPin, Calendar, CheckCircle2,
 } from "lucide-react";
 
 // Paleta de gráficos — reaproveita a identidade visual do sistema (mesmo
@@ -398,6 +398,12 @@ function ExecutiveVision({ kpis, risk }) {
           hint="Registros da tabela de Não Conformidades com status Aberta ou Em Tratamento, abertos dentro do período selecionado, mesma definição usada no Painel."
         />
         <Kpi
+          icon={CheckCircle2} label="NCs corrigidas" value={kpis.ncsCorrigidas}
+          sub={kpis.taxaCorrecao == null ? "sem NCs no período" : `${pct(kpis.taxaCorrecao)} das NCs abertas ou corrigidas`}
+          tone={kpis.ncsCorrigidas ? "ok" : undefined}
+          hint="NCs com status Concluída, abertas dentro do período selecionado (mesmos filtros das NCs abertas), mesma definição do KPI do Dashboard. Percentual = corrigidas / (abertas + corrigidas); canceladas não entram."
+        />
+        <Kpi
           icon={ShieldAlert} label="Quadros com risco de interdição" value={risk.quadrosAfetados}
           sub={risk.quadrosLegado ? `${risk.quadrosNovaRegra} pela regra atual · ${risk.quadrosLegado} da regra anterior` : risk.regraLabel}
           tone={risk.quadrosAfetados ? "err" : "ok"}
@@ -609,6 +615,7 @@ function TemporalSection({ temporal, reading }) {
             <Legend {...LEGEND_PROPS} />
             <Bar yAxisId="left" dataKey="inspecoes" name="Inspeções" fill={GRAY} radius={[3, 3, 0, 0]} maxBarSize={28} />
             <Bar yAxisId="left" dataKey="naoConformidades" name="Não conformidades" fill={RED} radius={[3, 3, 0, 0]} maxBarSize={28} />
+            <Bar yAxisId="left" dataKey="ncsCorrigidas" name="NCs corrigidas" fill={GREEN_DARK} radius={[3, 3, 0, 0]} maxBarSize={28} />
             {/* Rótulo só na série relevante (taxa de conformidade) — as barras de
                 inspeções/NCs já têm o próprio eixo e tooltip; rotular também elas
                 poluiria o gráfico sem ganho de leitura (pedido de ajuste de rótulos). */}

@@ -47,10 +47,17 @@
 //       de conformidade" e "Conformidade por Dimensão" — não tem
 //       equivalente no Dashboard, então continua definida a partir das
 //       respostas, como sempre foi.
+//    C) NCs CORRIGIDAS — mesma tabela `nonconformities`, com
+//       isCorrectedNonconformity(status) (status "concluida", a mesma regra
+//       do KPI "NCs corrigidas" do Dashboard) e os MESMOS filtros das NCs
+//       abertas (período sobre created_at, localidade, quadro, resultado da
+//       inspeção). Ficam numa coleção à parte (filteredCorrectedNCs): nunca
+//       entram nas contagens de "NC" da regra A (Pareto, reincidência,
+//       ranking, risco de interdição continuam só com NCs abertas).
 // ============================================================================
 
 import { format, parseISO, differenceInCalendarDays, startOfWeek, startOfMonth } from "date-fns";
-import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
 import { isWithinRange, matchesLocalidade } from "@/domain/dashboardFilters";
 import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, interdictionRiskConditions } from "@/domain/inspectionRules";
 
@@ -187,9 +194,9 @@ export function filterAnalysisData(raw, filters) {
   // recorte de período (isWithinRange sobre created_at, não sobre a data da
   // inspeção) — ver regra 6 no cabeçalho deste arquivo. Reaproveita
   // matchesLocalidade (dashboardFilters.js), a mesma função usada pelo
-  // Dashboard para recortar NCs por localidade via panel_id.
-  const filteredNCs = nonconformities
-    .filter((nc) => isOpenNonconformity(nc.status))
+  // Dashboard para recortar NCs por localidade via panel_id. Os filtros
+  // abaixo valem igualmente para as NCs corrigidas (regra 6C).
+  const ncsNoRecorte = nonconformities
     .filter((nc) => isWithinRange(nc.created_at, dateRange))
     .filter((nc) => localidadeId === "all" || matchesLocalidade(nc.panel_id, localidadeId, panelLocMap))
     .filter((nc) => panelId === "all" || nc.panel_id === panelId)
@@ -201,7 +208,9 @@ export function filterAnalysisData(raw, filters) {
       // está ativo (mesmo raciocínio de "não inventar relação" do pedido).
       const insp = nc.inspection_id ? allInspectionById.get(nc.inspection_id) : null;
       return insp?.overall_result === status;
-    })
+    });
+  const filteredNCs = ncsNoRecorte
+    .filter((nc) => isOpenNonconformity(nc.status))
     .map((nc) => {
       const item = itemById.get(nc.template_item_id);
       return {
@@ -213,8 +222,10 @@ export function filterAnalysisData(raw, filters) {
       };
     });
 
+  const filteredCorrectedNCs = ncsNoRecorte.filter((nc) => isCorrectedNonconformity(nc.status));
+
   return {
-    filteredInspections, filteredResponses: enrichedResponses, filteredNCs,
+    filteredInspections, filteredResponses: enrichedResponses, filteredNCs, filteredCorrectedNCs,
     panelById, panelLocMap, locName, itemById, inspectionById, allInspectionById,
     // Respostas de TODAS as inspeções (sem recorte) — só para resolver as
     // respostas da inspeção de origem de uma NC já filtrada (mesmo motivo
@@ -240,7 +251,7 @@ export function computeInspecoesPorLocalidade({ filteredInspections, panelById, 
 }
 
 /** Visão Executiva (KPIs do topo da página). */
-export function computeExecutiveKpis({ filteredInspections, filteredResponses, filteredNCs, panelById, locName }) {
+export function computeExecutiveKpis({ filteredInspections, filteredResponses, filteredNCs, filteredCorrectedNCs = [], panelById, locName }) {
   const quadrosInspecionados = new Set(filteredInspections.map(resolvePanelId)).size;
   const inspecoesRealizadas = filteredInspections.length;
 
@@ -263,6 +274,13 @@ export function computeExecutiveKpis({ filteredInspections, filteredResponses, f
   // uma NC por inspeção, não por resposta; ver regra 6 no cabeçalho.
   const taxaNcPorInspecao = inspecoesRealizadas ? (100 * filteredNCs.length) / inspecoesRealizadas : null;
 
+  // NCs corrigidas (regra 6C) e proporção de correção entre as NCs do
+  // recorte que ainda estão abertas ou já foram corrigidas (canceladas não
+  // entram: não são nem pendência nem correção).
+  const ncsCorrigidas = filteredCorrectedNCs.length;
+  const ncsTratadasOuPendentes = ncsCorrigidas + filteredNCs.length;
+  const taxaCorrecao = ncsTratadasOuPendentes ? (100 * ncsCorrigidas) / ncsTratadasOuPendentes : null;
+
   return {
     quadrosInspecionados,
     inspecoesRealizadas,
@@ -271,6 +289,8 @@ export function computeExecutiveKpis({ filteredInspections, filteredResponses, f
     taxaConformidade,
     naoConformidades: filteredNCs.length,
     taxaNcPorInspecao,
+    ncsCorrigidas,
+    taxaCorrecao,
     indiceSaudeMedio,
     inspecoesPorLocalidade: computeInspecoesPorLocalidade({ filteredInspections, panelById, locName }),
   };
@@ -694,7 +714,7 @@ function bucketKeyAndLabel(dateStr, granularity) {
  * retroativa) e, nesse caso, o bucket é criado mesmo assim, para não
  * perder a NC da contagem.
  */
-export function computeTemporalEvolution({ filteredInspections, filteredResponses, filteredNCs }, period) {
+export function computeTemporalEvolution({ filteredInspections, filteredResponses, filteredNCs, filteredCorrectedNCs = [] }, period) {
   if (filteredInspections.length === 0) return { granularidade: null, pontos: [] };
 
   const dates = filteredInspections.map((i) => parseISO(i.inspection_date)).filter((d) => !Number.isNaN(d.getTime()));
@@ -703,12 +723,13 @@ export function computeTemporalEvolution({ filteredInspections, filteredResponse
   const granularidade = pickBucketGranularity(period, spanDays);
 
   const inspToBucket = new Map();
-  const buckets = new Map(); // key -> {label, inspecoes:Set, conforme, naoConforme, naoConformidades}
+  const buckets = new Map(); // key -> {label, inspecoes:Set, conforme, naoConforme, naoConformidades, ncsCorrigidas}
+  const novoBucket = (key, label) => ({ key, label, inspecoes: new Set(), conforme: 0, naoConforme: 0, naoConformidades: 0, ncsCorrigidas: 0 });
   for (const i of filteredInspections) {
     if (!i.inspection_date) continue;
     const { key, label } = bucketKeyAndLabel(i.inspection_date, granularidade);
     inspToBucket.set(i.id, key);
-    if (!buckets.has(key)) buckets.set(key, { key, label, inspecoes: new Set(), conforme: 0, naoConforme: 0, naoConformidades: 0 });
+    if (!buckets.has(key)) buckets.set(key, novoBucket(key, label));
     buckets.get(key).inspecoes.add(i.id);
   }
   for (const r of filteredResponses) {
@@ -721,8 +742,18 @@ export function computeTemporalEvolution({ filteredInspections, filteredResponse
   for (const nc of filteredNCs) {
     if (!nc.created_at) continue;
     const { key, label } = bucketKeyAndLabel(nc.created_at, granularidade);
-    if (!buckets.has(key)) buckets.set(key, { key, label, inspecoes: new Set(), conforme: 0, naoConforme: 0, naoConformidades: 0 });
+    if (!buckets.has(key)) buckets.set(key, novoBucket(key, label));
     buckets.get(key).naoConformidades += 1;
+  }
+  // NCs corrigidas no mesmo grão e pela mesma data das abertas (created_at
+  // — a NC não guarda data própria de conclusão). Só somam em períodos que
+  // já existem na série: criar um período novo só por causa de uma NC
+  // corrigida mudaria o eixo e os pontos usados pelas projeções
+  // (intelligentAnalysisPredictive.js), que devem continuar iguais.
+  for (const nc of filteredCorrectedNCs) {
+    if (!nc.created_at) continue;
+    const b = buckets.get(bucketKeyAndLabel(nc.created_at, granularidade).key);
+    if (b) b.ncsCorrigidas += 1;
   }
 
   const pontos = [...buckets.values()]
@@ -734,6 +765,7 @@ export function computeTemporalEvolution({ filteredInspections, filteredResponse
         label: b.label,
         inspecoes: b.inspecoes.size,
         naoConformidades: b.naoConformidades,
+        ncsCorrigidas: b.ncsCorrigidas,
         taxaConformidade: aplicaveis ? (100 * b.conforme) / aplicaveis : null,
       };
     });

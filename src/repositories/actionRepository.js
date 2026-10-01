@@ -11,6 +11,12 @@ export async function listForNC(ncId) {
   return data;
 }
 
+export async function getById(id) {
+  const { data, error } = await supabase.from("actions").select("*").eq("id", id).single();
+  if (error) throw error;
+  return data;
+}
+
 export async function listAll() {
   const { data, error } = await supabase
     .from("v_actions")

@@ -4,7 +4,7 @@ import { listStatusSeverityForDashboard } from "@/repositories/ncRepository";
 import { listAllForDashboard as listActionsForDashboard } from "@/repositories/actionRepository";
 import { listForDashboard as listInspectionsForDashboard, getForAdherence } from "@/repositories/inspectionRepository";
 import { panelAdherence } from "@/domain/adherence";
-import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
 import { isOpenAction } from "@/domain/actionRules";
 import { healthBandKey } from "@/domain/healthIndex";
 import { LOCALIDADE_ALL, isWithinRange, matchesLocalidade } from "@/domain/dashboardFilters";
@@ -63,6 +63,10 @@ export function computeDashboardData(raw, filters = {}) {
   const abertas = N.filter((n) => isOpenNonconformity(n.status) && isWithinRange(n.created_at, dateRange));
   const ncAbertas = abertas.length;
   const ncCriticas = abertas.filter((n) => n.severidade === "critica").length;
+  // NCs corrigidas: status da própria NC = "concluida" (nonconformityRules),
+  // com o mesmo recorte de localidade (N) e de período (created_at) das NCs
+  // abertas — cada NC conta uma vez, independente de quantas ações tenha.
+  const ncCorrigidas = N.filter((n) => isCorrectedNonconformity(n.status) && isWithinRange(n.created_at, dateRange)).length;
   const ncPorSeveridade = ["critica", "alta", "media", "baixa"].map((sev) => ({
     sev, label: { critica: "Crítica", alta: "Alta", media: "Média", baixa: "Baixa" }[sev],
     n: abertas.filter((n) => n.severidade === sev).length,
@@ -144,6 +148,7 @@ export function computeDashboardData(raw, filters = {}) {
     healthBands,
     ncAbertas,
     ncCriticas,
+    ncCorrigidas,
     ncPorSeveridade,
     ncPorCategoria,
     acoesAtrasadas,
