@@ -7,6 +7,7 @@ import { listAssignableAdmins } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
 import { isOpenAction } from "@/domain/actionRules";
 import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
+import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Zap, ClipboardCheck, Plus, Trash2, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Zap, ClipboardCheck, Plus, Trash2, CheckCircle2, Clock, AlertTriangle, FileText, Wrench } from "lucide-react";
 
 const ACT_STATUS = {
   aberta: { label: "Aberta", cls: "bg-muted text-muted-foreground border-border" },
@@ -36,6 +37,8 @@ export default function NonconformityDetail() {
   const queryClient = useQueryClient();
   const { canEdit } = useUserRole();
   const [newAction, setNewAction] = useState(null);
+  // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
+  const [treatingId, setTreatingId] = useState(null);
 
   const { data: nc, isLoading } = useQuery({ queryKey: ["nc", id], queryFn: () => getNonconformity(id) });
   const { data: actions = [] } = useQuery({ queryKey: ["nc-actions", id], queryFn: () => listActionsForNC(id) });
@@ -87,6 +90,7 @@ export default function NonconformityDetail() {
   const st = NC_STATUS[nc.status] || NC_STATUS.aberta;
   const abertas = actions.filter((a) => isOpenAction(a.status));
   const atrasadas = actions.filter((a) => a.atrasada);
+  const treating = actions.find((a) => a.id === treatingId) || null;
   const suggestComplete = isOpenNonconformity(nc.status) && allActionsResolved(actions);
 
   return (
@@ -196,12 +200,36 @@ export default function NonconformityDetail() {
                 </div>
                 <p className="text-sm">{a.descricao}</p>
                 {a.responsavel && <p className="text-xs text-muted-foreground">Responsável: {a.responsavel}</p>}
+                {(a.numero_nota || a.om || a.fotos_corretiva?.length > 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[a.numero_nota && `Nota: ${a.numero_nota}`, a.om && `OM: ${a.om}`, a.fotos_corretiva?.length > 0 && `${a.fotos_corretiva.length} foto(s) da corretiva`].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                {a.evidencia_pdf_url && (
+                  <a href={a.evidencia_pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                    <FileText className="h-3 w-3" />PDF de evidência da correção
+                  </a>
+                )}
                 {canEdit && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <Select value={a.status} onValueChange={(v) => patchAction.mutate({ actionId: a.id, values: { status: v } })}>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF. */}
+                    <Select value={a.status} onValueChange={(v) => {
+                      if (v === "concluida") setTreatingId(a.id);
+                      else patchAction.mutate({ actionId: a.id, values: { status: v } });
+                    }}>
                       <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{Object.entries(ACT_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
                     </Select>
+                    {isOpenAction(a.status) && (
+                      <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setTreatingId(a.id)}>
+                        <Wrench className="h-3.5 w-3.5" />Tratar / concluir
+                      </Button>
+                    )}
+                    {a.status === "concluida" && (
+                      <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={() => setTreatingId(a.id)}>
+                        <FileText className="h-3.5 w-3.5" />Evidência
+                      </Button>
+                    )}
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAction.mutate(a.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -248,6 +276,13 @@ export default function NonconformityDetail() {
           )}
         </CardContent>
       </Card>
+
+      <ActionTreatmentDialog
+        action={treating}
+        open={!!treating}
+        onOpenChange={(v) => { if (!v) setTreatingId(null); }}
+        onChanged={invalidate}
+      />
     </div>
   );
 }

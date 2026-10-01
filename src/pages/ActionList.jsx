@@ -5,6 +5,7 @@ import { listActions, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
 import { listAssignableAdmins } from "@/services/userService";
 import { isOpenAction } from "@/domain/actionRules";
+import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
 } from "@/domain/dashboardFilters";
@@ -17,7 +18,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Search, ListChecks, Clock, AlertTriangle, CheckCircle2, Zap } from "lucide-react";
+import { Search, ListChecks, Clock, AlertTriangle, CheckCircle2, Zap, FileText, Wrench } from "lucide-react";
 
 const ACT_STATUS = {
   aberta: { label: "Aberta", cls: "bg-muted text-muted-foreground border-border" },
@@ -41,6 +42,8 @@ export default function ActionList() {
   const [customDraft, setCustomDraft] = useState({ from: "", to: "" });
   const [customApplied, setCustomApplied] = useState(null);
   const [customError, setCustomError] = useState(null);
+  // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
+  const [treatingId, setTreatingId] = useState(null);
 
   const { data: actions = [], isLoading } = useQuery({ queryKey: ["actions"], queryFn: listActions });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
@@ -67,6 +70,8 @@ export default function ActionList() {
     },
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
+
+  const treating = actions.find((a) => a.id === treatingId) || null;
 
   const atrasadasCount = actions.filter((a) => a.atrasada).length;
   const pendentesCount = actions.filter((a) => isOpenAction(a.status)).length;
@@ -206,13 +211,29 @@ export default function ActionList() {
                     {a.responsavel && <span>Responsável: {a.responsavel}</span>}
                     {a.panel_id && <span className="flex items-center gap-1"><Zap className="h-3 w-3" />{panelName.get(a.panel_id) || "quadro"}</span>}
                     {a.nonconformity_id && <Link to={`/nao-conformidades/${a.nonconformity_id}`} className="text-primary hover:underline">ver NC</Link>}
+                    {a.numero_nota && <span>Nota: {a.numero_nota}</span>}
+                    {a.om && <span>OM: {a.om}</span>}
+                    {a.evidencia_pdf_url && (
+                      <a href={a.evidencia_pdf_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                        <FileText className="h-3 w-3" />PDF de evidência
+                      </a>
+                    )}
                   </div>
                   {canEdit && (
-                    <div className="mt-2">
-                      <Select value={a.status} onValueChange={(v) => patch.mutate({ id: a.id, status: v })}>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF. */}
+                      <Select value={a.status} onValueChange={(v) => {
+                        if (v === "concluida") setTreatingId(a.id);
+                        else patch.mutate({ id: a.id, status: v });
+                      }}>
                         <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>{Object.entries(ACT_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
                       </Select>
+                      {isOpenAction(a.status) && (
+                        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setTreatingId(a.id)}>
+                          <Wrench className="h-3.5 w-3.5" />Tratar / concluir
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -231,6 +252,13 @@ export default function ActionList() {
           )}
         </div>
       )}
+
+      <ActionTreatmentDialog
+        action={treating}
+        open={!!treating}
+        onOpenChange={(v) => { if (!v) setTreatingId(null); }}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["actions"] })}
+      />
     </div>
   );
 }
