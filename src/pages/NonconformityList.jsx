@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
 import { ElectricalPanel } from "@/services/panelService";
-import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
 } from "@/domain/dashboardFilters";
@@ -44,7 +44,10 @@ export default function NonconformityList() {
   const [searchParams] = useSearchParams();
   const panelParam = searchParams.get("panel");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("abertas");
+  const [statusFilter, setStatusFilter] = useState(
+    ["abertas", "all", "aberta", "em_tratamento", "concluida", "cancelada"].includes(searchParams.get("status"))
+      ? searchParams.get("status") : "abertas"
+  );
   const [sevFilter, setSevFilter] = useState(
     ["baixa", "media", "alta", "critica"].includes(searchParams.get("sev")) ? searchParams.get("sev") : "all"
   );
@@ -140,7 +143,7 @@ export default function NonconformityList() {
           <p className="text-sm text-muted-foreground mt-1">
             {panelParam
               ? <>Filtrado por quadro <span className="font-mono">{panelName.get(panelParam) || panelParam}</span> · <Link to="/nao-conformidades" className="text-primary hover:underline">limpar</Link></>
-              : <>{ncs.filter((n) => isOpenNonconformity(n.status)).length} aberta(s) de {ncs.length} no total</>}
+              : <>{ncs.filter((n) => isOpenNonconformity(n.status)).length} aberta(s) · {ncs.filter((n) => isCorrectedNonconformity(n.status)).length} corrigida(s) de {ncs.length} no total</>}
           </p>
         </div>
         {canEdit && (
