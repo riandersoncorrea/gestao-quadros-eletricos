@@ -159,12 +159,6 @@ export default function AppLayout() {
           </div>
         </header>
 
-        {/* Desktop top bar — faixa dedicada para a marca da Gerência, para
-            nunca disputar espaço com botões de ação (ex.: "Novo") que as
-            páginas posicionam no canto superior direito do conteúdo. */}
-        <header className="hidden lg:flex items-center justify-end h-14 px-6 bg-card border-b border-border shrink-0 print:hidden">
-          <img src={logoGerencia} alt="Gerência de Serviços Operacionais — São Luís EFC" className="h-10 w-auto object-contain" />
-        </header>
 
         {/* Mobile Nav Overlay */}
         {mobileOpen && (
@@ -237,7 +231,20 @@ export default function AppLayout() {
             </div>
           </div>
         )}
-        <main className="flex-1 overflow-auto print:overflow-visible print:h-auto">
+        {/* Desktop: o cabeçalho de cada página (título, subtítulo e ações)
+            divide a mesma faixa superior com a marca da Gerência e com a
+            logo do topo do sidebar. A marca é um float à direita no início
+            do conteúdo: a linha de cabeçalho das páginas (flex, que cria
+            seu próprio contexto de formatação) encolhe para não passar por
+            baixo dela, e o restante do conteúdo segue com a largura toda.
+            O padding superior das páginas é padronizado aqui (20px, o mesmo
+            do topo do sidebar), sem ajustes em cada página. */}
+        <main className="flex-1 overflow-auto print:overflow-visible print:h-auto lg:[&>div]:pt-5">
+          <img
+            src={logoGerencia}
+            alt="Gerência de Serviços Operacionais — São Luís EFC"
+            className="hidden lg:block float-right h-10 w-auto object-contain mt-5 mr-6 ml-4 print:hidden"
+          />
           <Outlet />
         </main>
       </div>
