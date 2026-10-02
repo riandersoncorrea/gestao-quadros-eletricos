@@ -5,5 +5,6 @@ export {
   Local,
   Sublocal,
   fetchHierarchy,
+  listUnidadesOperacionais,
   getPublicPanelInfo,
 } from "@/repositories/panelRepository";

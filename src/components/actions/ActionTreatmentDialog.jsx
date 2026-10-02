@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Camera, Upload, Loader2, X, FileText, AlertTriangle, CheckCircle2 } from "lucide-react";
+import PanelLocation from "@/components/actions/PanelLocation";
+import { usePanelLocations } from "@/hooks/usePanelLocations";
 
 /**
  * Tratamento/conclusão de uma ação corretiva: Número da Nota, OM e fotos
@@ -27,6 +29,9 @@ export default function ActionTreatmentDialog({ action, open, onOpenChange, onCh
   const [om, setOm] = useState("");
   const [fotos, setFotos] = useState([]);
   const [missing, setMissing] = useState([]);
+  // Localização do quadro da ação, à vista enquanto o inspetor preenche
+  // Nota/OM (mesmo cache de quadros/hierarquia da página).
+  const locationOf = usePanelLocations();
 
   // Reinicia o formulário ao abrir/trocar de ação — não a cada refetch da
   // lista, para não apagar o que o usuário está digitando.
@@ -99,6 +104,8 @@ export default function ActionTreatmentDialog({ action, open, onOpenChange, onCh
           <DialogTitle>{concluded ? "Evidência da correção" : "Tratamento da ação"}</DialogTitle>
           <DialogDescription className="whitespace-pre-wrap">{action.descricao}</DialogDescription>
         </DialogHeader>
+
+        <PanelLocation location={locationOf(action.panel_id)} singleColumn />
 
         {concluded ? (
           <div className="space-y-3 text-sm">
