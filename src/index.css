@@ -26,11 +26,18 @@
     --border: 210 15% 88%;
     --input: 210 15% 88%;
     --ring: 173 72% 33%;
-    --chart-1: 173 72% 33%;
-    --chart-2: 340 58% 49%;
-    --chart-3: 200 64% 58%;
-    --chart-4: 152 62% 41%;
-    --chart-5: 42 75% 54%;
+    /* Paleta de gráficos — cores da Vale (usadas pelo Painel via ChartConfig):
+       1 verde #007E7A · 2 amarelo #EDB111 · 3 laranja #E37222 ·
+       4 laranja escuro #B8461A · 5 verde claro #80BFBC. Extras: rosa
+       #E6197D (só "Reprovadas"), cinza #B9BABB, verde hover #005F5C. */
+    --chart-1: 178 100% 24.7%;
+    --chart-2: 44 87% 49.8%;
+    --chart-3: 25 78% 51.2%;
+    --chart-4: 17 75% 41.2%;
+    --chart-5: 177 33% 62.5%;
+    --chart-pink: 331 80% 50%;
+    --chart-gray: 210 1% 72.9%;
+    --chart-green-hover: 178 100% 18.6%;
     --radius: 0.75rem;
     /* Identidade da Gerência de Serviços Operacionais — São Luís EFC:
        mesmo matiz teal (173°) já usado em --primary, aplicado como base
@@ -65,11 +72,15 @@
     --border: 210 30% 18%;
     --input: 210 30% 18%;
     --ring: 173 65% 42%;
-    --chart-1: 173 65% 42%;
-    --chart-2: 340 58% 55%;
-    --chart-3: 200 64% 58%;
-    --chart-4: 152 55% 45%;
-    --chart-5: 42 80% 52%;
+    /* Mesma paleta da Vale no tema escuro (cores de marca). */
+    --chart-1: 178 100% 24.7%;
+    --chart-2: 44 87% 49.8%;
+    --chart-3: 25 78% 51.2%;
+    --chart-4: 17 75% 41.2%;
+    --chart-5: 177 33% 62.5%;
+    --chart-pink: 331 80% 50%;
+    --chart-gray: 210 1% 72.9%;
+    --chart-green-hover: 178 100% 18.6%;
     --sidebar-background: 210 40% 4%;
     --sidebar-foreground: 210 15% 93%;
     --sidebar-primary: 173 65% 42%;
