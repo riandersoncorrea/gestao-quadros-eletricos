@@ -6,7 +6,7 @@ import {
   getActiveTemplate, ordersForPanel, createInspection, computeOverall,
   checkPanelVigencia, InspectionVigenteError,
 } from "@/services/inspectionService";
-import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, hasWetArea } from "@/domain/inspectionRules";
+import { WET_AREA_CHECK_CODE, INTERDICTION_GROUNDING_CODE, hasWetArea, resolveSeveridade } from "@/domain/inspectionRules";
 import { uploadFile } from "@/storage/storageService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ const SEV = [
   { v: "alta", label: "Alta" },
   { v: "critica", label: "Crítica" },
 ];
+const SEV_FIXED_CLS = { critica: "text-destructive", alta: "text-orange-600", media: "text-amber-600", baixa: "text-muted-foreground" };
 const PARAM_OPTIONS = ["R-N", "S-N", "T-N", "R-S", "S-T", "R-T", "R", "S", "T"];
 const RESULT_BADGE = {
   conforme: { label: "Conforme", cls: "bg-secondary/15 text-secondary border-secondary/20" },
@@ -265,7 +266,11 @@ export default function InspectionForm() {
       queryClient.invalidateQueries({ queryKey: ["inspections"] });
       queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
       queryClient.invalidateQueries({ queryKey: ["panels"] });
-      toast.success("Inspeção registrada" + (ncCount ? ` · ${ncCount} não-conformidade(s) gerada(s)` : ""));
+      queryClient.invalidateQueries({ queryKey: ["actions"] });
+      toast.success("Inspeção registrada" + (ncCount ? ` · ${ncCount} não-conformidade(s) e ação(ões) gerada(s)` : ""));
+      if (insp.autoActionsError) {
+        toast.warning("Não foi possível criar as ações automáticas. Abra as ações manualmente nas não conformidades.");
+      }
       navigate(`/inspecoes/${insp.id}`);
     },
     onError: (e) => {
@@ -581,12 +586,13 @@ export default function InspectionForm() {
                                 <span className="font-medium text-destructive">Crítica — risco de interdição</span>
                               </div>
                             ) : (
-                              <Select value={r.severidade || "media"} onValueChange={(v) => setResp(it.id, { severidade: v })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {SEV.map((s) => <SelectItem key={s.v} value={s.v}>{s.label}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
+                              // Severidade automática pela matriz (domain/ncActionMatrix.js);
+                              // editável depois na tela da NC.
+                              <div className="flex items-center rounded-md border border-input bg-background px-3 h-9 text-xs">
+                                <span className={`font-medium ${SEV_FIXED_CLS[resolveSeveridade(it)] || ""}`}>
+                                  {SEV.find((s) => s.v === resolveSeveridade(it))?.label} — classificação automática
+                                </span>
+                              </div>
                             )}
                           </div>
                         </div>

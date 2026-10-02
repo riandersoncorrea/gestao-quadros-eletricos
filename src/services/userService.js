@@ -32,7 +32,7 @@ export async function countPendingUsers() {
   return userRepository.countPending();
 }
 
-/** Administradores aprovados disponíveis para serem responsáveis por uma ação. */
-export async function listAssignableAdmins() {
-  return userRepository.listApprovedAdmins();
+/** Administradores e inspetores aprovados disponíveis para serem responsáveis por uma ação. */
+export async function listAssignableUsers() {
+  return userRepository.listApprovedAssignable();
 }

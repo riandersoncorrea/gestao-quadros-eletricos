@@ -38,10 +38,12 @@ export async function remove(id) {
   if (error) throw error;
 }
 
+/** Insere as NCs e retorna as linhas gravadas (com id). */
 export async function bulkCreate(rows) {
-  if (!rows.length) return;
-  const { error } = await supabase.from("nonconformities").insert(rows);
+  if (!rows.length) return [];
+  const { data, error } = await supabase.from("nonconformities").insert(rows).select();
   if (error) throw error;
+  return data;
 }
 
 export async function getStatusSeverityForPanel(panelId) {

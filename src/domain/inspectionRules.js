@@ -1,6 +1,9 @@
 // Regras de análise de uma inspeção. Funções puras — sem acesso a rede.
 // A orquestração/persistência fica em src/services/inspectionService.js.
 
+import { matrixSeveridade, defaultActionDescription, defaultPrazo } from "@/domain/ncActionMatrix";
+import { assignResponsibles } from "@/domain/siteResponsibles";
+
 /**
  * Detecta se um quadro já possui uma inspeção vigente para uma data de
  * referência (a data da nova inspeção que se está tentando criar, ou a
@@ -147,13 +150,14 @@ export function isInterdictionRisk(responses) {
  * Severidade de uma resposta "não conforme". PRO-01 e ATR-01 não conformes
  * são sempre 'critica' (ALWAYS_CRITICAL_CODES) — no PRO-01,
  * independentemente da resposta de área molhada, que só define o risco de
- * interdição (ver interdictionRiskConditions). Para os demais itens,
- * mantém o comportamento anterior (severidade escolhida manualmente pelo
- * inspetor, 'media' por padrão).
+ * interdição (ver interdictionRiskConditions). Para os demais itens, a
+ * severidade vem da matriz (domain/ncActionMatrix.js) pelo código da
+ * pergunta — 'media' se fora da matriz. Depois de criada, a NC continua
+ * editável na tela da NC.
  */
-function resolveSeveridade(r, it) {
+export function resolveSeveridade(it) {
   if (ALWAYS_CRITICAL_CODES.includes(it?.codigo)) return "critica";
-  return r.severidade || "media";
+  return matrixSeveridade(it?.codigo);
 }
 
 /**
@@ -177,11 +181,41 @@ export function buildAutoNonconformities({ responses, items, inspectionId, panel
           (r.descricao || "").trim() ||
           `${it?.codigo ? it.codigo + " — " : ""}${it?.titulo || "Item não conforme"}`,
         evidencia_url: r.evidencia_url || null,
-        severidade: resolveSeveridade(r, it),
+        severidade: resolveSeveridade(it),
         recomendacao: r.recomendacao || null,
         status: "aberta",
         origem: "inspecao",
         created_by: createdBy,
       };
     });
+}
+
+/**
+ * Gera as ações criadas automaticamente para as NCs de uma inspeção — uma
+ * por NC de origem "inspecao" vinculada a uma pergunta do checklist.
+ * `ncs` são as NCs já gravadas (com id). Descrição padrão com a referência
+ * normativa e prazo pela severidade (domain/ncActionMatrix.js);
+ * responsável pelo site do quadro (domain/siteResponsibles.js), equilibrado
+ * por `openCounts`/`lastAssignedAt` — sem responsável quando o site não
+ * está mapeado (pendente de atribuição).
+ */
+export function buildAutoActions({ ncs, items, site, openCounts, lastAssignedAt, createdBy, baseDate = new Date() }) {
+  const itemById = new Map(items.map((i) => [i.id, i]));
+  const eligible = ncs.filter((nc) => nc.id && nc.template_item_id && nc.origem === "inspecao");
+  const responsibles = assignResponsibles(site, eligible.length, openCounts, lastAssignedAt);
+  return eligible.map((nc, i) => {
+    const it = itemById.get(nc.template_item_id);
+    const resp = responsibles[i];
+    return {
+      nonconformity_id: nc.id,
+      panel_id: nc.panel_id,
+      descricao: defaultActionDescription(it?.codigo, it?.titulo),
+      responsavel: resp?.nome ?? null,
+      responsavel_id: resp?.id ?? null,
+      prazo: defaultPrazo(nc.severidade, baseDate),
+      status: "aberta",
+      origem: "automatica",
+      created_by: createdBy,
+    };
+  });
 }

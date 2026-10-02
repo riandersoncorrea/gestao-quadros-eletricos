@@ -32,6 +32,27 @@ export async function create(values) {
   return data;
 }
 
+export async function bulkCreate(rows) {
+  if (!rows.length) return [];
+  const { data, error } = await supabase.from("actions").insert(rows).select();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Ações dos perfis informados, para equilibrar a atribuição automática
+ * (ações em aberto por responsável e última ação automática recebida).
+ */
+export async function listForResponsibles(profileIds) {
+  if (!profileIds.length) return [];
+  const { data, error } = await supabase
+    .from("actions")
+    .select("responsavel_id, status, origem, created_at")
+    .in("responsavel_id", profileIds);
+  if (error) throw error;
+  return data;
+}
+
 export async function update(id, patch) {
   const { data, error } = await supabase.from("actions").update(patch).eq("id", id).select().single();
   if (error) throw error;

@@ -3,9 +3,9 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getNonconformity, updateNonconformity } from "@/services/ncService";
 import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
-import { listAssignableAdmins } from "@/services/userService";
+import { listAssignableUsers } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
-import { isOpenAction, actionStatusOptions } from "@/domain/actionRules";
+import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
 import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Zap, ClipboardCheck, Plus, Trash2, CheckCircle2, Clock, AlertTriangle, FileText, Wrench } from "lucide-react";
+import { ArrowLeft, Zap, ClipboardCheck, Plus, Trash2, CheckCircle2, Clock, AlertTriangle, FileText, Wrench, Pencil } from "lucide-react";
 
 const ACT_STATUS = {
   aberta: { label: "Aberta", cls: "bg-muted text-muted-foreground border-border" },
@@ -28,7 +28,57 @@ const ACT_STATUS = {
   concluida: { label: "Concluída", cls: "bg-secondary/15 text-secondary border-secondary/20" },
   cancelada: { label: "Cancelada", cls: "bg-muted text-muted-foreground border-border" },
 };
-const emptyAction = () => ({ descricao: "", responsavel: "", prazo: "", status: "aberta" });
+const emptyAction = () => ({ descricao: "", responsavel_id: "", prazo: "", status: "aberta" });
+const NO_RESPONSAVEL = "__none__";
+
+/**
+ * Campos editáveis da ação (nova ou existente) → valores gravados. O
+ * responsável é escolhido pelo perfil (responsavel_id) e o nome vai para
+ * `responsavel` (texto exibido e impresso no PDF). Sem responsável = null
+ * nos dois (pendente de atribuição).
+ */
+function actionValues(form, users) {
+  const u = users.find((x) => x.id === form.responsavel_id);
+  return {
+    descricao: form.descricao.trim(),
+    responsavel_id: u ? u.id : null,
+    responsavel: u ? (u.full_name || u.email) : null,
+    prazo: form.prazo || null,
+  };
+}
+
+/** Formulário de ação — usado para abrir uma ação manual e para editar uma existente. */
+function ActionFields({ form, setForm, users, onCancel, onSubmit, submitLabel, pending }) {
+  // Ação existente cujo responsável não está na lista (ex.: atribuída a um
+  // nome antigo sem vínculo de perfil): mantém o texto visível no seletor.
+  const keepsLegacy = !form.responsavel_id && form.responsavel_legacy;
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+      <Textarea rows={2} placeholder="O que precisa ser feito" value={form.descricao}
+        onChange={(e) => setForm((s) => ({ ...s, descricao: e.target.value }))} />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Select
+          value={form.responsavel_id || NO_RESPONSAVEL}
+          onValueChange={(v) => setForm((s) => ({ ...s, responsavel_id: v === NO_RESPONSAVEL ? "" : v, responsavel_legacy: null }))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_RESPONSAVEL}>{keepsLegacy ? `${form.responsavel_legacy} (manter)` : "Sem responsável"}</SelectItem>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}{u.role === "inspetor" ? " (inspetor)" : ""}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input type="date" value={form.prazo || ""}
+          onChange={(e) => setForm((s) => ({ ...s, prazo: e.target.value }))} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button size="sm" disabled={!form.descricao.trim() || pending} onClick={onSubmit}>{submitLabel}</Button>
+      </div>
+    </div>
+  );
+}
 const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } };
 
 export default function NonconformityDetail() {
@@ -37,13 +87,15 @@ export default function NonconformityDetail() {
   const queryClient = useQueryClient();
   const { canEdit, canTreatActions, isInspetor } = useUserRole();
   const [newAction, setNewAction] = useState(null);
+  // Edição de ação existente (descrição, responsável, prazo) — admin/editor.
+  const [editing, setEditing] = useState(null);
   // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
   const [treatingId, setTreatingId] = useState(null);
 
   const { data: nc, isLoading } = useQuery({ queryKey: ["nc", id], queryFn: () => getNonconformity(id) });
   const { data: actions = [] } = useQuery({ queryKey: ["nc-actions", id], queryFn: () => listActionsForNC(id) });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
-  const { data: admins = [] } = useQuery({ queryKey: ["assignable-admins"], queryFn: listAssignableAdmins, enabled: canEdit });
+  const { data: users = [] } = useQuery({ queryKey: ["assignable-users"], queryFn: listAssignableUsers, enabled: canEdit });
   const panel = panels.find((p) => p.id === nc?.panel_id);
 
   const invalidate = () => {
@@ -60,7 +112,7 @@ export default function NonconformityDetail() {
   });
   const addAction = useMutation({
     mutationFn: () => createAction(
-      { ...newAction, nonconformity_id: id, panel_id: nc.panel_id, prazo: newAction.prazo || null },
+      { ...actionValues(newAction, users), status: newAction.status, nonconformity_id: id, panel_id: nc.panel_id },
       { currentNcStatus: nc.status }
     ),
     onSuccess: () => { invalidate(); setNewAction(null); toast.success("Ação criada"); },
@@ -69,6 +121,16 @@ export default function NonconformityDetail() {
   const patchAction = useMutation({
     mutationFn: ({ actionId, values }) => updateAction(actionId, values),
     onSuccess: invalidate,
+    onError: (e) => toast.error(`Falha: ${e.message}`),
+  });
+  const editAction = useMutation({
+    mutationFn: () => {
+      const values = actionValues(editing, users);
+      // Responsável antigo só em texto, não trocado: preserva o texto.
+      if (!values.responsavel_id && editing.responsavel_legacy) values.responsavel = editing.responsavel_legacy;
+      return updateAction(editing.id, values);
+    },
+    onSuccess: () => { invalidate(); setEditing(null); toast.success("Ação atualizada"); },
     onError: (e) => toast.error(`Falha: ${e.message}`),
   });
   const removeAction = useMutation({
@@ -192,6 +254,13 @@ export default function NonconformityDetail() {
 
           {actions.map((a) => {
             const ast = ACT_STATUS[a.status] || ACT_STATUS.aberta;
+            if (editing?.id === a.id) {
+              return (
+                <ActionFields key={a.id} form={editing} setForm={setEditing} users={users}
+                  onCancel={() => setEditing(null)} onSubmit={() => editAction.mutate()}
+                  submitLabel="Salvar" pending={editAction.isPending} />
+              );
+            }
             return (
               <div key={a.id} className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -199,6 +268,8 @@ export default function NonconformityDetail() {
                   {a.atrasada && <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20"><AlertTriangle className="h-3 w-3 mr-0.5" />Atrasada</Badge>}
                   {a.prazo && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{fmt(a.prazo)}</span>}
                   {a.concluida_em && <span className="text-xs text-secondary flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{fmt(a.concluida_em)}</span>}
+                  {isAutomaticAction(a) && <Badge variant="outline" className="text-[10px]">Automática</Badge>}
+                  {isPendingAssignment(a) && <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">Pendente de atribuição</Badge>}
                 </div>
                 <p className="text-sm">{a.descricao}</p>
                 {a.responsavel && <p className="text-xs text-muted-foreground">Responsável: {a.responsavel}</p>}
@@ -235,6 +306,16 @@ export default function NonconformityDetail() {
                         <FileText className="h-3.5 w-3.5" />Evidência
                       </Button>
                     )}
+                    {canEdit && isOpenAction(a.status) && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8" title="Editar ação"
+                        onClick={() => setEditing({
+                          id: a.id, descricao: a.descricao || "", prazo: a.prazo || "",
+                          responsavel_id: a.responsavel_id || "",
+                          responsavel_legacy: !a.responsavel_id && a.responsavel ? a.responsavel : null,
+                        })}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {canEdit && (
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAction.mutate(a.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
@@ -247,39 +328,9 @@ export default function NonconformityDetail() {
           })}
 
           {newAction && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
-              <Textarea rows={2} placeholder="O que precisa ser feito" value={newAction.descricao}
-                onChange={(e) => setNewAction((s) => ({ ...s, descricao: e.target.value }))} />
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Select
-                    value={newAction.responsavel}
-                    onValueChange={(v) => setNewAction((s) => ({ ...s, responsavel: v }))}
-                    disabled={admins.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={admins.length === 0 ? "Nenhum administrador disponível" : "Selecione um administrador"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {admins.map((a) => (
-                        <SelectItem key={a.id} value={a.full_name || a.email}>{a.full_name || a.email}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {admins.length === 0 && (
-                    <p className="text-[11px] text-destructive">Nenhum administrador disponível para atribuição.</p>
-                  )}
-                </div>
-                <Input type="date" value={newAction.prazo}
-                  onChange={(e) => setNewAction((s) => ({ ...s, prazo: e.target.value }))} />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => setNewAction(null)}>Cancelar</Button>
-                <Button size="sm" disabled={!newAction.descricao.trim() || addAction.isPending} onClick={() => addAction.mutate()}>
-                  Adicionar
-                </Button>
-              </div>
-            </div>
+            <ActionFields form={newAction} setForm={setNewAction} users={users}
+              onCancel={() => setNewAction(null)} onSubmit={() => addAction.mutate()}
+              submitLabel="Adicionar" pending={addAction.isPending} />
           )}
         </CardContent>
       </Card>
