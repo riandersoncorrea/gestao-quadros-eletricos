@@ -16,3 +16,16 @@ export const INSPETOR_ACTION_STATUSES = ["aberta", "em_andamento", "concluida"];
 export function actionStatusOptions(allStatuses, isInspetor) {
   return isInspetor ? allStatuses.filter(([v]) => INSPETOR_ACTION_STATUSES.includes(v)) : allStatuses;
 }
+
+/** Ação gerada automaticamente a partir do checklist (migration 0022). */
+export function isAutomaticAction(action) {
+  return action?.origem === "automatica";
+}
+
+/**
+ * Ação em aberto sem responsável — ex.: ação automática de quadro cujo site
+ * não tem responsável mapeado (domain/siteResponsibles.js).
+ */
+export function isPendingAssignment(action) {
+  return isOpenAction(action?.status) && !action?.responsavel_id && !String(action?.responsavel || "").trim();
+}

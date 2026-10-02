@@ -3,8 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listActions, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
-import { listAssignableAdmins } from "@/services/userService";
-import { isOpenAction, actionStatusOptions } from "@/domain/actionRules";
+import { listAssignableUsers } from "@/services/userService";
+import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
@@ -29,7 +29,7 @@ const ACT_STATUS = {
 const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } };
 
 export default function ActionList() {
-  const { canEdit, canTreatActions, isInspetor } = useUserRole();
+  const { canEdit, canTreatActions, isInspetor, user } = useUserRole();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -51,10 +51,10 @@ export default function ActionList() {
 
   // Mesma queryKey/serviço já usado no seletor de responsável em
   // Não Conformidades — cache compartilhado, sem lógica paralela de busca
-  // de usuários. `responsavel` é texto livre em `actions` (sem FK para
-  // profiles), então o filtro guarda o id do admin (não o nome) e resolve
-  // para o texto exibido/gravado na hora de comparar.
-  const { data: admins = [] } = useQuery({ queryKey: ["assignable-admins"], queryFn: listAssignableAdmins });
+  // de usuários. O filtro guarda o id do perfil e compara com
+  // `responsavel_id` (ações novas) ou, para ações antigas sem vínculo, com
+  // o texto `responsavel`. "me" = Minhas ações (usuário logado).
+  const { data: admins = [] } = useQuery({ queryKey: ["assignable-users"], queryFn: listAssignableUsers });
   const adminDisplayById = useMemo(
     () => new Map(admins.map((a) => [a.id, a.full_name || a.email])),
     [admins]
@@ -85,7 +85,12 @@ export default function ActionList() {
       filter === "pendentes" ? isOpenAction(a.status) :
       filter === "atrasadas" ? a.atrasada :
       a.status === filter;
-    const matchResponsavel = responsavelFilter === "all" || a.responsavel === adminDisplayById.get(responsavelFilter);
+    const responsavelId = responsavelFilter === "me" ? user?.id : responsavelFilter;
+    const matchResponsavel =
+      responsavelFilter === "all" ||
+      (responsavelFilter === "sem_responsavel" ? isPendingAssignment(a) :
+        a.responsavel_id === responsavelId ||
+        (!a.responsavel_id && !!a.responsavel && a.responsavel === adminDisplayById.get(responsavelId)));
     const matchPeriod = isWithinRange(a.prazo, dateRange);
     return matchSearch && matchFilter && matchResponsavel && matchPeriod;
   });
@@ -142,7 +147,9 @@ export default function ActionList() {
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Responsável" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os responsáveis</SelectItem>
-            {admins.map((a) => (
+            <SelectItem value="me">Minhas ações</SelectItem>
+            <SelectItem value="sem_responsavel">Pendentes de atribuição</SelectItem>
+            {admins.filter((a) => a.id !== user?.id).map((a) => (
               <SelectItem key={a.id} value={a.id}>{a.full_name || a.email}</SelectItem>
             ))}
           </SelectContent>
@@ -205,6 +212,8 @@ export default function ActionList() {
                     {a.atrasada && <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20"><AlertTriangle className="h-3 w-3 mr-0.5" />Atrasada</Badge>}
                     {a.prazo && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{fmt(a.prazo)}</span>}
                     {a.concluida_em && <span className="text-xs text-secondary flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{fmt(a.concluida_em)}</span>}
+                    {isAutomaticAction(a) && <Badge variant="outline" className="text-xs">Automática</Badge>}
+                    {isPendingAssignment(a) && <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-200">Pendente de atribuição</Badge>}
                   </div>
                   <p className="text-sm font-medium">{a.descricao}</p>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">

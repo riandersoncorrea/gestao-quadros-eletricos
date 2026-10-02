@@ -103,6 +103,17 @@ export async function getSnapshotFields(panelId) {
   return data;
 }
 
+/** Site do quadro (electrical_panels.site), ou null. */
+export async function getSite(panelId) {
+  const { data, error } = await supabase
+    .from("electrical_panels")
+    .select("site")
+    .eq("id", panelId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.site ?? null;
+}
+
 export async function updateHealthIndex(panelId, index) {
   const { error } = await supabase
     .from("electrical_panels")

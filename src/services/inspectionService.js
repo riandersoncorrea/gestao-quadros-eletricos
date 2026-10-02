@@ -1,8 +1,11 @@
 import { getCurrentUserId } from "@/auth/authService";
 import * as inspectionRepository from "@/repositories/inspectionRepository";
 import { bulkCreate as bulkCreateNonconformities } from "@/repositories/ncRepository";
-import { updateAfterInspection as updatePanelAfterInspection } from "@/repositories/panelRepository";
-import { computeOverall, buildAutoNonconformities, findVigenciaConflict } from "@/domain/inspectionRules";
+import * as actionRepository from "@/repositories/actionRepository";
+import { updateAfterInspection as updatePanelAfterInspection, getSite as getPanelSite } from "@/repositories/panelRepository";
+import { computeOverall, buildAutoNonconformities, buildAutoActions, findVigenciaConflict } from "@/domain/inspectionRules";
+import { responsiblesForSite } from "@/domain/siteResponsibles";
+import { isOpenAction } from "@/domain/actionRules";
 import { SAFETY_FORM_CODES } from "@/domain/safetyFormExport";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
@@ -157,7 +160,18 @@ export async function createInspection({ header, responses, measurements, thermo
     sapOrderId: header.sap_order_id,
     createdBy: uid,
   });
-  await bulkCreateNonconformities(ncRows);
+  const createdNcs = await bulkCreateNonconformities(ncRows);
+
+  // Uma ação automática por NC, no mesmo momento da criação das NCs. Falha
+  // aqui não desfaz a inspeção (já gravada — não há transação): o retorno
+  // sinaliza para a tela avisar, e a ação pode ser aberta manualmente na NC.
+  let autoActionsError = null;
+  try {
+    await createAutoActions({ ncs: createdNcs, items, panelId: header.panel_id, createdBy: uid });
+  } catch (e) {
+    console.error("Falha ao criar as ações automáticas das NCs:", e);
+    autoActionsError = e;
+  }
 
   await updatePanelAfterInspection(header.panel_id, {
     last_inspection_date: header.inspection_date,
@@ -171,5 +185,33 @@ export async function createInspection({ header, responses, measurements, thermo
     console.error("Falha ao calcular Índice de Saúde da inspeção:", e);
   }
 
-  return insp;
+  return { ...insp, autoActionsError };
+}
+
+/**
+ * Cria as ações automáticas das NCs recém-criadas de uma inspeção (regras
+ * em domain/inspectionRules.js#buildAutoActions). A NC continua "aberta" —
+ * diferente da ação manual, a automática não indica tratamento em curso.
+ * Duplicação é impedida no banco (índice único uq_actions_auto_por_nc,
+ * migration 0022).
+ */
+async function createAutoActions({ ncs, items, panelId, createdBy }) {
+  if (!ncs.length) return [];
+  const site = await getPanelSite(panelId);
+  const candidates = responsiblesForSite(site);
+
+  const openCounts = {};
+  const lastAssignedAt = {};
+  if (candidates.length > 1) {
+    const rows = await actionRepository.listForResponsibles(candidates.map((c) => c.id));
+    for (const a of rows) {
+      if (isOpenAction(a.status)) openCounts[a.responsavel_id] = (openCounts[a.responsavel_id] || 0) + 1;
+      if (a.origem === "automatica" && (a.created_at || "") > (lastAssignedAt[a.responsavel_id] || "")) {
+        lastAssignedAt[a.responsavel_id] = a.created_at;
+      }
+    }
+  }
+
+  const rows = buildAutoActions({ ncs, items, site, openCounts, lastAssignedAt, createdBy });
+  return actionRepository.bulkCreate(rows);
 }
