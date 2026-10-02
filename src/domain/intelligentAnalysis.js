@@ -90,7 +90,7 @@ function fmtDateBR(iso) {
 // Porto", "na Oficina"), em vez do "em X" genérico — pedido de ajuste de
 // texto. Qualquer localidade fora dessa lista cai no "em X" neutro, sem
 // travar caso o cadastro de localidades mude no futuro.
-const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina" };
+const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina", "Pelotização": "na Pelotização" };
 function emLocalidade(nome) {
   return LOCALIDADE_PREPOSICAO[nome] || `em ${nome}`;
 }
