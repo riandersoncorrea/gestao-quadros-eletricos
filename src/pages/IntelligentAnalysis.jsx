@@ -61,7 +61,7 @@ function fmtDate(d) {
 // domínio (src/domain/intelligentAnalysis.js), duplicada aqui só para os
 // pontos de texto que vivem na própria UI (ex.: filtro de localidade
 // selecionada no gráfico).
-const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina" };
+const LOCALIDADE_PREPOSICAO = { Porto: "no Porto", Oficina: "na Oficina", "Pelotização": "na Pelotização" };
 function emLocalidade(nome) {
   return LOCALIDADE_PREPOSICAO[nome] || `em ${nome}`;
 }

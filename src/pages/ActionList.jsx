@@ -34,7 +34,7 @@ export default function ActionList() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState(
-    ["pendentes", "atrasadas", "all", "concluida", "cancelada"].includes(searchParams.get("f"))
+    ["pendentes", "atrasadas", "em_andamento", "all", "concluida", "cancelada"].includes(searchParams.get("f"))
       ? searchParams.get("f") : "pendentes"
   );
   const [responsavelFilter, setResponsavelFilter] = useState("all");
@@ -55,6 +55,12 @@ export default function ActionList() {
   // `responsavel_id` (ações novas) ou, para ações antigas sem vínculo, com
   // o texto `responsavel`. "me" = Minhas ações (usuário logado).
   const { data: admins = [] } = useQuery({ queryKey: ["assignable-users"], queryFn: listAssignableUsers });
+  // Só inspetores no filtro (quem trata as ações); o próprio usuário já
+  // está em "Minhas ações".
+  const inspetores = useMemo(
+    () => admins.filter((a) => a.role === "inspetor" && a.id !== user?.id),
+    [admins, user?.id]
+  );
   const adminDisplayById = useMemo(
     () => new Map(admins.map((a) => [a.id, a.full_name || a.email])),
     [admins]
@@ -138,6 +144,7 @@ export default function ActionList() {
           <SelectContent>
             <SelectItem value="pendentes">Pendentes</SelectItem>
             <SelectItem value="atrasadas">Atrasadas</SelectItem>
+            <SelectItem value="em_andamento">Em andamento</SelectItem>
             <SelectItem value="all">Todas</SelectItem>
             <SelectItem value="concluida">Concluídas</SelectItem>
             <SelectItem value="cancelada">Canceladas</SelectItem>
@@ -149,7 +156,7 @@ export default function ActionList() {
             <SelectItem value="all">Todos os responsáveis</SelectItem>
             <SelectItem value="me">Minhas ações</SelectItem>
             <SelectItem value="sem_responsavel">Pendentes de atribuição</SelectItem>
-            {admins.filter((a) => a.id !== user?.id).map((a) => (
+            {inspetores.map((a) => (
               <SelectItem key={a.id} value={a.id}>{a.full_name || a.email}</SelectItem>
             ))}
           </SelectContent>
