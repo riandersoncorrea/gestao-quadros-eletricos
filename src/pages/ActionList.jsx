@@ -6,6 +6,8 @@ import { ElectricalPanel } from "@/services/panelService";
 import { listAssignableUsers } from "@/services/userService";
 import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
+import PanelLocation from "@/components/actions/PanelLocation";
+import { usePanelLocations } from "@/hooks/usePanelLocations";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
 } from "@/domain/dashboardFilters";
@@ -48,6 +50,7 @@ export default function ActionList() {
   const { data: actions = [], isLoading } = useQuery({ queryKey: ["actions"], queryFn: listActions });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
   const panelName = useMemo(() => new Map(panels.map((p) => [p.id, p.tag || p.name])), [panels]);
+  const locationOf = usePanelLocations();
 
   // Mesma queryKey/serviço já usado no seletor de responsável em
   // Não Conformidades — cache compartilhado, sem lógica paralela de busca
@@ -235,6 +238,7 @@ export default function ActionList() {
                       </a>
                     )}
                   </div>
+                  <PanelLocation location={locationOf(a.panel_id)} className="mt-3" />
                   {canTreatActions && (canEdit || isOpenAction(a.status)) && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {/* "Concluída" não muda o status direto: abre o tratamento, que exige Nota, OM e fotos e gera o PDF.

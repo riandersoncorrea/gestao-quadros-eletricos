@@ -77,6 +77,16 @@ export async function fetchHierarchy() {
 }
 
 /**
+ * Unidades operacionais (São Luís, EFC — tabela da migration 0016), só
+ * leitura, para exibir a unidade do quadro (electrical_panels.unidade_operacional_id).
+ */
+export async function listUnidadesOperacionais() {
+  const { data, error } = await supabase.from("unidades_operacionais").select("id, codigo, nome");
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Dados do quadro para a página pública (sem login, ver
  * src/pages/PublicPanelDetail.jsx) — consulta a view `panel_public_info`
  * (supabase/migrations/0010_public_panel_view.sql), que já é a whitelist
