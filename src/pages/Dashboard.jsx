@@ -5,70 +5,16 @@ import { fetchDashboardRaw, computeDashboardData } from "@/services/dashboardSer
 import {
   PERIOD_OPTIONS, LOCALIDADE_ALL, resolvePeriodRange, validateCustomRange,
 } from "@/domain/dashboardFilters";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, LabelList,
-} from "recharts";
-import {
-  Activity, FileWarning, ListChecks, ClipboardCheck, Map, FileText, ArrowRight,
-  TrendingDown, Gauge, CheckCircle2,
-} from "lucide-react";
-
-const GREEN = "#2E9E6B";
-const AMBER = "#E5A100";
-const RED = "#DC2626";
-const GRAY = "#9CA3AF";
-
-function Kpi({ icon: Icon, label, value, sub, tone, to }) {
-  const toneCls = tone === "err" ? "text-destructive" : tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-secondary" : "text-foreground";
-  const body = (
-    <Card className="border-border/60 hover:shadow-md hover:border-primary/20 transition-all h-full">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-            <p className={`text-2xl font-bold mt-1 ${toneCls}`}>{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-          </div>
-          <Icon className="h-5 w-5 text-muted-foreground/50 shrink-0" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-  return to ? <Link to={to}>{body}</Link> : body;
-}
-
-const BAR_LABEL_STYLE = { fontSize: 11, fontWeight: 600, fill: "#374151" };
-
-// Rótulo de linha que some em zero, evitando poluir trechos "achatados" do
-// gráfico de inspeções com uma fileira de "0" repetidos.
-function nonZeroLineLabel(color, dy) {
-  return ({ x, y, value }) => {
-    if (!value) return null;
-    return (
-      <text x={x} y={y + dy} textAnchor="middle" fontSize={10} fontWeight={600} fill={color}>
-        {value}
-      </text>
-    );
-  };
-}
-
-function ChartCard({ title, action, children }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2 flex-row items-center justify-between">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        {action}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
+  PainelCard, KpiCard, HealthDonutCard, SeverityCard, CategoryCard, InspectionsCard, zeroIsGood, scoreColor,
+} from "@/components/dashboard/PainelCharts";
+import { Map, FileText, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
   const { data: raw, isLoading } = useQuery({ queryKey: ["dashboardRaw"], queryFn: fetchDashboardRaw });
@@ -164,14 +110,6 @@ export default function Dashboard() {
     );
   }
 
-  const healthData = [
-    { name: "Bom (≥80)", value: d.healthBands.bom, color: GREEN },
-    { name: "Atenção (50–79)", value: d.healthBands.atencao, color: AMBER },
-    { name: "Crítico (<50)", value: d.healthBands.critico, color: RED },
-    { name: "Sem avaliação", value: d.healthBands.semAvaliacao, color: GRAY },
-  ];
-  const sevColor = { Crítica: RED, Alta: "#EA580C", Média: AMBER, Baixa: GRAY };
-
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -187,93 +125,30 @@ export default function Dashboard() {
 
       {filterBar}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={Gauge} label="Índice de Saúde médio" value={d.isMedio ?? "—"} sub={`${d.totalQuadros} quadros`} tone={d.isMedio == null ? undefined : d.isMedio >= 80 ? "ok" : d.isMedio >= 50 ? "warn" : "err"} />
-        <Kpi icon={Activity} label="Quadros críticos" value={d.healthBands.critico} sub="Índice de Saúde < 50" tone={d.healthBands.critico ? "err" : "ok"} to="/inventario?health=critico" />
-        <Kpi icon={FileWarning} label="NCs abertas" value={d.ncAbertas} sub={`${d.ncCriticas} crítica(s)`} tone={d.ncCriticas ? "err" : d.ncAbertas ? "warn" : "ok"} to="/nao-conformidades" />
-        <Kpi icon={ListChecks} label="Ações atrasadas" value={d.acoesAtrasadas} sub={`${d.acoesPendentes} pendentes`} tone={d.acoesAtrasadas ? "err" : "ok"} to="/acoes?f=atrasadas" />
-        <Kpi icon={ClipboardCheck} label="Inspeções vencidas" value={d.inspecoesVencidas} sub="próxima data no passado" tone={d.inspecoesVencidas ? "warn" : "ok"} to="/inventario" />
-        <Kpi icon={ClipboardCheck} label="Inspeções realizadas" value={d.inspecoesTotais} sub="histórico total" to="/inspecoes" />
-        <Kpi icon={TrendingDown} label="Quadros priorizados" value={d.ranking.length} sub="pior saúde / mais NCs" />
-        <Kpi icon={CheckCircle2} label="NCs corrigidas" value={d.ncCorrigidas} sub="concluídas no período" tone={d.ncCorrigidas ? "ok" : undefined} to="/nao-conformidades?status=concluida" />
+      {/* KPIs — linhas de 4 cards */}
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Índice de Saúde médio" value={d.isMedio ?? "—"} sub={`${d.totalQuadros} quadros`} color={d.isMedio == null ? undefined : scoreColor(d.isMedio)} />
+        <KpiCard label="Quadros críticos" value={d.healthBands.critico} sub="Índice de Saúde < 50" to="/inventario?health=critico" tone={zeroIsGood(d.healthBands.critico)} />
+        <KpiCard label="NCs abertas" value={d.ncAbertas} sub={`${d.ncCriticas} crítica(s)`} to="/nao-conformidades" tone={zeroIsGood(d.ncAbertas)} />
+        <KpiCard label="Ações atrasadas" value={d.acoesAtrasadas} sub={`${d.acoesPendentes} pendentes`} to="/acoes?f=atrasadas" tone={zeroIsGood(d.acoesAtrasadas)} />
+        <KpiCard label="Inspeções vencidas" value={d.inspecoesVencidas} sub="próxima data no passado" to="/inventario" tone={zeroIsGood(d.inspecoesVencidas)} />
+        <KpiCard label="Inspeções realizadas" value={d.inspecoesTotais} sub="histórico total" to="/inspecoes" />
+        <KpiCard label="Quadros priorizados" value={d.ranking.length} sub="pior saúde / mais NCs" />
+        <KpiCard label="NCs corrigidas" value={d.ncCorrigidas} sub="concluídas no período" to="/nao-conformidades?status=concluida" tone={d.ncCorrigidas ? "ok" : undefined} />
       </div>
 
-      {/* Charts */}
+      {/* Gráficos — 2 colunas (1 em telas estreitas) */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Distribuição do Índice de Saúde">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={healthData} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {healthData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                <LabelList dataKey="value" position="right" style={BAR_LABEL_STYLE} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="NCs abertas por severidade" action={<Link to="/nao-conformidades" className="text-xs text-primary hover:underline">ver</Link>}>
-          <ResponsiveContainer width="100%" height={200}>
-            {/* margin.top e o domínio do eixo Y com folga de 15% acima do
-                maior valor são só deste gráfico (não são um padrão global) —
-                sem isso, o rótulo da barra mais alta (ex.: "411") encostava
-                no limite superior do card e podia ficar cortado. A folga é
-                proporcional ao valor, então continua funcionando para
-                qualquer número, não só para o cenário atual. */}
-            <BarChart data={d.ncPorSeveridade} margin={{ top: 20, left: 0, right: 10 }}>
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} domain={[0, (dataMax) => Math.max(1, Math.ceil(dataMax * 1.15))]} />
-              <Tooltip />
-              <Bar dataKey="n" radius={[4, 4, 0, 0]}>
-                {d.ncPorSeveridade.map((e, i) => <Cell key={i} fill={sevColor[e.label] || GRAY} />)}
-                <LabelList dataKey="n" position="top" style={BAR_LABEL_STYLE} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="NCs abertas por categoria">
-          {d.ncPorCategoria.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma NC aberta.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={d.ncPorCategoria} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="categoria" width={130} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="n" fill="#0369A1" radius={[0, 4, 4, 0]}>
-                  <LabelList dataKey="n" position="right" style={BAR_LABEL_STYLE} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Inspeções nos últimos 6 meses">
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={d.inspPorMes} margin={{ top: 16, left: 0, right: 10 }}>
-              <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend verticalAlign="top" height={28} wrapperStyle={{ fontSize: 11 }} iconSize={10} iconType="plainline" />
-              <Line type="monotone" dataKey="total" stroke={GREEN} strokeWidth={2} name="Realizadas">
-                <LabelList dataKey="total" content={nonZeroLineLabel(GREEN, -10)} />
-              </Line>
-              <Line type="monotone" dataKey="reprovadas" stroke={RED} strokeWidth={2} name="Reprovadas">
-                <LabelList dataKey="reprovadas" content={nonZeroLineLabel(RED, 16)} />
-              </Line>
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        <HealthDonutCard bands={d.healthBands} />
+        <SeverityCard porSeveridade={d.ncPorSeveridade} />
+        <CategoryCard porCategoria={d.ncPorCategoria} />
+        <InspectionsCard porMes={d.inspPorMes} />
       </div>
 
       {/* Ranking */}
       <div className="grid gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Quadros prioritários</CardTitle></CardHeader>
+        <PainelCard>
+          <CardHeader className="pb-2"><CardTitle className="text-base font-semibold">Quadros prioritários</CardTitle></CardHeader>
           <CardContent className="p-0">
             {d.ranking.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Nenhum quadro em situação crítica.</p>
@@ -297,7 +172,7 @@ export default function Dashboard() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </PainelCard>
       </div>
     </div>
   );
