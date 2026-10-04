@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSpatialData, setPanelCoordinates } from "@/services/mapService";
 import { fetchHierarchy } from "@/services/panelService";
-import SpatialMap, { COLOR_BY, legendFor } from "@/components/panels/SpatialMap";
+import SpatialMap, { COLOR_BY, HEAT_GRADIENT, legendFor } from "@/components/panels/SpatialMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,7 @@ export default function MapPage() {
   }, [panels, hierarchyNames]);
 
   const legend = legendFor(colorBy, filtered);
+  const heatScale = `linear-gradient(to right, ${Object.entries(HEAT_GRADIENT).map(([s, c]) => `${c} ${s * 100}%`).join(", ")})`;
   const unplaced = panels.filter((p) => !(p.latitude && p.longitude));
   const placingPanel = panels.find((p) => p.id === placingId);
 
@@ -178,10 +179,22 @@ export default function MapPage() {
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             {legend.map((l) => (
               <span key={l.label} className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full" style={{ background: l.color }} />{l.label} ({l.n})
+                <span className="h-3 w-3 rounded-full border border-white ring-1 ring-slate-900/40" style={{ background: l.color }} />{l.label} ({l.n})
               </span>
             ))}
+            <span className="flex items-center gap-1.5">
+              <span className="h-4 w-4 rounded-full bg-slate-400 ring-2 ring-white ring-offset-0 flex items-center justify-center text-[8px] font-bold text-white">n</span>
+              Agrupamento — clique para aproximar ou abrir os quadros
+            </span>
           </div>
+          {showHeat && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Flame className="h-3.5 w-3.5 shrink-0" />
+              <span>Menor</span>
+              <span className="h-2.5 w-32 sm:w-48 rounded-full" style={{ background: heatScale }} />
+              <span>Maior concentração de quadros (ponderada pelo risco do IS)</span>
+            </div>
+          )}
         </div>
 
         {/* Regiões prioritárias */}

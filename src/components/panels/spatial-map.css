@@ -1,0 +1,71 @@
+/* Marcadores do mapa (divIcon). Área de toque >= 28px; o ponto visível fica centralizado. */
+.qm-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+.qm-dot {
+  display: block;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45), 0 1px 3px rgba(15, 23, 42, 0.35);
+  transition: transform 120ms ease;
+}
+.qm-marker:hover .qm-dot,
+.qm-marker:focus-visible .qm-dot {
+  transform: scale(1.2);
+}
+.qm-marker:focus-visible {
+  outline: none;
+}
+.qm-marker:focus-visible .qm-dot {
+  box-shadow: 0 0 0 3px hsl(var(--ring));
+}
+
+/* Cluster: anel com a proporção das cores, contagem no centro */
+.qm-cluster {
+  background: transparent;
+  border: 0;
+}
+.qm-cluster-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(15, 23, 42, 0.4);
+  cursor: pointer;
+}
+.qm-cluster-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68%;
+  height: 68%;
+  border-radius: 9999px;
+  background: #fff;
+  color: #0f172a;
+  font: 700 12px/1 var(--font-inter, sans-serif);
+}
+.qm-cluster:hover .qm-cluster-ring {
+  box-shadow: 0 0 0 3px #fff, 0 2px 6px rgba(15, 23, 42, 0.5);
+}
+
+/* Com o mapa de calor ligado os marcadores continuam clicáveis, mas mais discretos */
+.qm-heat-on .qm-dot {
+  opacity: 0.85;
+}
+.qm-heat-on .qm-cluster-ring {
+  opacity: 0.8;
+}
+.qm-heat-on .leaflet-heatmap-layer {
+  opacity: 0.85;
+}
+
+/* Popups não ultrapassam a largura da tela no celular */
+.leaflet-popup-content {
+  max-width: calc(100vw - 72px);
+}
