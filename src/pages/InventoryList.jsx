@@ -12,10 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format, parseISO } from "date-fns";
 import {
-  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode, FileSpreadsheet
+  Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode, FileSpreadsheet, ClipboardX
 } from "lucide-react";
 import { toast } from "sonner";
 import QRCodeGenerator from "@/components/panels/QRCodeGenerator";
+import PanelsWithoutChecklistDialog from "@/components/panels/PanelsWithoutChecklistDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const YES_NO = (v) => (v ? "Sim" : "Não");
@@ -59,6 +60,7 @@ export default function InventoryList() {
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
   const [qrPanel, setQrPanel] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [noChecklistOpen, setNoChecklistOpen] = useState(false);
 
   const healthFilter = searchParams.get("health") || "all";  // bom | atencao | critico
   const critFilter = searchParams.get("crit") || "all";       // A | B | C | D
@@ -172,9 +174,12 @@ export default function InventoryList() {
             {panels.length} quadro{panels.length !== 1 ? "s" : ""} cadastrado{panels.length !== 1 ? "s" : ""} — base do processo de gerenciamento
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={exportExcel} disabled={!panels.length}>
             <FileSpreadsheet className="h-4 w-4" />Exportar Excel
+          </Button>
+          <Button size="sm" variant="outline" className="gap-2" onClick={() => setNoChecklistOpen(true)}>
+            <ClipboardX className="h-4 w-4" />Quadros sem checklist
           </Button>
           {canEdit && (
             <Link to="/inventario/novo">
@@ -359,6 +364,13 @@ export default function InventoryList() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PanelsWithoutChecklistDialog
+        open={noChecklistOpen}
+        onOpenChange={setNoChecklistOpen}
+        hierarchy={hierarchy}
+        initialFilters={{ localidadeId: localidadeFilter, status: statusFilter }}
+      />
 
       {/* Delete Dialog */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

@@ -223,3 +223,19 @@ export async function getForAdherence(panelId) {
   if (error) throw error;
   return data;
 }
+
+/**
+ * Vínculo inspeção → quadro de TODAS as inspeções (só as colunas de
+ * relacionamento), para saber quais quadros já têm ao menos um checklist
+ * (relatório "Quadros sem checklist" do Inventário). Uma consulta leve,
+ * paginada, em vez de uma consulta por quadro. Ver a regra em
+ * domain/panelsWithoutChecklistReport.js.
+ */
+export async function listPanelLinks() {
+  return fetchAllPages(() =>
+    supabase
+      .from("inspections")
+      .select("id, panel_ref_id, panel_id")
+      .order("id", { ascending: true })
+  );
+}
