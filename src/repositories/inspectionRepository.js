@@ -227,9 +227,9 @@ export async function getForAdherence(panelId) {
 /**
  * Vínculo inspeção → quadro de TODAS as inspeções (só as colunas de
  * relacionamento), para saber quais quadros já têm ao menos um checklist
- * (relatório "Quadros sem checklist" do Inventário). Uma consulta leve,
- * paginada, em vez de uma consulta por quadro. Ver a regra em
- * domain/panelsWithoutChecklistReport.js.
+ * (relatório "Quadros sem checklist" do Inventário e planejamento de rota
+ * do Mapa). Uma consulta leve, paginada, em vez de uma consulta por quadro.
+ * Ver a regra em domain/checklistCoverage.js.
  */
 export async function listPanelLinks() {
   return fetchAllPages(() =>
