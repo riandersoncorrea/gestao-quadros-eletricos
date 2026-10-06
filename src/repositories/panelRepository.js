@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/repositories/pagination";
 
 const ORDER_COLUMN_ALIASES = {
   created_date: "created_at",
@@ -165,4 +166,21 @@ export async function listForMap() {
     );
   if (error) throw error;
   return data;
+}
+
+/**
+ * Quadros do Inventário com os campos de identificação/localização usados
+ * pelo relatório "Quadros sem checklist". Paginada: a base passa a crescer
+ * com as cargas de outras unidades (EFC) e o PostgREST corta em 1000 linhas.
+ */
+export async function listForChecklistCoverage() {
+  return fetchAllPages(() =>
+    supabase
+      .from("electrical_panels")
+      .select(
+        "id, tag, name, status, panel_type, panel_type_custom, voltage_nominal, frequency_hz, " +
+        "unidade_operacional_id, localidade_id, local_id, sublocal_id, sap_functional_location, sap_equipment_number"
+      )
+      .order("id", { ascending: true })
+  );
 }
