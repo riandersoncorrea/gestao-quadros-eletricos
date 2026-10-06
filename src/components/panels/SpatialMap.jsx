@@ -1,21 +1,14 @@
 import React, { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
-import { Link } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet.heat";
-import { format, parseISO } from "date-fns";
 import MarkerClusterGroup from "./MarkerClusterGroup";
 import "./spatial-map.css";
 
-const GREEN = "#2E9E6B";
-const AMBER = "#E5A100";
-const RED = "#DC2626";
-const ORANGE = "#EA580C";
-const BLUE = "#0369A1";
-const GRAY = "#9CA3AF";
-
-const CRIT_LABEL = { A: "A – Crítico", B: "B – Alto", C: "C – Médio", D: "D – Baixo" };
+import { GREEN, AMBER, RED, GRAY, CRITICALITY_COLOR } from "./mapColors";
+import PanelPopup from "./PanelPopup";
+import InspectionRouteLayer, { RouteStartMarker } from "./InspectionRouteLayer";
 
 export const COLOR_BY = [
   { value: "health", label: "Índice de Saúde" },
@@ -30,7 +23,7 @@ export function colorFor(panel, mode) {
     case "status":
       return panel.status === "ativo" ? GREEN : panel.status === "manutencao" ? AMBER : GRAY;
     case "criticality":
-      return { A: RED, B: ORANGE, C: BLUE, D: GRAY }[panel.criticality] || GRAY;
+      return CRITICALITY_COLOR[panel.criticality] || GRAY;
     case "nc":
       return panel.nc.abertas === 0 ? GREEN : panel.nc.abertas <= 2 ? AMBER : RED;
     case "inspection":
@@ -53,9 +46,9 @@ export function legendFor(mode, panels) {
       ];
     case "criticality":
       return [
-        { color: RED, label: "A – Crítico", n: count((p) => p.criticality === "A") },
-        { color: ORANGE, label: "B – Alto", n: count((p) => p.criticality === "B") },
-        { color: BLUE, label: "C – Médio", n: count((p) => p.criticality === "C") },
+        { color: CRITICALITY_COLOR.A, label: "A – Crítico", n: count((p) => p.criticality === "A") },
+        { color: CRITICALITY_COLOR.B, label: "B – Alto", n: count((p) => p.criticality === "B") },
+        { color: CRITICALITY_COLOR.C, label: "C – Médio", n: count((p) => p.criticality === "C") },
         { color: GRAY, label: "D / sem", n: count((p) => !["A", "B", "C"].includes(p.criticality)) },
       ];
     case "nc":
@@ -221,43 +214,13 @@ function ClickToPlace({ onPlace }) {
   return null;
 }
 
-const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } };
-
-function PanelPopup({ panel, hierarchyNames }) {
-  return (
-    <div className="p-1 min-w-[200px] space-y-1">
-      <p className="font-mono text-xs font-bold text-primary">{panel.tag}</p>
-      <p className="font-semibold text-sm">{panel.name}</p>
-      {hierarchyNames && (
-        <p className="text-xs text-gray-600">
-          {[hierarchyNames.loc.get(panel.localidade_id), hierarchyNames.local.get(panel.local_id), hierarchyNames.sub.get(panel.sublocal_id)].filter(Boolean).join(" › ")}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-1.5 text-[11px] pt-1">
-        {panel.health_index != null && (
-          <span className="px-1.5 py-0.5 rounded bg-gray-100">IS {Math.round(panel.health_index)}</span>
-        )}
-        {panel.criticality && (
-          <span className="px-1.5 py-0.5 rounded bg-gray-100">Crit. {panel.criticality}</span>
-        )}
-        {panel.nc.abertas > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700">{panel.nc.abertas} NC</span>
-        )}
-        {panel.inspecao_vencida && (
-          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700">Inspeção vencida</span>
-        )}
-      </div>
-      <p className="text-[11px] text-gray-500">Última inspeção: {fmt(panel.last_inspection_date)}</p>
-      <Link to={`/quadro/${panel.id}`} className="inline-block text-xs text-primary hover:underline font-medium pt-1">
-        Ver detalhes →
-      </Link>
-    </div>
-  );
-}
-
 export default function SpatialMap({
   panels, colorBy = "health", showHeat = false, placing = false,
   onPlace, focusBounds, hierarchyNames, height = "h-[70vh]",
+  // Planejamento de rota de inspeções (MapPage): com rota, os marcadores
+  // comuns dão lugar aos marcadores numerados da rota.
+  route = null, routeStart = null, selectedStop = null, onSelectStop,
+  pickingStart = false, onPickStart,
 }) {
   const placed = useMemo(() => panels.filter((p) => p.latitude && p.longitude), [panels]);
 
@@ -275,9 +238,9 @@ export default function SpatialMap({
 
   return (
     <div className={`${height} w-full rounded-xl overflow-hidden border border-border shadow-sm relative${showHeat ? " qm-heat-on" : ""}`}>
-      {placing && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-full shadow">
-          Clique no mapa para posicionar o quadro
+      {(placing || pickingStart) && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-full shadow text-center">
+          {placing ? "Clique no mapa para posicionar o quadro" : "Toque no mapa para definir o ponto de partida"}
         </div>
       )}
       <MapContainer
@@ -286,7 +249,7 @@ export default function SpatialMap({
         minZoom={3}
         maxZoom={MAX_ZOOM}
         className="h-full w-full"
-        style={{ zIndex: 1, cursor: placing ? "crosshair" : "" }}
+        style={{ zIndex: 1, cursor: placing || pickingStart ? "crosshair" : "" }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org">OSM</a>'
@@ -297,7 +260,12 @@ export default function SpatialMap({
         <FitBounds panels={placed} focusBounds={focusBounds} />
         {showHeat && heatPoints.length > 0 && <HeatLayer points={heatPoints} />}
         {placing && <ClickToPlace onPlace={onPlace} />}
-        <MarkerClusterGroup {...CLUSTER_OPTIONS} refreshKey={colorBy}>
+        {!placing && pickingStart && <ClickToPlace onPlace={onPickStart} />}
+        {routeStart && <RouteStartMarker point={routeStart} />}
+        {route && (
+          <InspectionRouteLayer route={route} selected={selectedStop} onSelect={onSelectStop} hierarchyNames={hierarchyNames} />
+        )}
+        {!route && <MarkerClusterGroup {...CLUSTER_OPTIONS} refreshKey={colorBy}>
           {placed.map((panel) => (
             <Marker
               key={panel.id}
@@ -311,7 +279,7 @@ export default function SpatialMap({
               </Popup>
             </Marker>
           ))}
-        </MarkerClusterGroup>
+        </MarkerClusterGroup>}
       </MapContainer>
     </div>
   );

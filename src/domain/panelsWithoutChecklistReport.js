@@ -1,29 +1,15 @@
 // Relatório "Quadros sem checklist" (página Inventário): quadros cadastrados
 // que não têm NENHUMA inspeção/checklist associada. Função pura — sem acesso
-// a rede; os dados vêm de services/checklistCoverageService.js.
-//
-// Regra: um quadro tem checklist se existe ao menos uma linha em
-// `inspections` apontando para ele, por `panel_ref_id` (FK uuid) ou pela
-// coluna legada `panel_id` (text) — o mesmo vínculo `panel_ref_id ||
-// panel_id` usado no resto do app. Status, resultado, NCs, risco e data da
-// inspeção NÃO importam: qualquer checklist associado tira o quadro da lista.
+// a rede; os dados vêm de services/checklistCoverageService.js. A regra de
+// "sem checklist" é a compartilhada de domain/checklistCoverage.js.
 import { buildPanelLocation } from "./panelLocation";
+import { panelsWithoutChecklist } from "./checklistCoverage";
 
 export const FILTER_ALL = "all";
 
 export const PANEL_STATUS_LABEL = { ativo: "Ativo", inativo: "Inativo", manutencao: "Manutenção" };
 
 const collator = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
-
-/** Ids (string) de todos os quadros que têm ao menos uma inspeção. */
-export function panelIdsWithChecklist(inspectionLinks) {
-  const ids = new Set();
-  for (const link of inspectionLinks || []) {
-    if (link.panel_ref_id) ids.add(String(link.panel_ref_id));
-    if (link.panel_id) ids.add(String(link.panel_id));
-  }
-  return ids;
-}
 
 function matches(value, filter) {
   return filter === FILTER_ALL || value === filter;
@@ -41,16 +27,13 @@ function matches(value, filter) {
  */
 export function buildPanelsWithoutChecklistReport({ panels, inspectionLinks, hierarchy, unidades, filters }) {
   const { unidadeId = FILTER_ALL, localidadeId = FILTER_ALL, status = FILTER_ALL } = filters || {};
-  const withChecklist = panelIdsWithChecklist(inspectionLinks);
-
   const noRecorte = (panels || []).filter((p) =>
     matches(p.unidade_operacional_id, unidadeId)
     && matches(p.localidade_id, localidadeId)
     && matches(p.status, status)
   );
 
-  const rows = noRecorte
-    .filter((p) => !withChecklist.has(String(p.id)))
+  const rows = panelsWithoutChecklist(noRecorte, inspectionLinks)
     .map((p) => {
       const loc = buildPanelLocation(p, hierarchy, unidades);
       return {

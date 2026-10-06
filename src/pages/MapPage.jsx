@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSpatialData, setPanelCoordinates } from "@/services/mapService";
-import { fetchHierarchy } from "@/services/panelService";
+import { fetchHierarchy, listUnidadesOperacionais } from "@/services/panelService";
+import { fetchInspectionLinks } from "@/services/checklistCoverageService";
+import { planInspectionRoute, CRITICALITY_OPTIONS } from "@/domain/inspectionRoute";
 import SpatialMap, { COLOR_BY, HEAT_GRADIENT, legendFor } from "@/components/panels/SpatialMap";
+import InspectionPlannerPanel from "@/components/panels/InspectionPlannerPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,15 +15,23 @@ import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
-import { MapPin, Flame, Crosshair, X } from "lucide-react";
+import { MapPin, Flame, Crosshair, X, Route } from "lucide-react";
 
 const ALL = "all";
+
+const DEFAULT_PLAN_OPTIONS = {
+  onlyWithoutChecklist: true,
+  criticalities: CRITICALITY_OPTIONS.map((c) => c.value),
+  radiusKm: 5,
+  maxStops: 20,
+};
 
 export default function MapPage() {
   const { canEdit } = useUserRole();
   const queryClient = useQueryClient();
   const [colorBy, setColorBy] = useState("health");
   const [showHeat, setShowHeat] = useState(false);
+  const [unidadeFilter, setUnidadeFilter] = useState(ALL);
   const [localidadeFilter, setLocalidadeFilter] = useState(ALL);
   const [critFilter, setCritFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
@@ -28,8 +39,20 @@ export default function MapPage() {
   const [placingId, setPlacingId] = useState("");
   const [focusBounds, setFocusBounds] = useState(null);
 
+  // Planejamento de rota de inspeções
+  const [planning, setPlanning] = useState(false);
+  const [routeStart, setRouteStart] = useState(null); // { lat, lng, source: "gps" | "mapa", accuracy? }
+  const [locating, setLocating] = useState(false);
+  const [pickingStart, setPickingStart] = useState(false);
+  const [planOptions, setPlanOptions] = useState(DEFAULT_PLAN_OPTIONS);
+  const [route, setRoute] = useState(null);
+  const [calculating, setCalculating] = useState(false);
+  const [selectedStop, setSelectedStop] = useState(null); // { id, from: "list" | "map" }
+  const mapBoxRef = useRef(null);
+
   const { data: panels = [], isLoading } = useQuery({ queryKey: ["spatial"], queryFn: fetchSpatialData });
   const { data: hierarchy } = useQuery({ queryKey: ["hierarchy"], queryFn: fetchHierarchy });
+  const { data: unidades = [] } = useQuery({ queryKey: ["unidades-operacionais"], queryFn: listUnidadesOperacionais, staleTime: Infinity });
 
   const hierarchyNames = useMemo(() => ({
     loc: new Map((hierarchy?.localidades || []).map((l) => [l.id, l.nome])),
@@ -49,12 +72,13 @@ export default function MapPage() {
   });
 
   const filtered = useMemo(() => panels.filter((p) => {
+    if (unidadeFilter !== ALL && p.unidade_operacional_id !== unidadeFilter) return false;
     if (localidadeFilter !== ALL && p.localidade_id !== localidadeFilter) return false;
     if (critFilter !== ALL && p.criticality !== critFilter) return false;
     if (statusFilter !== ALL && p.status !== statusFilter) return false;
     if (onlyNC && p.nc.abertas === 0) return false;
     return true;
-  }), [panels, localidadeFilter, critFilter, statusFilter, onlyNC]);
+  }), [panels, unidadeFilter, localidadeFilter, critFilter, statusFilter, onlyNC]);
 
   const placedCount = filtered.filter((p) => p.latitude && p.longitude).length;
 
@@ -80,14 +104,92 @@ export default function MapPage() {
   const unplaced = panels.filter((p) => !(p.latitude && p.longitude));
   const placingPanel = panels.find((p) => p.id === placingId);
 
+  const closePlanning = () => {
+    setPlanning(false);
+    setPickingStart(false);
+    setRoute(null);
+    setRouteStart(null);
+    setSelectedStop(null);
+    setFocusBounds(null);
+  };
+
+  const locateMe = () => {
+    setPickingStart(false);
+    const fallback = (msg) => {
+      toast.error(`${msg} Escolha o ponto de partida no mapa.`);
+      setPickingStart(true);
+    };
+    if (!navigator.geolocation) return fallback("Este dispositivo não oferece localização.");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        setRouteStart({ lat: pos.coords.latitude, lng: pos.coords.longitude, source: "gps", accuracy: pos.coords.accuracy });
+        setFocusBounds([[pos.coords.latitude, pos.coords.longitude]]);
+      },
+      (err) => {
+        setLocating(false);
+        fallback(err.code === err.PERMISSION_DENIED
+          ? "Acesso à localização não permitido."
+          : "Não foi possível obter sua localização.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+  };
+
+  const pickStartOnMap = () => {
+    setPlacingId("");
+    setPickingStart(true);
+    mapBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const onPickStart = (lat, lng) => {
+    setRouteStart({ lat, lng, source: "mapa" });
+    setPickingStart(false);
+  };
+
+  // A rota é calculada só quando pedida; o vínculo inspeção → quadro é
+  // lido na hora (sem cache), então um checklist recém-feito já tira o
+  // quadro da próxima rota.
+  const calculateRoute = async () => {
+    setCalculating(true);
+    try {
+      const inspectionLinks = planOptions.onlyWithoutChecklist ? await fetchInspectionLinks() : [];
+      const plan = planInspectionRoute({ start: routeStart, panels: filtered, inspectionLinks, options: planOptions });
+      setRoute({ ...plan, options: planOptions });
+      setSelectedStop(null);
+      setFocusBounds(plan.stops.length
+        ? [[routeStart.lat, routeStart.lng], ...plan.stops.map((s) => [Number(s.panel.latitude), Number(s.panel.longitude)])]
+        : null);
+    } catch (e) {
+      toast.error(`Falha ao calcular a rota: ${e.message}`);
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const selectFromList = (id) => {
+    setSelectedStop({ id, from: "list" });
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      mapBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   return (
     <div className="p-4 lg:p-8 space-y-4 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-primary">Mapa</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {placedCount} de {filtered.length} quadros posicionados
-          {unplaced.length > 0 && ` · ${unplaced.length} sem coordenada`}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">Mapa</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {placedCount} de {filtered.length} quadros posicionados
+            {unplaced.length > 0 && ` · ${unplaced.length} sem coordenada`}
+          </p>
+        </div>
+        {!planning && (
+          <Button size="sm" className="gap-2 self-start sm:self-auto" onClick={() => setPlanning(true)}>
+            <Route className="h-4 w-4" />Planejar inspeções
+          </Button>
+        )}
       </div>
 
       {/* Controles */}
@@ -100,6 +202,13 @@ export default function MapPage() {
               <SelectContent>{COLOR_BY.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
+            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Unidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as unidades</SelectItem>
+              {unidades.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={localidadeFilter} onValueChange={setLocalidadeFilter}>
             <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Localidade" /></SelectTrigger>
             <SelectContent>
@@ -142,7 +251,7 @@ export default function MapPage() {
               <Combobox
                 options={unplaced.map((p) => ({ value: p.id, label: p.tag ? `${p.tag} — ${p.name}` : p.name }))}
                 value={placingId}
-                onChange={setPlacingId}
+                onChange={(id) => { setPlacingId(id); if (id) setPickingStart(false); }}
                 placeholder={unplaced.length ? "Escolha um quadro sem coordenada" : "Todos os quadros já posicionados"}
                 searchPlaceholder="Buscar..."
                 disabled={!unplaced.length}
@@ -158,7 +267,7 @@ export default function MapPage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="space-y-3">
+        <div className="space-y-3" ref={mapBoxRef}>
           {isLoading ? (
             <div className="h-[70vh] rounded-xl bg-muted animate-pulse flex items-center justify-center">
               <p className="text-muted-foreground text-sm">Carregando mapa...</p>
@@ -172,6 +281,12 @@ export default function MapPage() {
               onPlace={(lat, lng) => place.mutate({ id: placingId, lat, lng })}
               focusBounds={focusBounds}
               hierarchyNames={hierarchyNames}
+              route={route?.stops.length ? route : null}
+              routeStart={planning ? routeStart : null}
+              selectedStop={selectedStop}
+              onSelectStop={(id) => setSelectedStop({ id, from: "map" })}
+              pickingStart={planning && pickingStart}
+              onPickStart={onPickStart}
             />
           )}
 
@@ -197,7 +312,28 @@ export default function MapPage() {
           )}
         </div>
 
-        {/* Regiões prioritárias */}
+        {planning ? (
+          <div className="order-first lg:order-none">
+            <InspectionPlannerPanel
+              contextCount={filtered.length}
+              start={routeStart}
+              locating={locating}
+              pickingStart={pickingStart}
+              onUseMyLocation={locateMe}
+              onPickOnMap={pickStartOnMap}
+              options={planOptions}
+              onOptionsChange={setPlanOptions}
+              onCalculate={calculateRoute}
+              calculating={calculating}
+              route={route}
+              selectedStop={selectedStop}
+              onSelectStop={selectFromList}
+              onClearRoute={() => { setRoute(null); setSelectedStop(null); setFocusBounds(null); }}
+              onClose={closePlanning}
+            />
+          </div>
+        ) : (
+        /* Regiões prioritárias */
         <Card className="h-fit">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" />Regiões prioritárias</CardTitle>
@@ -229,6 +365,7 @@ export default function MapPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {placingPanel && (

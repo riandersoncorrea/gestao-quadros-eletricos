@@ -162,7 +162,7 @@ export async function listForMap() {
     .from("electrical_panels")
     .select(
       "id, tag, name, nomenclatura_oficial, status, criticality, health_index, health_index_updated_at, " +
-      "latitude, longitude, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
+      "latitude, longitude, unidade_operacional_id, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
     );
   if (error) throw error;
   return data;
