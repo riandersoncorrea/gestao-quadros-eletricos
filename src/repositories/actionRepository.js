@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/repositories/pagination";
 
 /** Ações de uma NC, já com o campo derivado `atrasada` da view v_actions. */
 export async function listForNC(ncId) {
@@ -17,13 +18,17 @@ export async function getById(id) {
   return data;
 }
 
+// Paginada (ver repositories/pagination.js): com uma ação automática por
+// NC de checklist a tabela passa de 1000 linhas e o PostgREST cortaria o
+// excedente sem erro. `id` desempata o prazo para as páginas serem estáveis.
 export async function listAll() {
-  const { data, error } = await supabase
-    .from("v_actions")
-    .select("*")
-    .order("prazo", { ascending: true, nullsFirst: false });
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("v_actions")
+      .select("*")
+      .order("prazo", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+  );
 }
 
 export async function create(values) {
@@ -70,10 +75,16 @@ export async function getStatusForPanel(panelId) {
   return data;
 }
 
+// Paginada pelo mesmo motivo de listAll: sem isso o Dashboard contava só as
+// primeiras 1000 ações (em ordem arbitrária), e uma ação concluída podia
+// ficar de fora da amostra — "Ações atrasadas"/"pendentes" não mudavam.
 export async function listAllForDashboard() {
-  const { data, error } = await supabase.from("v_actions").select("id, panel_id, status, atrasada, prazo");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("v_actions")
+      .select("id, panel_id, status, atrasada, prazo")
+      .order("id", { ascending: true })
+  );
 }
 
 /**
