@@ -16,6 +16,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { computeVigentesByPanel } from "@/domain/inspectionRules";
 import { buildInspectedPanelsReport } from "@/domain/inspectedPanelsReport";
 import { buildSafetyFormRows } from "@/domain/safetyFormExport";
+import { useInExecutionActionsByPanel } from "@/hooks/useInExecutionActions";
+import ChecklistActionTreatment from "@/components/actions/ChecklistActionTreatment";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { Plus, Search, ClipboardCheck, Calendar, User, Eye, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Clock, FileDown, FileSpreadsheet } from "lucide-react";
@@ -31,6 +33,7 @@ export default function InspectionList() {
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
+  const [actionsFilter, setActionsFilter] = useState("all"); // all | em_execucao
   const [period, setPeriod] = useState("todo");
   const [customDraft, setCustomDraft] = useState({ from: "", to: "" });
   const [customApplied, setCustomApplied] = useState(null);
@@ -70,6 +73,10 @@ export default function InspectionList() {
   const [exportingSafetyForm, setExportingSafetyForm] = useState(false);
   const panelsById = useMemo(() => new Map(panels.map((p) => [p.id, p])), [panels]);
 
+  // Ações "Em execução" por quadro: filtro "Com ações em execução" e botão
+  // "Tratar ação" (Editor/Admin trata pelo Checklist, sem a página Ações).
+  const { byPanel: inExecutionByPanel } = useInExecutionActionsByPanel();
+
   const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
 
   const filtered = inspections.filter(i => {
@@ -79,7 +86,15 @@ export default function InspectionList() {
     const matchLocalidade = localidadeFilter === "all"
       || panelLocMap.get(i.panel_ref_id || i.panel_id) === localidadeFilter;
     const matchPeriod = isWithinRange(i.inspection_date, dateRange);
-    return matchSearch && matchResult && matchLocalidade && matchPeriod;
+    const matchActions = actionsFilter === "all"
+      || inExecutionByPanel.has(String(i.panel_ref_id || i.panel_id));
+    return matchSearch && matchResult && matchLocalidade && matchPeriod && matchActions;
+  }).filter((i, idx, arr) => {
+    // "Com ações em execução" lista QUADROS: só o checklist mais recente de
+    // cada quadro (a lista já vem por data decrescente).
+    if (actionsFilter === "all") return true;
+    const pid = String(i.panel_ref_id || i.panel_id);
+    return arr.findIndex((x) => String(x.panel_ref_id || x.panel_id) === pid) === idx;
   });
 
   const PAGE_SIZE = 40;
@@ -87,7 +102,7 @@ export default function InspectionList() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageStart = page * PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
-  useEffect(() => { setPage(0); }, [search, resultFilter, localidadeFilter, dateRange]);
+  useEffect(() => { setPage(0); }, [search, resultFilter, localidadeFilter, dateRange, actionsFilter]);
 
   function handlePeriodChange(value) {
     setPeriod(value);
@@ -211,6 +226,13 @@ export default function InspectionList() {
             <SelectItem value="reprovado">Reprovado</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={actionsFilter} onValueChange={setActionsFilter}>
+          <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Status das ações" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as ações</SelectItem>
+            <SelectItem value="em_execucao">Com ações em execução</SelectItem>
+          </SelectContent>
+        </Select>
 
         {period === "personalizado" && (
           <div className="flex flex-wrap items-start gap-2">
@@ -261,9 +283,11 @@ export default function InspectionList() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <ClipboardCheck className="h-10 w-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm">
-              {search || resultFilter !== "all" || localidadeFilter !== "all" || period !== "todo" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
+              {actionsFilter !== "all" && !search && resultFilter === "all" && localidadeFilter === "all" && period === "todo"
+                ? "Nenhum quadro com ações em execução"
+                : search || resultFilter !== "all" || localidadeFilter !== "all" || period !== "todo" || actionsFilter !== "all" ? "Nenhuma inspeção encontrada" : "Nenhuma inspeção registrada"}
             </p>
-            {canEdit && !search && resultFilter === "all" && localidadeFilter === "all" && period === "todo" && (
+            {canEdit && !search && resultFilter === "all" && localidadeFilter === "all" && period === "todo" && actionsFilter === "all" && (
               <Link to="/inspecoes/nova"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Registrar primeira inspeção</Button></Link>
             )}
           </CardContent>
@@ -279,6 +303,7 @@ export default function InspectionList() {
             const pid = insp.panel_ref_id || insp.panel_id;
             const vigenteEntry = vigentesByPanel.get(pid);
             const vigencia = vigenteEntry?.inspection.id === insp.id ? vigenteEntry.conflict : null;
+            const emExecucao = pid ? inExecutionByPanel.get(String(pid)) : null;
             return (
               <Card key={insp.id} className="hover:shadow-md transition-shadow border-border/60 hover:border-primary/20">
                 <CardContent className="p-4">
@@ -311,13 +336,24 @@ export default function InspectionList() {
                             <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Próxima: {format(parseISO(insp.next_inspection), "dd/MM/yyyy")}</span>
                           )}
                         </div>
+                        {emExecucao && (
+                          <p className="flex items-center gap-1 text-xs text-amber-800 mt-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            {emExecucao.length === 1 ? "Ação em execução" : `${emExecucao.length} ações em execução`}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <Link to={`/inspecoes/${insp.id}`}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver detalhes">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {emExecucao && canEdit && (
+                        <ChecklistActionTreatment panelId={pid} panelLabel={insp.panel_name} count={emExecucao.length} />
+                      )}
+                      <Link to={`/inspecoes/${insp.id}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver detalhes">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

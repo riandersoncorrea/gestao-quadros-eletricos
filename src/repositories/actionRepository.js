@@ -75,3 +75,18 @@ export async function listAllForDashboard() {
   if (error) throw error;
   return data;
 }
+
+/**
+ * Ações "Em execução" (status em_andamento) com o quadro e a descrição da
+ * NC embutidos — base do filtro "Com ações em execução" e do "Tratar ação"
+ * da página Checklists. Uma consulta para todos os quadros.
+ */
+export async function listByStatusWithNC(status) {
+  const { data, error } = await supabase
+    .from("actions")
+    .select("*, nonconformity:nonconformities(panel_id, descricao, tag)")
+    .eq("status", status)
+    .order("prazo", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data;
+}

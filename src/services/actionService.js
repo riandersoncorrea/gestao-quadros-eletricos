@@ -9,6 +9,7 @@ import { resizeImageIfNeeded } from "@/utils/imageProcessing";
 import {
   missingCompletionRequirements, canAddCorrectivePhoto, MAX_CORRECTIVE_PHOTOS,
 } from "@/domain/actionCompletion";
+import { IN_EXECUTION_STATUS, isTreatableFromChecklist } from "@/domain/actionRules";
 
 export async function listActionsForNC(ncId) {
   return actionRepository.listForNC(ncId);
@@ -16,6 +17,21 @@ export async function listActionsForNC(ncId) {
 
 export async function listActions() {
   return actionRepository.listAll();
+}
+
+/** Ações "Em execução" de todos os quadros (filtro/botão da página Checklists). */
+export async function listInExecutionActions() {
+  return actionRepository.listByStatusWithNC(IN_EXECUTION_STATUS);
+}
+
+/**
+ * Ações que podem ser tratadas pelo Checklist do quadro: "Em execução" e do
+ * mesmo quadro (domain/actionRules.js#isTreatableFromChecklist). Lidas na
+ * hora — não usa a lista em cache da página.
+ */
+export async function listTreatableActionsForPanel(panelId) {
+  const actions = await actionRepository.listByStatusWithNC(IN_EXECUTION_STATUS);
+  return actions.filter((a) => isTreatableFromChecklist(a, panelId));
 }
 
 /**
@@ -61,12 +77,31 @@ function assertEditable(action) {
   }
 }
 
+/**
+ * Tratamento pelo Checklist (`scope.panelId` informado — fluxo do Editor):
+ * a ação, relida do banco, precisa estar "Em execução" e pertencer ao quadro
+ * do checklist (actions.panel_id ou, na falta, o quadro da NC). O banco
+ * reforça o que não depende da tela (trigger check_editor_action_update,
+ * migration 0025). Sem `scope`, nada muda para os demais fluxos.
+ */
+async function assertChecklistScope(current, scope) {
+  if (!scope?.panelId) return;
+  const nc = !current.panel_id && current.nonconformity_id
+    ? await ncRepository.getById(current.nonconformity_id)
+    : null;
+  const withNc = { ...current, nonconformity: nc ? { panel_id: nc.panel_id } : null };
+  if (!isTreatableFromChecklist(withNc, scope.panelId)) {
+    throw new Error("Esta ação não está em execução neste quadro e não pode ser tratada por aqui.");
+  }
+}
+
 const blankToNull = (v) => (String(v ?? "").trim() ? String(v).trim() : null);
 
 /** Salva Número da Nota e OM sem concluir (rascunho do tratamento). */
-export async function saveActionTreatment(id, { numero_nota, om }) {
+export async function saveActionTreatment(id, { numero_nota, om }, scope) {
   const current = await actionRepository.getById(id);
   assertEditable(current);
+  await assertChecklistScope(current, scope);
   return actionRepository.update(id, {
     numero_nota: blankToNull(numero_nota),
     om: blankToNull(om),
@@ -79,9 +114,10 @@ export async function saveActionTreatment(id, { numero_nota, om }) {
  * evidências do checklist) e já a grava na ação — a foto fica associada à
  * ação no banco imediatamente, não só no estado da tela.
  */
-export async function addCorrectivePhoto(id, file) {
+export async function addCorrectivePhoto(id, file, scope) {
   const current = await actionRepository.getById(id);
   assertEditable(current);
+  await assertChecklistScope(current, scope);
   if (!canAddCorrectivePhoto(current.fotos_corretiva)) {
     throw new Error(`Máximo de ${MAX_CORRECTIVE_PHOTOS} fotos da corretiva.`);
   }
@@ -100,9 +136,10 @@ export async function addCorrectivePhoto(id, file) {
 }
 
 /** Remove uma foto da corretiva (da ação e, em seguida, do storage). */
-export async function removeCorrectivePhoto(id, fileUrl) {
+export async function removeCorrectivePhoto(id, fileUrl, scope) {
   const current = await actionRepository.getById(id);
   assertEditable(current);
+  await assertChecklistScope(current, scope);
   const updated = await actionRepository.update(id, {
     fotos_corretiva: (current.fotos_corretiva || []).filter((u) => u !== fileUrl),
     updated_at: new Date().toISOString(),
@@ -137,10 +174,11 @@ async function resolvePanelContext(panelId) {
  * Se qualquer etapa falhar, a ação continua em aberto. Um PDF só é gerado
  * aqui — salvar o tratamento antes de concluir não gera PDF.
  */
-export async function completeAction(id, { numero_nota, om }) {
+export async function completeAction(id, { numero_nota, om }, scope) {
   const current = await actionRepository.getById(id);
   if (current.status === "concluida") throw new Error("Ação já concluída.");
   if (current.status === "cancelada") throw new Error("Ação cancelada não pode ser concluída. Reabra-a antes.");
+  await assertChecklistScope(current, scope);
 
   const treatment = { numero_nota: blankToNull(numero_nota), om: blankToNull(om) };
   const missing = missingCompletionRequirements({ ...current, ...treatment });

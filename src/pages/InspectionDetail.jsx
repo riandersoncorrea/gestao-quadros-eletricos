@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useInExecutionActionsByPanel } from "@/hooks/useInExecutionActions";
+import ChecklistActionTreatment from "@/components/actions/ChecklistActionTreatment";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, User, Calendar, Trash2, Gauge, Thermometer, FileWarning, Activity, Siren, Printer } from "lucide-react";
@@ -46,7 +48,8 @@ export default function InspectionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canDelete } = useUserRole();
+  const { canDelete, canEdit } = useUserRole();
+  const { byPanel: inExecutionByPanel } = useInExecutionActionsByPanel();
   const [delOpen, setDelOpen] = useState(false);
 
   const { data, isLoading } = useQuery({ queryKey: ["inspection", id], queryFn: () => getInspectionFull(id) });
@@ -90,6 +93,8 @@ export default function InspectionDetail() {
     byModule.get(k).push(r);
   }
   const modules = [...byModule.entries()].sort((a, b) => a[0] - b[0]);
+  const panelId = insp.panel_ref_id || insp.panel_id;
+  const emExecucao = panelId ? inExecutionByPanel.get(String(panelId)) : null;
 
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
@@ -125,6 +130,19 @@ export default function InspectionDetail() {
           )}
         </div>
       </div>
+
+      {/* Ações "Em execução" do quadro: tratamento pelo Checklist (Editor/Admin) */}
+      {emExecucao && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 print:hidden">
+          <p className="flex items-center gap-2 text-sm text-amber-900 flex-1">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {emExecucao.length === 1 ? "Este quadro possui uma ação em execução." : `Este quadro possui ${emExecucao.length} ações em execução.`}
+          </p>
+          {canEdit && (
+            <ChecklistActionTreatment panelId={panelId} panelLabel={insp.panel_name} count={emExecucao.length} />
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi icon={CheckCircle2} label="Itens" value={responses.length} />

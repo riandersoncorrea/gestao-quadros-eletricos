@@ -96,6 +96,10 @@ const AuthenticatedApp = () => {
             <Route element={<RoleRoute allow={['admin', 'viewer', 'inspetor']} />}>
               <Route path="/nao-conformidades" element={<NonconformityList />} />
               <Route path="/nao-conformidades/:id" element={<NonconformityDetail />} />
+            </Route>
+            {/* Mesmos perfis; quem não tem acesso (Editor) vai para Checklists,
+                onde trata as ações em execução do quadro ("Tratar ação"). */}
+            <Route element={<RoleRoute allow={['admin', 'viewer', 'inspetor']} redirectTo="/inspecoes" />}>
               <Route path="/acoes" element={<ActionList />} />
             </Route>
 
