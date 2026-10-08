@@ -23,8 +23,12 @@ import { usePanelLocations } from "@/hooks/usePanelLocations";
  *
  * `action` vem da lista (v_actions) e é atualizada pelo pai via
  * `onChanged` (invalidação das queries) depois de cada gravação.
+ *
+ * `scopePanelId` (opcional): tratamento pelo Checklist (perfil Editor) —
+ * cada gravação revalida que a ação está "Em execução" e é desse quadro
+ * (services/actionService.js#assertChecklistScope).
  */
-export default function ActionTreatmentDialog({ action, open, onOpenChange, onChanged }) {
+export default function ActionTreatmentDialog({ action, open, onOpenChange, onChanged, scopePanelId }) {
   const [nota, setNota] = useState("");
   const [om, setOm] = useState("");
   const [fotos, setFotos] = useState([]);
@@ -44,25 +48,26 @@ export default function ActionTreatmentDialog({ action, open, onOpenChange, onCh
   }, [action?.id, open]);
 
   const concluded = action?.status === "concluida";
+  const scope = scopePanelId ? { panelId: scopePanelId } : undefined;
   const fail = (e) => toast.error(e.message || "Falha ao salvar");
 
   const addPhoto = useMutation({
-    mutationFn: (file) => addCorrectivePhoto(action.id, file),
+    mutationFn: (file) => addCorrectivePhoto(action.id, file, scope),
     onSuccess: (row) => { setFotos(row.fotos_corretiva || []); setMissing([]); onChanged?.(); toast.success("Foto anexada"); },
     onError: fail,
   });
   const removePhoto = useMutation({
-    mutationFn: (url) => removeCorrectivePhoto(action.id, url),
+    mutationFn: (url) => removeCorrectivePhoto(action.id, url, scope),
     onSuccess: (row) => { setFotos(row.fotos_corretiva || []); onChanged?.(); toast.success("Foto removida"); },
     onError: fail,
   });
   const save = useMutation({
-    mutationFn: () => saveActionTreatment(action.id, { numero_nota: nota, om }),
+    mutationFn: () => saveActionTreatment(action.id, { numero_nota: nota, om }, scope),
     onSuccess: () => { onChanged?.(); toast.success("Tratamento salvo"); },
     onError: fail,
   });
   const complete = useMutation({
-    mutationFn: () => completeAction(action.id, { numero_nota: nota, om }),
+    mutationFn: () => completeAction(action.id, { numero_nota: nota, om }, scope),
     onSuccess: () => {
       onChanged?.();
       toast.success("Ação concluída — PDF de evidência gerado");
