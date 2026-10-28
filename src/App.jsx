@@ -46,6 +46,7 @@ const NonconformityDetail = lazy(() => import('@/pages/NonconformityDetail'));
 const ActionList = lazy(() => import('@/pages/ActionList'));
 const ExecutiveReport = lazy(() => import('@/pages/ExecutiveReport'));
 const IntelligentAnalysis = lazy(() => import('@/pages/IntelligentAnalysis'));
+const InterdictionReport = lazy(() => import('@/pages/InterdictionReport'));
 const AuditLog = lazy(() => import('@/pages/AuditLog'));
 const Profile = lazy(() => import('@/pages/Profile'));
 
@@ -90,6 +91,7 @@ const AuthenticatedApp = () => {
               <Route path="/" element={<Dashboard />} />
               <Route path="/relatorio" element={<ExecutiveReport />} />
               <Route path="/analise-inteligente" element={<IntelligentAnalysis />} />
+              <Route path="/risco-interdicao" element={<InterdictionReport />} />
             </Route>
 
             {/* Não Conformidades e Ações: as mesmas de antes + Inspetor (Editor não tem acesso) */}

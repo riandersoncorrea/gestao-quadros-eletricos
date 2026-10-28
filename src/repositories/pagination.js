@@ -18,3 +18,18 @@ export async function fetchAllPages(buildQuery) {
     if (data.length < SUPABASE_MAX_ROWS) return rows;
   }
 }
+
+/**
+ * Lê as linhas de uma consulta filtrada por uma lista de ids (`.in(...)`),
+ * em lotes de `chunkSize` ids — mantém a URL da requisição (GET com todos
+ * os ids) num tamanho seguro — e cada lote paginado (fetchAllPages).
+ * `buildQuery(ids)` recebe os ids do lote e devolve a consulta já filtrada
+ * e com ordenação estável.
+ */
+export async function fetchAllPagesByIds(ids, buildQuery, chunkSize = 100) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const lotes = [];
+  for (let i = 0; i < unique.length; i += chunkSize) lotes.push(unique.slice(i, i + chunkSize));
+  const results = await Promise.all(lotes.map((lote) => fetchAllPages(() => buildQuery(lote))));
+  return results.flat();
+}
