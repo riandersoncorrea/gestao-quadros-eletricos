@@ -38,7 +38,7 @@ const NAV_ITEMS = [
   { path: "/nao-conformidades", icon: FileWarning, label: "Não Conformidades", roles: ["admin", "viewer", "inspetor"] },
   { path: "/acoes", icon: ListChecks, label: "Ações", roles: ["admin", "viewer", "inspetor"] },
   { path: "/analise-inteligente", icon: Sparkles, label: "Análise Inteligente", roles: ["admin", "viewer"] },
-  { path: "/risco-interdicao", icon: ShieldAlert, label: "Risco de Interdição", roles: ["admin", "viewer"] },
+  { path: "/risco-interdicao", icon: ShieldAlert, label: "Risco de Interdição", roles: ["admin"] },
   { path: "/qrcode", icon: QrCode, label: "QR Codes", roles: ["admin"] },
   { path: "/informacoes", icon: BookOpen, label: "Informações", roles: ["admin", "editor", "viewer"] },
   { path: "/config/indice-saude", icon: Gauge, label: "Índice de Saúde", roles: ["admin"] },

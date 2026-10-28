@@ -91,7 +91,6 @@ const AuthenticatedApp = () => {
               <Route path="/" element={<Dashboard />} />
               <Route path="/relatorio" element={<ExecutiveReport />} />
               <Route path="/analise-inteligente" element={<IntelligentAnalysis />} />
-              <Route path="/risco-interdicao" element={<InterdictionReport />} />
             </Route>
 
             {/* Não Conformidades e Ações: as mesmas de antes + Inspetor (Editor não tem acesso) */}
@@ -111,6 +110,7 @@ const AuthenticatedApp = () => {
               <Route path="/usuarios" element={<UserManagement />} />
               <Route path="/config/indice-saude" element={<HealthConfig />} />
               <Route path="/auditoria" element={<AuditLog />} />
+              <Route path="/risco-interdicao" element={<InterdictionReport />} />
             </Route>
           </Route>
         </Route>
