@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchAllPages } from "@/repositories/pagination";
+import { fetchAllPages, fetchAllPagesByIds } from "@/repositories/pagination";
 
 /** Ações de uma NC, já com o campo derivado `atrasada` da view v_actions. */
 export async function listForNC(ncId) {
@@ -100,4 +100,15 @@ export async function listByStatusWithNC(status) {
     .order("prazo", { ascending: true, nullsFirst: false });
   if (error) throw error;
   return data;
+}
+
+/** Ações das NCs informadas (relatório de risco de interdição). */
+export async function listForNCs(ncIds) {
+  return fetchAllPagesByIds(ncIds, (ids) =>
+    supabase
+      .from("v_actions")
+      .select("id, nonconformity_id, status, prazo, concluida_em, responsavel, origem, atrasada")
+      .in("nonconformity_id", ids)
+      .order("id", { ascending: true })
+  );
 }

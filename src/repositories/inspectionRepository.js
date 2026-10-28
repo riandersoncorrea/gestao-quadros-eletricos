@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchAllPages } from "@/repositories/pagination";
+import { fetchAllPages, fetchAllPagesByIds } from "@/repositories/pagination";
 
 export async function getActiveTemplateRow() {
   const { data, error } = await supabase
@@ -236,6 +236,46 @@ export async function listPanelLinks() {
     supabase
       .from("inspections")
       .select("id, panel_ref_id, panel_id")
+      .order("id", { ascending: true })
+  );
+}
+
+/**
+ * Itens de checklist pelos códigos (de TODAS as versões de template, não
+ * só da ativa) — base do relatório de risco de interdição (PRO-01/ATR-01).
+ */
+export async function listTemplateItemsByCodes(codigos) {
+  const { data, error } = await supabase
+    .from("inspection_template_items")
+    .select("id, codigo, titulo")
+    .in("codigo", codigos);
+  if (error) throw error;
+  return data;
+}
+
+/** Data e status das inspeções informadas (relatório de risco de interdição). */
+export async function listDatesAndStatusByIds(inspectionIds) {
+  return fetchAllPagesByIds(inspectionIds, (ids) =>
+    supabase
+      .from("inspections")
+      .select("id, inspection_date, status")
+      .in("id", ids)
+      .order("id", { ascending: true })
+  );
+}
+
+/**
+ * Respostas de itens específicos do checklist nas inspeções informadas,
+ * com a resposta complementar de área molhada (PRO-01).
+ */
+export async function listResponsesForItems(inspectionIds, itemIds) {
+  if (!itemIds.length) return [];
+  return fetchAllPagesByIds(inspectionIds, (ids) =>
+    supabase
+      .from("inspection_responses")
+      .select("id, inspection_id, template_item_id, resposta, area_molhada")
+      .in("inspection_id", ids)
+      .in("template_item_id", itemIds)
       .order("id", { ascending: true })
   );
 }

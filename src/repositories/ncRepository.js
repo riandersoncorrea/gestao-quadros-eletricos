@@ -76,3 +76,18 @@ export async function listStatusSeverityForMap() {
   if (error) throw error;
   return data;
 }
+
+/**
+ * TODAS as NCs (qualquer status, inclusive canceladas) de itens do
+ * checklist — base do relatório de risco de interdição (PRO-01/ATR-01).
+ */
+export async function listByTemplateItems(itemIds) {
+  if (!itemIds.length) return [];
+  return fetchAllPages(() =>
+    supabase
+      .from("nonconformities")
+      .select("id, panel_id, inspection_id, template_item_id, status, created_at, concluida_em, updated_at")
+      .in("template_item_id", itemIds)
+      .order("id", { ascending: true })
+  );
+}
