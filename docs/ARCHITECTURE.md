@@ -437,17 +437,17 @@ As policies de `SELECT` da maioria das tabelas usam `using (true)` para qualquer
 
 ## 11.1 Unidades operacionais (São Luís, EFC) — isolamento por unidade (2026-11-08)
 
-Branch `feature/efc-inventario`.
+Em produção: 0028–0031 aplicadas (2026-11-08/09); EFC com 202 quadros em 9 cidades, somente leitura (`permite_escrita = false`).
 
-- **Banco:** `unidades_operacionais` (0016) e `electrical_panels.unidade_operacional_id` (default SLZ). A 0028 (proposta) liga `localidades` à unidade e cria `localidades.sigla` (sigla da cidade nas TAGs da EFC, ex. ACD); `electrical_panels.site` continua exclusivo de São Luís.
-- **Unidade ativa:** `src/hooks/useUnitScope.jsx` (`UnitScopeProvider`, envolvendo o `AppLayout`) resolve a unidade antes de renderizar as páginas e configura `src/lib/unitScope.js`, lido por repositórios e serviços. Padrão: São Luís (`DEFAULT_UNIT_CODE` em `src/domain/unitScope.js`, único lugar com "SLZ"). Só admin troca (`getAllowedUnits`, ponto único para o futuro vínculo usuário → unidade). Trocar cancela e descarta o cache dependente de unidade e remonta a página (`<Outlet key={unidade}>`).
+- **Banco:** `unidades_operacionais` (0016) e `electrical_panels.unidade_operacional_id` (default SLZ). A 0028 liga `localidades` à unidade e cria `localidades.sigla` (sigla da cidade nas TAGs da EFC, ex. ACD); `electrical_panels.site` continua exclusivo de São Luís.
+- **Unidade ativa:** `src/hooks/useUnitScope.jsx` (`UnitScopeProvider`, envolvendo o `AppLayout`) resolve a unidade antes de renderizar as páginas e configura `src/lib/unitScope.js`, lido por repositórios e serviços. Padrão: São Luís (`DEFAULT_UNIT_CODE` em `src/domain/unitScope.js`, único lugar com "SLZ"). Unidades permitidas por `getAllowedUnits`: com a 0029, vêm de `profile_unidades` / `acesso_todas_unidades` (o seletor aparece para quem tem mais de uma); sem ela, só admin troca. Trocar cancela e descarta o cache dependente de unidade e remonta a página (`<Outlet key={unidade}>`).
 - **Listas:** quadros e hierarquia recortados no banco (`panelRepository`); inspeções, NCs, ações, flags e ordens SAP recortados nos serviços pelo quadro de cada registro (`src/services/unitScopeService.js` + `src/domain/unitScope.js`). Registro sem quadro: só na unidade padrão (comportamento atual).
 - **Por ID:** `ElectricalPanel.filter`, `getInspectionFull`, `getNonconformity` validam a unidade do registro (`UnitMismatchError` → `UnitMismatchNotice`).
 - **Escrita:** unidade somente leitura (EFC nesta etapa) bloqueada nos serviços (`ReadOnlyUnitError`) e na interface (`canWrite`).
 - **Antes da 0028:** `fetchHierarchy` lê `localidades` com `select("*")`; sem a coluna de unidade, todas as localidades contam como São Luís — o app funciona igual com ou sem a 0028.
 - **Testes:** `npm test` (regras puras + integração dos serviços com banco em memória, `scripts/unit-scope-tests/`).
-- **Banco (proposta em arquivos, 0029/0030):** RLS por unidade com policies restritivas, aprovação obrigatória, `profile_unidades`/`acesso_todas_unidades`, `permite_escrita`, unidade herdada nos registros filhos, QR por `get_public_panel`. O frontend detecta se a 0029/0030 existem e usa o modelo novo (acesso por unidade gravado no banco, unidade do próprio registro, RPC do QR) ou o anterior. Roteiro: `docs/IMPLANTACAO_UNIDADES.md`.
-- **Limitação até a 0029 ser aplicada:** isolamento só de interface — ver `docs/SECURITY_REVIEW.md` §10.
+- **Banco (0029/0030, aplicadas em 2026-11-08):** RLS por unidade com policies restritivas, aprovação obrigatória, `profile_unidades`/`acesso_todas_unidades`, `permite_escrita`, unidade herdada nos registros filhos, QR por `get_public_panel`. O frontend detecta se a 0029/0030 existem e usa o modelo novo (acesso por unidade gravado no banco, unidade do próprio registro, RPC do QR) ou o anterior. Roteiro: `docs/IMPLANTACAO_UNIDADES.md`.
+- **Antes da 0029** o isolamento era só de interface — histórico em `docs/SECURITY_REVIEW.md` §10.
 
 ## 12. Deploy e ambiente (contexto, sem alteração)
 

@@ -73,7 +73,7 @@ union all select 'sap_orders', id, ordem from public.sap_orders where unidade_op
 | Impressão digital de São Luís idêntica antes/depois | idem | ✅ executado |
 | Rollback 0029/0030 devolve as 52 policies originais | idem | ✅ executado |
 | Frontend (regras, serviços, fallbacks pré/pós-0029/0030) | `npm test` (sem banco) | ✅ executado |
-| **Tudo acima no Supabase real** | SQL Editor | ❌ **não executado** — depende de autorização |
+| **Tudo acima no Supabase real** | SQL Editor | ✅ executado — 0028–0030 em 2026-11-08; 0031 (com conferência, isolamento e impressão digital idêntica) em 2026-11-09 |
 
 Diferenças possíveis entre o banco local e o Supabase: a 0021 não existe no repositório (policies extras desconhecidas
 continuam valendo, mas a abordagem restritiva é combinada com AND, então não abre acesso); privilégios padrão

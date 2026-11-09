@@ -175,7 +175,11 @@ Este documento cobre exclusivamente o **Sprint 7**. Nenhum código, schema, RLS,
 
 ## 10. Unidades operacionais (São Luís / EFC) — limitação de segurança (2026-11-08)
 
-Branch `feature/efc-inventario`. O isolamento por unidade implementado nesta etapa é **de interface**, não de segurança:
+> **Situação atual (2026-11-09): corrigido.** Os riscos A1 (QR enumerável), A2 (leitura sem aprovação/sem unidade)
+> e A3 (EFC somente leitura só no frontend) foram fechados pelas migrations 0029 e 0030, aplicadas e validadas em
+> produção em 2026-11-08 (ver §10.1). O texto abaixo descreve o estado **anterior**, mantido como histórico.
+
+Branch `feature/efc-inventario`. O isolamento por unidade implementado nesta etapa era **de interface**, não de segurança:
 
 - **RLS não separa unidades.** As policies atuais (`for select to authenticated using (true)` em `electrical_panels`, `inspections`, `nonconformities`, `actions`, `localidades`…) deixam qualquer usuário autenticado ler os registros de **todas** as unidades. Quem chamar a API REST do Supabase diretamente (chave anon pública + sessão válida) vê São Luís e EFC.
 - **Escrita** continua protegida só pelas policies por papel já existentes. O bloqueio "EFC somente leitura" está no frontend (serviços: `assertPanelWritable`, `assertActiveUnitWritable` em `src/services/unitScopeService.js`), não no banco.
@@ -188,9 +192,9 @@ Branch `feature/efc-inventario`. O isolamento por unidade implementado nesta eta
   - **correção recomendada (não aplicada — exige migration e aprovação):** substituir a view por uma função `public.get_public_panel(p_id uuid)` `SECURITY DEFINER`, `stable`, `search_path` fixo, que devolve no máximo uma linha com as mesmas colunas; `revoke select on public.panel_public_info from anon` (e `authenticated`, se não houver outro uso); ajustar `getPublicPanelInfo` (src/repositories/panelRepository.js) para `supabase.rpc("get_public_panel", { p_id })`. Até lá, a decisão de importar a EFC deve considerar explicitamente essa exposição.
   - A view não expõe a unidade — mostrar a unidade na página pública exige alterar a view/função (decisão de banco, fora desta etapa). Quadros da EFC aparecem com a cidade em "localidade" e "Site" vazio.
 
-**Proposta para uma etapa específica (não implementada):** vínculo usuário → unidade (ex.: `profiles.unidade_operacional_id` ou tabela `profile_unidades`), função `current_unidades()` SECURITY DEFINER e policies de SELECT/escrita usando `electrical_panels.unidade_operacional_id` (e, nas tabelas filhas, a unidade do quadro). No frontend, o ponto único a ajustar é `getAllowedUnits` (`src/domain/unitScope.js`).
+**Proposta para uma etapa específica (implementada na §10.1):** vínculo usuário → unidade (ex.: `profiles.unidade_operacional_id` ou tabela `profile_unidades`), função `current_unidades()` SECURITY DEFINER e policies de SELECT/escrita usando `electrical_panels.unidade_operacional_id` (e, nas tabelas filhas, a unidade do quadro). No frontend, o ponto único a ajustar é `getAllowedUnits` (`src/domain/unitScope.js`).
 
-### 10.1 Proposta implementada em arquivos (2026-11-08) — NÃO aplicada no Supabase
+### 10.1 Segurança por unidade — aplicada em produção (0029/0030 em 2026-11-08)
 
 - `0029_seguranca_por_unidade.sql`: policies **restritivas** (AND com as de perfil, que não mudam) em todas as tabelas
   de dados — unidade autorizada para ler, unidade autorizada **e** gravável para escrever; aprovação obrigatória
@@ -206,3 +210,7 @@ Branch `feature/efc-inventario`. O isolamento por unidade implementado nesta eta
   (0028–0030); a importação (0031) se recusa a rodar sem 0029/0030 e foi aplicada em 2026-11-09. O arquivo da 0031
   (inventário real) fica fora do repositório público. Roteiro: `docs/IMPLANTACAO_UNIDADES.md`.
 - Fora do escopo: Storage (`uploads` público por URL), e-mails visíveis a administradores locais na tela Usuários.
+- **Pendente (Storage):** a policy de INSERT em `storage.objects` (schema.sql) aceita qualquer conta autenticada,
+  inclusive pendente de aprovação ou sem unidade; UPDATE/DELETE ficam limitados aos próprios arquivos pela policy
+  de SELECT da 0018. Recomendado restringir o INSERT a usuários aprovados (`current_role()` não nulo) antes de
+  abrir a EFC para novos usuários.
