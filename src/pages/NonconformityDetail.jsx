@@ -8,7 +8,7 @@ import { ElectricalPanel } from "@/services/panelService";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
-import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
+import { ncStatusFromActions } from "@/domain/nonconformityRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,7 +121,6 @@ export default function NonconformityDetail() {
   const addAction = useMutation({
     mutationFn: () => createAction(
       { ...actionValues(newAction, users), status: newAction.status, nonconformity_id: id, panel_id: nc.panel_id },
-      { currentNcStatus: nc.status }
     ),
     onSuccess: () => { invalidate(); setNewAction(null); toast.success("Ação criada"); },
     onError: (e) => toast.error(`Falha: ${e.message}`),
@@ -162,7 +161,14 @@ export default function NonconformityDetail() {
   const abertas = actions.filter((a) => isOpenAction(a.status));
   const atrasadas = actions.filter((a) => a.atrasada);
   const treating = actions.find((a) => a.id === treatingId) || null;
-  const suggestComplete = isOpenNonconformity(nc.status) && allActionsResolved(actions);
+  // Com ações, o status da NC segue as ações (trigger da migration 0027):
+  // à mão só se cancela a NC ou se reativa uma NC cancelada, que volta para
+  // o status correspondente às ações.
+  const statusSegueAcoes = actions.length > 0;
+  const statusReativacao = ncStatusFromActions(actions, "aberta");
+  const statusOptions = !statusSegueAcoes
+    ? Object.keys(NC_STATUS)
+    : nc.status === "cancelada" ? ["cancelada", statusReativacao] : [nc.status, "cancelada"];
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -212,8 +218,21 @@ export default function NonconformityDetail() {
                 <Label className="text-xs">Status</Label>
                 <Select value={nc.status} onValueChange={(v) => patchNC.mutate({ status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(NC_STATUS).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {statusOptions.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {statusSegueAcoes && nc.status === "cancelada" && v !== "cancelada" ? `Reativar (${NC_STATUS[v].label})` : NC_STATUS[v].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
+                {statusSegueAcoes && (
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {nc.status === "cancelada"
+                      ? "Ao reativar, a NC volta a seguir as ações."
+                      : "Segue as ações automaticamente. À mão, só é possível cancelar a NC."}
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Severidade</Label>
@@ -247,17 +266,6 @@ export default function NonconformityDetail() {
           )}
         </CardHeader>
         <CardContent className="space-y-3">
-          {suggestComplete && canEdit && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-secondary/30 bg-secondary/10 px-3 py-2">
-              <p className="text-xs text-secondary flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />
-                Todas as ações foram encerradas.
-              </p>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => patchNC.mutate({ status: "concluida" })}>
-                Marcar NC como concluída
-              </Button>
-            </div>
-          )}
 
           {actions.length === 0 && !newAction && <p className="text-sm text-muted-foreground">Nenhuma ação registrada.</p>}
 

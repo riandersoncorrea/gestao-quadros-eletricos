@@ -7,11 +7,10 @@
 #
 # Uso (com um Postgres local rodando, ex. PostgreSQL 18 do instalador):
 #   PGHOST=127.0.0.1 PGPORT=55432 PGUSER=postgres \
-#   MIGRATION_0027=/caminho/0027_nc_status_segue_acoes.sql \
 #   bash scripts/db-local/run.sh
 #
-# MIGRATION_0027 (opcional): a 0027 vive em outra branch; informe o arquivo
-# para testar a compatibilidade (ele só é lido).
+# A 0027 (status da NC segue as ações) entra em produção DEPOIS da 0030/0031,
+# por isso é aplicada aqui no fim, nessa mesma ordem.
 # =============================================================================
 set -euo pipefail
 
@@ -48,7 +47,6 @@ for f in supabase/migrations/0*.sql; do
   n=$((10#$(basename "$f" | cut -c1-4)))
   if [ "$n" -le 26 ]; then apply "$f"; fi
 done
-if [ -n "${MIGRATION_0027:-}" ]; then apply "$MIGRATION_0027"; fi
 
 echo "== Dados sintéticos de São Luís (estado 'produção atual')"
 apply scripts/db-local/10_seed_slz.sql
@@ -92,4 +90,15 @@ else
   echo "  FALHA impressão digital de São Luís mudou"; diff "$FP_DIR/antes" "$FP_DIR/depois" | head; exit 1
 fi
 rm -rf "$FP_DIR"
+
+echo "== 0027 (status da NC segue as ações), na ordem de produção: depois da 0030/0031"
+apply supabase/migrations/0027_nc_status_segue_acoes.sql
+apply supabase/tests/0027_nc_status_segue_acoes.test.sql
+echo "   reexecução (idempotência):"
+apply supabase/migrations/0027_nc_status_segue_acoes.sql
+apply supabase/tests/0027_nc_status_segue_acoes.test.sql
+echo "   backfill (termina em rollback, como no arquivo):"
+apply supabase/backfill/0027_nc_status_segue_acoes_backfill.sql
+echo "   segurança por unidade continua valendo com a 0027:"
+for t in supabase/tests/0029_*.test.sql supabase/tests/0030_*.test.sql; do apply "$t"; done
 echo "== TUDO OK"

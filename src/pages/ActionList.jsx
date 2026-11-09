@@ -77,10 +77,18 @@ export default function ActionList() {
 
   const dateRange = useMemo(() => resolvePeriodRange(period, customApplied), [period, customApplied]);
 
+  // O status da NC acompanha o da ação no banco (trigger da migration
+  // 0027): ao mudar uma ação, as telas de NC também são recarregadas.
+  const invalidateActionsAndNcs = () => {
+    queryClient.invalidateQueries({ queryKey: ["actions"] });
+    queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
+    queryClient.invalidateQueries({ queryKey: ["nc"] });
+  };
+
   const patch = useMutation({
     mutationFn: ({ id, status }) => updateAction(id, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["actions"] });
+      invalidateActionsAndNcs();
       toast.success("Ação atualizada");
     },
     onError: (e) => toast.error(`Falha: ${e.message}`),
@@ -284,7 +292,7 @@ export default function ActionList() {
         action={treating}
         open={!!treating}
         onOpenChange={(v) => { if (!v) setTreatingId(null); }}
-        onChanged={() => queryClient.invalidateQueries({ queryKey: ["actions"] })}
+        onChanged={invalidateActionsAndNcs}
       />
     </div>
   );

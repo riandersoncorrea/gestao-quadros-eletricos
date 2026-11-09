@@ -2,7 +2,6 @@ import { getCurrentUser, getCurrentUserId } from "@/auth/authService";
 import * as actionRepository from "@/repositories/actionRepository";
 import * as ncRepository from "@/repositories/ncRepository";
 import { ElectricalPanel, fetchHierarchy } from "@/repositories/panelRepository";
-import { updateNonconformity } from "@/services/ncService";
 import { buildActionEvidencePdf } from "@/services/actionEvidencePdfService";
 import { uploadFile, remove as removeFile } from "@/storage/storageService";
 import { resizeImageIfNeeded } from "@/utils/imageProcessing";
@@ -49,22 +48,15 @@ export async function listTreatableActionsForPanel(panelId) {
 }
 
 /**
- * `currentNcStatus` (opcional): status da NC no momento da criação. Se ela
- * ainda estiver "aberta", a primeira ação registrada já a move para
- * "em_tratamento" — reflete que a NC passou a ter um tratamento em curso.
- * Não força nada além disso (concluir/cancelar continua manual).
+ * Cria a ação. O status da NC vinculada é ajustado no banco, a partir das
+ * ações (trigger trg_nc_status_segue_acoes, migration 0027) — não aqui.
  */
-export async function createAction(values, options) {
-  const { currentNcStatus } = options || {};
+export async function createAction(values) {
   await assertActionWritable(values);
   const uid = await getCurrentUserId();
   const clean = { ...values };
   for (const k of Object.keys(clean)) if (clean[k] === "") clean[k] = null;
-  const created = await actionRepository.create({ ...clean, created_by: uid });
-  if (currentNcStatus === "aberta" && values.nonconformity_id) {
-    await updateNonconformity(values.nonconformity_id, { status: "em_tratamento" });
-  }
-  return created;
+  return actionRepository.create({ ...clean, created_by: uid });
 }
 
 /**

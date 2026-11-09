@@ -7,12 +7,11 @@ export function isOpenNonconformity(status) {
 
 /**
  * NC corrigida = NC com status "concluida". A NC chega a esse status de
- * duas formas: automaticamente, no banco, quando a última ação em aberto é
- * concluída/cancelada e ao menos uma foi concluída (mesma regra de
- * allActionsResolved — trigger trg_nc_concluida_por_acoes, migration 0026,
- * que vale também para Editor e Inspetor), ou marcada pelo usuário na tela
- * da NC. É uma propriedade da própria NC, então uma NC com várias ações
- * concluídas conta uma vez só. "cancelada" não é correção.
+ * forma automática, no banco, quando todas as suas ações estão concluídas
+ * ou canceladas e ao menos uma foi concluída (ncStatusFromActions abaixo —
+ * trigger trg_nc_status_segue_acoes, migration 0027, que vale também para
+ * Editor e Inspetor). É uma propriedade da própria NC, então uma NC com
+ * várias ações concluídas conta uma vez só. "cancelada" não é correção.
  */
 export const CORRECTED_NC_STATUS = "concluida";
 
@@ -21,11 +20,23 @@ export function isCorrectedNonconformity(status) {
 }
 
 /**
- * true quando existe ao menos uma ação e nenhuma delas está mais em aberto
- * (todas concluídas ou canceladas) — usado para sugerir, sem forçar, que a
- * NC seja marcada como concluída (caso que o trigger da migration 0026 não
- * fecha sozinho: todas as ações canceladas).
+ * Status que a NC deve ter a partir das suas ações — espelho da função do
+ * banco public.nc_status_by_actions (migration 0027), que é quem de fato
+ * grava o status (trigger em actions). Aqui serve só para a tela da NC
+ * mostrar para onde uma NC cancelada volta ao ser reativada.
+ *   alguma ação em andamento                    → em_tratamento
+ *   ações abertas e alguma concluída (parcial)  → em_tratamento
+ *   só ações abertas                            → aberta
+ *   todas concluídas/canceladas, ≥1 concluída   → concluida
+ *   todas canceladas                            → aberta
+ *   sem ações: não muda (em_tratamento → aberta)
  */
-export function allActionsResolved(actions) {
-  return actions.length > 0 && actions.every((a) => a.status === "concluida" || a.status === "cancelada");
+export function ncStatusFromActions(actions, currentStatus) {
+  const conta = (s) => actions.filter((a) => a.status === s).length;
+  if (!actions.length) return currentStatus === "em_tratamento" ? "aberta" : currentStatus;
+  if (conta("em_andamento")) return "em_tratamento";
+  if (conta("aberta") && conta("concluida")) return "em_tratamento";
+  if (conta("aberta")) return "aberta";
+  if (conta("concluida")) return "concluida";
+  return "aberta";
 }

@@ -18,7 +18,9 @@ fica em `supabase/private/` (ignorado pelo git), com cópia guardada pelo respon
 importação quando o arquivo não existe.
 
 Rollback: `supabase/rollback/0029_*.rollback.sql`, `supabase/rollback/0030_*.rollback.sql` (testados no banco local).
-A 0027 (`feature/nc-status-segue-acoes`) é independente: testada antes, depois e sem as novas migrations.
+A 0027 (status da NC segue as ações) entra em produção **depois** da 0030/0031, apesar do número menor.
+Ela é independente das migrations de unidade; o teste dela pressupõe a 0029 (usuários de teste com unidade) e confere
+que o dono da função do trigger passa pela RLS. O `scripts/db-local/run.sh` aplica nessa ordem.
 
 ## Sequência recomendada
 

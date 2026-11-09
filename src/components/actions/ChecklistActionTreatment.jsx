@@ -40,6 +40,7 @@ export default function ChecklistActionTreatment({ panelId, panelLabel, count, s
     queryClient.invalidateQueries({ queryKey: IN_EXECUTION_ACTIONS_KEY });
     queryClient.invalidateQueries({ queryKey: ["actions"] });
     queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
+    queryClient.invalidateQueries({ queryKey: ["nc"] });
   };
 
   const continueTreatment = () => {
