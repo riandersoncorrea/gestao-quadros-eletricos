@@ -8,11 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Filter, LayoutGrid, List } from "lucide-react";
 import PanelCard from "@/components/panels/PanelCard";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 
 export default function PanelList() {
-  const { canEdit } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem cadastro.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -43,14 +48,16 @@ export default function PanelList() {
             {panels.length} quadro{panels.length !== 1 ? "s" : ""} cadastrado{panels.length !== 1 ? "s" : ""}
           </p>
         </div>
+        {/* "/cadastrar" não existia como rota: o cadastro é /inventario/novo. */}
         {canEdit && (
-          <Link to="/cadastrar">
+          <Link to="/inventario/novo">
             <Button size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
               Novo Quadro
             </Button>
           </Link>
         )}
+        {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Novo Quadro</ReadOnlyActionButton>}
       </div>
 
       {/* Filters */}

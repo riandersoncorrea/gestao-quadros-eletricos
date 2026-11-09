@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ArrowLeft, Printer } from "lucide-react";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { unitReportLabel } from "@/domain/unitScope";
 
 function Row({ label, value }) {
   return (
@@ -18,6 +20,7 @@ function Row({ label, value }) {
 
 export default function ExecutiveReport() {
   const navigate = useNavigate();
+  const { activeUnit } = useUnitScope();
   const { data: d, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboardData });
 
   if (isLoading || !d) {
@@ -37,7 +40,9 @@ export default function ExecutiveReport() {
 
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight text-primary">Relatório Executivo — Integridade de Quadros BT</h1>
-        <p className="text-sm text-muted-foreground">Serviços Operacionais · São Luís EFC · gerado em {hoje}</p>
+        <p className="text-sm text-muted-foreground">
+          Serviços Operacionais · São Luís EFC · <strong data-testid="report-unit">{unitReportLabel(activeUnit)}</strong> · gerado em {hoje}
+        </p>
       </div>
 
       <section>

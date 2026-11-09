@@ -1,5 +1,7 @@
 import { jsPDF } from "jspdf";
 import logoSistema from "@/assets/logo-sistema.png";
+import { getActiveUnit } from "@/lib/unitScope";
+import { unitReportLabel, unitFileName } from "@/domain/unitScope";
 
 // Layout do relatório em PDF (A4, mm). Mesma identidade visual (cor
 // primária, cabeçalho/rodapé) do relatório de Análise Inteligente
@@ -55,6 +57,12 @@ class ReportPdf {
     doc.setFont(undefined, "normal");
     doc.setFontSize(8.5);
     doc.text("Gestão de Quadros Elétricos · Serv. Operacionais · São Luís EFC", MARGIN + 20, 16);
+    // Unidade operacional do relatório (recorte da unidade ativa).
+    if (this.unitLabel) {
+      doc.setFont(undefined, "bold");
+      doc.text(this.unitLabel, PAGE_W - MARGIN, 16, { align: "right" });
+      doc.setFont(undefined, "normal");
+    }
     doc.setTextColor(0, 0, 0);
   }
 
@@ -197,12 +205,17 @@ export async function exportInspectedPanelsPdf(report, { filtrosLabel } = {}) {
   let logoImg = null;
   try { logoImg = await loadImageEl(logoSistema); } catch { /* segue sem logo se falhar */ }
 
+  const unit = getActiveUnit();
+  const fileName = unitFileName("quadros-inspecionados", unit, new Date().toISOString().slice(0, 10), "pdf", "-");
   const pdf = new ReportPdf(doc, logoImg);
+  pdf.unitLabel = unitReportLabel(unit);
   pdf.newPage();
 
   doc.setFontSize(9.5);
   doc.setTextColor(90);
   doc.text(`Data de geração: ${report.generatedAt.toLocaleString("pt-BR")}`, MARGIN, pdf.y);
+  pdf.y += 5;
+  doc.text(unitReportLabel(unit), MARGIN, pdf.y);
   pdf.y += 5;
   if (filtrosLabel) {
     doc.text(filtrosLabel, MARGIN, pdf.y);
@@ -215,7 +228,7 @@ export async function exportInspectedPanelsPdf(report, { filtrosLabel } = {}) {
     pdf.sectionTitle("Resumo");
     pdf.paragraph("Nenhum quadro com inspeção vigente encontrado para os filtros selecionados.");
     pdf.drawFooters();
-    doc.save(`quadros-inspecionados-${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(fileName);
     return;
   }
 
@@ -245,5 +258,5 @@ export async function exportInspectedPanelsPdf(report, { filtrosLabel } = {}) {
   }
 
   pdf.drawFooters();
-  doc.save(`quadros-inspecionados-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(fileName);
 }

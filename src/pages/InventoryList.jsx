@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
+import { unitFileName } from "@/domain/unitScope";
 import { format, parseISO } from "date-fns";
 import {
   Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode, FileSpreadsheet, ClipboardX
@@ -52,7 +55,11 @@ function healthStyle(hi) {
 }
 
 export default function InventoryList() {
-  const { canEdit, canDelete } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem cadastrar/editar/excluir.
+  const { canWrite, activeUnit } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
+  const canDelete = role.canDelete && canWrite;
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -162,7 +169,7 @@ export default function InventoryList() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inventário");
-    XLSX.writeFile(wb, `inventario_quadros_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    XLSX.writeFile(wb, unitFileName("inventario_quadros", activeUnit, format(new Date(), "yyyy-MM-dd"), "xlsx"));
   };
 
   return (
@@ -188,6 +195,7 @@ export default function InventoryList() {
               </Button>
             </Link>
           )}
+          {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Cadastrar Quadro</ReadOnlyActionButton>}
         </div>
       </div>
 

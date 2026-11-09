@@ -19,6 +19,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyUnitNotice } from "@/components/unit/UnitScopeNotices";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
@@ -79,6 +81,7 @@ export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit } = useUserRole();
+  const { canWrite } = useUnitScope();
   const { user } = useAuth();
 
   const [header, setHeader] = useState({
@@ -291,6 +294,10 @@ export default function InspectionForm() {
   });
 
   if (!canEdit) { navigate("/inspecoes"); return null; }
+  // O checklist atual é o de São Luís: unidade somente leitura (EFC nesta
+  // etapa) não registra inspeção. A lista de quadros acima já é só da
+  // unidade ativa.
+  if (!canWrite) return <ReadOnlyUnitNotice what="O registro de checklists" backTo="/inspecoes" backLabel="Voltar aos checklists" />;
 
   const h = (k, v) => setHeader((s) => ({ ...s, [k]: v }));
   const nextInspectionFor = (dateStr, freq) => {

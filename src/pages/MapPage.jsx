@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSpatialData, setPanelCoordinates } from "@/services/mapService";
-import { fetchHierarchy, listUnidadesOperacionais } from "@/services/panelService";
+import { fetchHierarchy } from "@/services/panelService";
+import { useUnitScope } from "@/hooks/useUnitScope";
 import { fetchInspectionLinks } from "@/services/checklistCoverageService";
 import { planInspectionRoute, CRITICALITY_OPTIONS } from "@/domain/inspectionRoute";
 import SpatialMap, { COLOR_BY, HEAT_GRADIENT, legendFor } from "@/components/panels/SpatialMap";
@@ -27,11 +28,13 @@ const DEFAULT_PLAN_OPTIONS = {
 };
 
 export default function MapPage() {
-  const { canEdit } = useUserRole();
+  const role = useUserRole();
+  // Posicionar quadro grava coordenadas: só em unidade que aceita gravação.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
   const queryClient = useQueryClient();
   const [colorBy, setColorBy] = useState("health");
   const [showHeat, setShowHeat] = useState(false);
-  const [unidadeFilter, setUnidadeFilter] = useState(ALL);
   const [localidadeFilter, setLocalidadeFilter] = useState(ALL);
   const [critFilter, setCritFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
@@ -52,7 +55,6 @@ export default function MapPage() {
 
   const { data: panels = [], isLoading } = useQuery({ queryKey: ["spatial"], queryFn: fetchSpatialData });
   const { data: hierarchy } = useQuery({ queryKey: ["hierarchy"], queryFn: fetchHierarchy });
-  const { data: unidades = [] } = useQuery({ queryKey: ["unidades-operacionais"], queryFn: listUnidadesOperacionais, staleTime: Infinity });
 
   const hierarchyNames = useMemo(() => ({
     loc: new Map((hierarchy?.localidades || []).map((l) => [l.id, l.nome])),
@@ -72,13 +74,12 @@ export default function MapPage() {
   });
 
   const filtered = useMemo(() => panels.filter((p) => {
-    if (unidadeFilter !== ALL && p.unidade_operacional_id !== unidadeFilter) return false;
     if (localidadeFilter !== ALL && p.localidade_id !== localidadeFilter) return false;
     if (critFilter !== ALL && p.criticality !== critFilter) return false;
     if (statusFilter !== ALL && p.status !== statusFilter) return false;
     if (onlyNC && p.nc.abertas === 0) return false;
     return true;
-  }), [panels, unidadeFilter, localidadeFilter, critFilter, statusFilter, onlyNC]);
+  }), [panels, localidadeFilter, critFilter, statusFilter, onlyNC]);
 
   const placedCount = filtered.filter((p) => p.latitude && p.longitude).length;
 
@@ -202,13 +203,8 @@ export default function MapPage() {
               <SelectContent>{COLOR_BY.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Unidade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as unidades</SelectItem>
-              {unidades.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* Unidade: definida pelo seletor global (cabeçalho); o mapa só
+              traz quadros da unidade ativa. */}
           <Select value={localidadeFilter} onValueChange={setLocalidadeFilter}>
             <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Localidade" /></SelectTrigger>
             <SelectContent>

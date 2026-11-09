@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
 import { computeVigentesByPanel } from "@/domain/inspectionRules";
 import { buildInspectedPanelsReport } from "@/domain/inspectedPanelsReport";
 import { buildSafetyFormRows } from "@/domain/safetyFormExport";
@@ -29,7 +31,10 @@ const RESULT_CONFIG = {
 };
 
 export default function InspectionList() {
-  const { canEdit } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem novo checklist/tratamento.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
@@ -193,6 +198,7 @@ export default function InspectionList() {
             <Button size="sm" className="gap-2"><Plus className="h-4 w-4" />Nova Inspeção</Button>
           </Link>
         )}
+        {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Nova Inspeção</ReadOnlyActionButton>}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">

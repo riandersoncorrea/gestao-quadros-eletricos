@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listProfiles, updateUserRole, updateUserApproval } from "@/services/userService";
+import {
+  listProfiles, updateUserRole, updateUserApproval, listUsersUnitAccess, updateUserUnits, updateUserGlobalAccess,
+} from "@/services/userService";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import UserUnitAccess from "@/components/unit/UserUnitAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +30,7 @@ const ALL_ROLES = "all";
 const TAB_USUARIOS = "usuarios";
 const TAB_PEDIDOS = "pedidos";
 
-function UserCard({ profile: p, isSelf, onRoleChange, onApprovalChange, rolePending, approvalPending }) {
+function UserCard({ profile: p, isSelf, onRoleChange, onApprovalChange, rolePending, approvalPending, unitAccess }) {
   return (
     <Card className={`border-border/60 ${!p.approved ? "border-amber-300/60 bg-amber-50/40" : ""}`}>
       <CardContent className="p-4">
@@ -95,6 +99,7 @@ function UserCard({ profile: p, isSelf, onRoleChange, onApprovalChange, rolePend
             </Select>
           </div>
         </div>
+        {unitAccess}
         {isSelf && (
           <p className="text-[11px] text-muted-foreground mt-2">
             Você não pode alterar o próprio perfil.
@@ -140,6 +145,25 @@ export default function UserManagement() {
       toast.success("Perfil atualizado");
     },
     onError: () => toast.error("Não foi possível atualizar o perfil"),
+  });
+
+  // Unidades autorizadas (0029). Antes da 0029 accessMap é null e a seção não aparece.
+  const { units, isGlobalAdmin, accessModel } = useUnitScope();
+  const { data: accessMap = null } = useQuery({
+    queryKey: ["acessos-unidades"],
+    queryFn: listUsersUnitAccess,
+    enabled: isAdmin && accessModel === "unidades",
+  });
+  const unitsMutation = useMutation({
+    mutationFn: async ({ id, unidadeIds, todas }) => {
+      if (todas !== undefined) await updateUserGlobalAccess(id, todas);
+      if (unidadeIds) await updateUserUnits(id, unidadeIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["acessos-unidades"] });
+      toast.success("Unidades atualizadas");
+    },
+    onError: (e) => toast.error(e?.message || "Não foi possível atualizar as unidades"),
   });
 
   const approvalMutation = useMutation({
@@ -189,6 +213,18 @@ export default function UserManagement() {
             onApprovalChange={(value) => approvalMutation.mutate({ id: p.id, approved: value })}
             rolePending={mutation.isPending}
             approvalPending={approvalMutation.isPending}
+            unitAccess={accessMap && (
+              <UserUnitAccess
+                profile={p}
+                access={accessMap.get(p.id)}
+                units={units}
+                canEdit={isGlobalAdmin}
+                isSelf={p.id === user?.id}
+                pending={unitsMutation.isPending}
+                onSaveUnits={(unidadeIds) => unitsMutation.mutateAsync({ id: p.id, unidadeIds })}
+                onSaveGlobal={(todas) => unitsMutation.mutateAsync({ id: p.id, todas })}
+              />
+            )}
           />
         ))}
       </div>

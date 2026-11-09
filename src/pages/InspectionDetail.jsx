@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { useInExecutionActionsByPanel } from "@/hooks/useInExecutionActions";
 import ChecklistActionTreatment from "@/components/actions/ChecklistActionTreatment";
 import { toast } from "sonner";
@@ -48,11 +50,16 @@ export default function InspectionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canDelete, canEdit } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem excluir/tratar.
+  const { canWrite } = useUnitScope();
+  const canDelete = role.canDelete && canWrite;
+  const canEdit = role.canEdit && canWrite;
   const { byPanel: inExecutionByPanel } = useInExecutionActionsByPanel();
   const [delOpen, setDelOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({ queryKey: ["inspection", id], queryFn: () => getInspectionFull(id) });
+  // getInspectionFull valida a unidade do quadro da inspeção (link direto).
+  const { data, isLoading, error } = useQuery({ queryKey: ["inspection", id], queryFn: () => getInspectionFull(id) });
 
   const del = useMutation({
     mutationFn: () => Inspection.delete(id),
@@ -64,6 +71,7 @@ export default function InspectionDetail() {
   });
 
   if (isLoading) return <div className="p-8 max-w-4xl mx-auto"><Skeleton className="h-8 w-64 mb-4" /><Skeleton className="h-64 w-full" /></div>;
+  if (isUnitMismatchError(error)) return <UnitMismatchNotice error={error} backTo="/inspecoes" backLabel="Voltar aos checklists" />;
   if (!data?.inspection) {
     return (
       <div className="p-8 text-center">

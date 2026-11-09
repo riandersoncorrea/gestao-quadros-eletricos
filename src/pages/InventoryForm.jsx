@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyUnitNotice, UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -127,6 +129,7 @@ export default function InventoryForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit, isAdmin } = useUserRole();
+  const { canWrite } = useUnitScope();
   const isEditing = !!id;
   const criticidadeLocked = !isEditing && !isAdmin;
   const [form, setForm] = useState(EMPTY_FORM);
@@ -134,7 +137,8 @@ export default function InventoryForm() {
   const [pendingDiagrams, setPendingDiagrams] = useState([]);
   const [diagramUploading, setDiagramUploading] = useState(false);
 
-  const { data: panels } = useQuery({
+  // filter({ id }) valida a unidade do quadro (link direto de outra unidade).
+  const { data: panels, error: panelError } = useQuery({
     queryKey: ["panel", id],
     queryFn: () => ElectricalPanel.filter({ id }),
     enabled: !!id,
@@ -381,6 +385,15 @@ export default function InventoryForm() {
   if (!canEdit) {
     navigate("/inventario");
     return null;
+  }
+
+  // Formulário e regras de cadastro são os de São Luís (site, TAG PRT/OFC):
+  // unidade somente leitura (EFC nesta etapa) não cadastra nem edita.
+  if (!canWrite) {
+    return <ReadOnlyUnitNotice what={isEditing ? "A edição de quadros" : "O cadastro de quadros"} backTo="/inventario" backLabel="Voltar ao inventário" />;
+  }
+  if (isUnitMismatchError(panelError)) {
+    return <UnitMismatchNotice error={panelError} backTo="/inventario" backLabel="Voltar ao inventário" />;
   }
 
   const f = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));

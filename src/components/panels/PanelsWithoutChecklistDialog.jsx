@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, FileSpreadsheet, MapPin, RefreshCw } from "lucide-react";
 import { fetchChecklistCoverageData } from "@/services/checklistCoverageService";
 import { listUnidadesOperacionais } from "@/services/panelService";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { unitFileName } from "@/domain/unitScope";
 import {
   FILTER_ALL, PANEL_STATUS_LABEL, buildPanelsWithoutChecklistReport, toExportRow,
 } from "@/domain/panelsWithoutChecklistReport";
@@ -18,10 +20,11 @@ import {
  * Relatório "Quadros sem checklist" do Inventário. Lê o banco a cada
  * abertura (staleTime/gcTime 0) — um checklist novo tira o quadro da lista
  * na próxima geração. `initialFilters` vem dos filtros já aplicados na
- * página (Site/Status); a Unidade é escolhida aqui.
+ * página (Site/Status). A unidade é a ativa (seletor global do cabeçalho):
+ * os quadros já vêm só dela (services/checklistCoverageService.js).
  */
 export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hierarchy, initialFilters }) {
-  const [unidadeId, setUnidadeId] = useState(FILTER_ALL);
+  const { activeUnit } = useUnitScope();
   const [localidadeId, setLocalidadeId] = useState(FILTER_ALL);
   const [status, setStatus] = useState(FILTER_ALL);
 
@@ -49,10 +52,10 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
     inspectionLinks: data.inspectionLinks,
     hierarchy,
     unidades,
-    filters: { unidadeId, localidadeId, status },
-  }), [data, hierarchy, unidades, unidadeId, localidadeId, status]);
+    filters: { localidadeId, status },
+  }), [data, hierarchy, unidades, localidadeId, status]);
 
-  const filtered = unidadeId !== FILTER_ALL || localidadeId !== FILTER_ALL || status !== FILTER_ALL;
+  const filtered = localidadeId !== FILTER_ALL || status !== FILTER_ALL;
   const localidades = hierarchy?.localidades || [];
 
   // Mesmo mecanismo do "Exportar Excel" do Inventário (lib xlsx, sob demanda).
@@ -61,7 +64,7 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
     const ws = XLSX.utils.json_to_sheet(report.rows.map(toExportRow));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Quadros sem checklist");
-    XLSX.writeFile(wb, "quadros-sem-checklist.xlsx");
+    XLSX.writeFile(wb, unitFileName("quadros-sem-checklist", activeUnit, null, "xlsx", "-"));
   };
 
   return (
@@ -75,13 +78,6 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
         </DialogHeader>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={unidadeId} onValueChange={setUnidadeId}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Unidade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FILTER_ALL}>Todas as unidades</SelectItem>
-              {unidades.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
           <Select value={localidadeId} onValueChange={setLocalidadeId}>
             <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Site" /></SelectTrigger>
             <SelectContent>

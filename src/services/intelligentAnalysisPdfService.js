@@ -2,6 +2,8 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import logoSistema from "@/assets/logo-sistema.png";
 import { ANALYSIS_PERIOD_OPTIONS, LOCALIDADE_ALL } from "@/domain/intelligentAnalysisFilters";
+import { getActiveUnit } from "@/lib/unitScope";
+import { unitReportLabel, unitFileName } from "@/domain/unitScope";
 
 // Layout do relatório em PDF (A4, mm). Não é uma captura de tela — cada
 // seção é desenhada num layout próprio de página (cabeçalho/rodapé fixos,
@@ -57,6 +59,12 @@ class PdfBuilder {
     doc.setFont(undefined, "normal");
     doc.setFontSize(8.5);
     doc.text("Gestão de Quadros Elétricos · Serv. Operacionais · São Luís EFC", MARGIN + 20, 16);
+    // Unidade operacional do relatório (recorte da unidade ativa).
+    if (this.unitLabel) {
+      doc.setFont(undefined, "bold");
+      doc.text(this.unitLabel, PAGE_W - MARGIN, 16, { align: "right" });
+      doc.setFont(undefined, "normal");
+    }
     doc.setTextColor(0, 0, 0);
   }
 
@@ -244,7 +252,9 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   let logoImg = null;
   try { logoImg = await loadImageEl(logoSistema); } catch { /* segue sem logo se falhar */ }
 
+  const unit = getActiveUnit();
   const pdf = new PdfBuilder(doc, logoImg);
+  pdf.unitLabel = unitReportLabel(unit);
   const periodLabel = ANALYSIS_PERIOD_OPTIONS.find((o) => o.value === filters.period)?.label || "Todo o período";
   const localidadeLabel = filters.localidadeId === LOCALIDADE_ALL
     ? "Todas as localidades"
@@ -254,6 +264,7 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   // Capa / cabeçalho de contexto
   pdf.newPage();
   doc.setFontSize(10);
+  doc.text(unitReportLabel(unit), MARGIN, pdf.y); pdf.y += 6;
   doc.text(`Período analisado: ${periodLabel}`, MARGIN, pdf.y); pdf.y += 6;
   doc.text(`Localidade: ${localidadeLabel}`, MARGIN, pdf.y); pdf.y += 6;
   doc.text(`Quadro: ${panelLabel}`, MARGIN, pdf.y); pdf.y += 6;
@@ -464,5 +475,5 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   pdf.drawFooters();
 
   const fileSuffix = new Date().toISOString().slice(0, 10);
-  doc.save(`analise-inteligente-${fileSuffix}.pdf`);
+  doc.save(unitFileName("analise-inteligente", unit, fileSuffix, "pdf", "-"));
 }

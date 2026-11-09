@@ -29,6 +29,8 @@ import { cn } from "@/lib/utils";
 import logoSistema from "@/assets/logo-sistema.png";
 import logoGerencia from "@/assets/sao-luis-efc-logo.png";
 import { ROLE_LABEL } from "@/auth/roles";
+import { UnitScopeProvider, useUnitScope } from "@/hooks/useUnitScope";
+import { UnitSelector, ReadOnlyUnitBanner } from "@/components/unit/UnitSelector";
 
 const NAV_ITEMS = [
   { path: "/", icon: LayoutDashboard, label: "Painel", roles: ["admin", "viewer"] },
@@ -46,8 +48,19 @@ const NAV_ITEMS = [
   { path: "/usuarios", icon: Users, label: "Usuários", roles: ["admin"] },
 ];
 
+// A unidade operacional ativa (São Luís por padrão) é definida antes de
+// qualquer página renderizar — ver src/hooks/useUnitScope.jsx.
 export default function AppLayout() {
+  return (
+    <UnitScopeProvider>
+      <AppLayoutContent />
+    </UnitScopeProvider>
+  );
+}
+
+function AppLayoutContent() {
   const { user, logout } = useAuth();
+  const { activeUnit } = useUnitScope();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const userRole = user?.role || "viewer";
@@ -84,6 +97,7 @@ export default function AppLayout() {
               <p className="text-[10px] text-sidebar-foreground/50 leading-tight">Serv. Operacionais · São Luís EFC</p>
             </div>
           </div>
+          <UnitSelector className="mt-3 w-full" />
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -160,6 +174,9 @@ export default function AppLayout() {
             </Button>
           </div>
         </header>
+        <div className="lg:hidden px-4 py-2 bg-card border-b border-border print:hidden">
+          <UnitSelector tone="content" className="w-full" />
+        </div>
 
 
         {/* Mobile Nav Overlay */}
@@ -241,13 +258,16 @@ export default function AppLayout() {
             baixo dela, e o restante do conteúdo segue com a largura toda.
             O padding superior das páginas é padronizado aqui (20px, o mesmo
             do topo do sidebar), sem ajustes em cada página. */}
+        <ReadOnlyUnitBanner />
         <main className="flex-1 overflow-auto print:overflow-visible print:h-auto lg:[&>div]:pt-5">
           <img
             src={logoGerencia}
             alt="Gerência de Serviços Operacionais — São Luís EFC"
             className="hidden lg:block float-right h-10 w-auto object-contain mt-5 mr-6 ml-4 print:hidden"
           />
-          <Outlet />
+          {/* key: trocar de unidade remonta a página (filtros e estado local
+              não carregam ids da unidade anterior). */}
+          <Outlet key={activeUnit.id} />
         </main>
       </div>
     </div>

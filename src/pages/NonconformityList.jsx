@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
 import { ElectricalPanel } from "@/services/panelService";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
 import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
@@ -39,7 +41,11 @@ export const ORIGEM = { inspecao: "Inspeção", termografia: "Termografia", medi
 const EMPTY = { panel_id: "", descricao: "", severidade: "media", recomendacao: "", categoria: "" };
 
 export default function NonconformityList() {
-  const { canEdit, canDelete } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem criar/excluir NC.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
+  const canDelete = role.canDelete && canWrite;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const panelParam = searchParams.get("panel");
@@ -151,6 +157,7 @@ export default function NonconformityList() {
             <Plus className="h-4 w-4" />Nova NC
           </Button>
         )}
+        {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Nova NC</ReadOnlyActionButton>}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">

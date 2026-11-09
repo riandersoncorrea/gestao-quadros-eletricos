@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listActions, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
+import { useUnitScope } from "@/hooks/useUnitScope";
 import { listAssignableUsers } from "@/services/userService";
 import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
@@ -31,7 +32,12 @@ const ACT_STATUS = {
 const fmt = (d) => { try { return d ? format(parseISO(d), "dd/MM/yyyy") : "—"; } catch { return d; } };
 
 export default function ActionList() {
-  const { canEdit, canTreatActions, isInspetor, user } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem tratar/editar ações.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
+  const canTreatActions = role.canTreatActions && canWrite;
+  const { isInspetor, user } = role;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");

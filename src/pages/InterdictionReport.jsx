@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { fetchInterdictionReport } from "@/services/interdictionReportService";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { unitReportLabel } from "@/domain/unitScope";
 import { CORRECTIVE_LABEL, LEAD_TIME_BINS } from "@/domain/interdictionReport";
 
 // Paleta de gráficos da Vale (mesma de src/index.css, --chart-*).
@@ -328,6 +330,7 @@ function Fact({ label, children }) {
 }
 
 export default function InterdictionReport() {
+  const { activeUnit } = useUnitScope();
   const { data: rep, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["interdiction-report"],
     queryFn: fetchInterdictionReport,
@@ -341,7 +344,8 @@ export default function InterdictionReport() {
           <ShieldAlert className="h-5 w-5 shrink-0" />Risco de Interdição
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Evolução das corretivas nos quadros com risco de interdição · relatório para a gerência{rep ? ` · posição em ${fmtD(rep.today)}` : ""}
+          Evolução das corretivas nos quadros com risco de interdição · relatório para a gerência ·{" "}
+          <strong data-testid="report-unit">{unitReportLabel(activeUnit)}</strong>{rep ? ` · posição em ${fmtD(rep.today)}` : ""}
         </p>
       </div>
       {/* Mesma faixa de 40px (h-10) do logo da gerência, que o AppLayout

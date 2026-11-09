@@ -10,18 +10,32 @@ import {
   missingCompletionRequirements, canAddCorrectivePhoto, MAX_CORRECTIVE_PHOTOS,
 } from "@/domain/actionCompletion";
 import { IN_EXECUTION_STATUS, isTreatableFromChecklist } from "@/domain/actionRules";
+import { scopeRowsToActiveUnit, assertPanelWritable, assertRecordWritable } from "@/services/unitScopeService";
+
+// Unidade de uma ação = a do seu quadro (actions.panel_id ou, na falta, o da NC).
+const actionPanelId = (a) => a?.panel_id || a?.nonconformity?.panel_id || null;
+
+/** Bloqueia gravação em ação de unidade somente leitura (EFC nesta etapa). */
+async function assertActionWritable(actionOrId) {
+  const action = typeof actionOrId === "object" ? actionOrId : await actionRepository.getById(actionOrId);
+  // Ação já gravada com unidade própria (0029): vale ela.
+  if (action && Object.prototype.hasOwnProperty.call(action, "unidade_operacional_id")) return assertRecordWritable(action);
+  let panelId = action?.panel_id || null;
+  if (!panelId && action?.nonconformity_id) panelId = (await ncRepository.getById(action.nonconformity_id))?.panel_id || null;
+  await assertPanelWritable(panelId);
+}
 
 export async function listActionsForNC(ncId) {
   return actionRepository.listForNC(ncId);
 }
 
 export async function listActions() {
-  return actionRepository.listAll();
+  return scopeRowsToActiveUnit(await actionRepository.listAll(), actionPanelId);
 }
 
 /** Ações "Em execução" de todos os quadros (filtro/botão da página Checklists). */
 export async function listInExecutionActions() {
-  return actionRepository.listByStatusWithNC(IN_EXECUTION_STATUS);
+  return scopeRowsToActiveUnit(await actionRepository.listByStatusWithNC(IN_EXECUTION_STATUS), actionPanelId);
 }
 
 /**
@@ -42,6 +56,7 @@ export async function listTreatableActionsForPanel(panelId) {
  */
 export async function createAction(values, options) {
   const { currentNcStatus } = options || {};
+  await assertActionWritable(values);
   const uid = await getCurrentUserId();
   const clean = { ...values };
   for (const k of Object.keys(clean)) if (clean[k] === "") clean[k] = null;
@@ -62,10 +77,12 @@ export async function updateAction(id, values) {
   if (values.status === "concluida") {
     throw new Error("Para concluir a ação, informe Número da Nota, OM e fotos da corretiva no tratamento da ação.");
   }
+  await assertActionWritable(id);
   return actionRepository.update(id, { ...values, updated_at: new Date().toISOString() });
 }
 
 export async function deleteAction(id) {
+  await assertActionWritable(id);
   return actionRepository.remove(id);
 }
 
@@ -100,6 +117,7 @@ const blankToNull = (v) => (String(v ?? "").trim() ? String(v).trim() : null);
 /** Salva Número da Nota e OM sem concluir (rascunho do tratamento). */
 export async function saveActionTreatment(id, { numero_nota, om }, scope) {
   const current = await actionRepository.getById(id);
+  await assertActionWritable(current);
   assertEditable(current);
   await assertChecklistScope(current, scope);
   return actionRepository.update(id, {
@@ -116,6 +134,7 @@ export async function saveActionTreatment(id, { numero_nota, om }, scope) {
  */
 export async function addCorrectivePhoto(id, file, scope) {
   const current = await actionRepository.getById(id);
+  await assertActionWritable(current);
   assertEditable(current);
   await assertChecklistScope(current, scope);
   if (!canAddCorrectivePhoto(current.fotos_corretiva)) {
@@ -138,6 +157,7 @@ export async function addCorrectivePhoto(id, file, scope) {
 /** Remove uma foto da corretiva (da ação e, em seguida, do storage). */
 export async function removeCorrectivePhoto(id, fileUrl, scope) {
   const current = await actionRepository.getById(id);
+  await assertActionWritable(current);
   assertEditable(current);
   await assertChecklistScope(current, scope);
   const updated = await actionRepository.update(id, {
@@ -176,6 +196,7 @@ async function resolvePanelContext(panelId) {
  */
 export async function completeAction(id, { numero_nota, om }, scope) {
   const current = await actionRepository.getById(id);
+  await assertActionWritable(current);
   if (current.status === "concluida") throw new Error("Ação já concluída.");
   if (current.status === "cancelada") throw new Error("Ação cancelada não pode ser concluída. Reabra-a antes.");
   await assertChecklistScope(current, scope);

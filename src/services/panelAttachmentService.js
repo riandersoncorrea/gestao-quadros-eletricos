@@ -1,6 +1,7 @@
 import { getCurrentUserId } from "@/auth/authService";
 import { uploadFile, remove as removeFromStorage } from "@/storage/storageService";
 import * as panelAttachmentRepository from "@/repositories/panelAttachmentRepository";
+import { assertPanelWritable } from "@/services/unitScopeService";
 
 export const MAX_DIAGRAMS = 5;
 const TIPO_DIAGRAMA = "diagrama_unifilar";
@@ -36,6 +37,7 @@ export async function uploadDiagramFile(file) {
  */
 export async function attachDiagrams(panelId, diagramFiles, { attachments = [], hasLegacyDiagram = false } = {}) {
   if (diagramFiles.length === 0) return [];
+  await assertPanelWritable(panelId);
   const current = countDiagrams(attachments, hasLegacyDiagram);
   if (current + diagramFiles.length > MAX_DIAGRAMS) {
     throw new Error(`Limite de ${MAX_DIAGRAMS} diagramas por quadro (${current}/${MAX_DIAGRAMS} já anexado(s)).`);
@@ -56,6 +58,7 @@ export async function attachDiagrams(panelId, diagramFiles, { attachments = [], 
 
 /** Remove um diagrama já persistido: apaga a associação e, best-effort, o arquivo no Storage. */
 export async function removeDiagram(attachment) {
+  await assertPanelWritable(attachment.panel_id);
   await panelAttachmentRepository.remove(attachment.id);
   await discardUploadedFile(attachment.file_url);
 }

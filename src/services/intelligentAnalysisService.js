@@ -28,6 +28,8 @@ import {
   predictDimensionTrends,
   estimateRecurrenceRate,
 } from "@/domain/intelligentAnalysisPredictive";
+import { filterByMembership } from "@/domain/unitScope";
+import { membershipForScopedPanels } from "@/services/unitScopeService";
 
 /**
  * Busca os dados brutos da Análise Inteligente dos Dados uma única vez
@@ -46,7 +48,19 @@ export async function fetchIntelligentAnalysisRaw() {
     // dashboardService.js) — não uma segunda definição de "NCs abertas".
     ncRepository.listStatusSeverityForDashboard(),
   ]);
-  return { panels, hierarchy, inspections, responses, templateItems: tpl.items, nonconformities };
+  // Recorte pela unidade ativa: quadros/hierarquia já vêm recortados;
+  // inspeções e NCs pelos quadros, respostas pelas inspeções restantes.
+  const unit = membershipForScopedPanels(panels);
+  const scopedInspections = filterByMembership(inspections, unit);
+  const inspectionIds = new Set(scopedInspections.map((i) => i.id));
+  return {
+    panels,
+    hierarchy,
+    inspections: scopedInspections,
+    responses: responses.filter((r) => inspectionIds.has(r.inspection_id)),
+    templateItems: tpl.items,
+    nonconformities: filterByMembership(nonconformities, unit),
+  };
 }
 
 /**

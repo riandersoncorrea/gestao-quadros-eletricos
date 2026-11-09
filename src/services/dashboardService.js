@@ -9,6 +9,8 @@ import { isOpenAction } from "@/domain/actionRules";
 import { healthBandKey } from "@/domain/healthIndex";
 import { LOCALIDADE_ALL, isWithinRange, matchesLocalidade } from "@/domain/dashboardFilters";
 import { format, subMonths, startOfMonth } from "date-fns";
+import { filterByMembership } from "@/domain/unitScope";
+import { membershipForScopedPanels } from "@/services/unitScopeService";
 
 // sap_orders é legado (Importação SAP) e não tem repository próprio —
 // mantido como leitura direta aqui e em getPanelAdherence, como já estava.
@@ -32,7 +34,17 @@ export async function fetchDashboardRaw() {
     getSapOrdersRaw(),
     fetchHierarchy(),
   ]);
-  return { P, N, A, I, sapOrders, hierarchy };
+  // Quadros e hierarquia já vêm da unidade ativa; NCs, ações, inspeções e
+  // ordens SAP são recortadas pelos quadros dela (sem nova consulta).
+  const unit = membershipForScopedPanels(P);
+  return {
+    P,
+    N: filterByMembership(N, unit),
+    A: filterByMembership(A, unit),
+    I: filterByMembership(I, unit),
+    sapOrders: filterByMembership(sapOrders, unit),
+    hierarchy,
+  };
 }
 
 /**

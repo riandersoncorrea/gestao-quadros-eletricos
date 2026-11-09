@@ -5,6 +5,8 @@ import { getNonconformity, updateNonconformity } from "@/services/ncService";
 import { listActionsForNC, createAction, updateAction, deleteAction } from "@/services/actionService";
 import { listAssignableUsers } from "@/services/userService";
 import { ElectricalPanel } from "@/services/panelService";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
 import { isOpenNonconformity, allActionsResolved } from "@/domain/nonconformityRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
@@ -85,15 +87,21 @@ export default function NonconformityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit, canTreatActions, isInspetor } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem editar NC nem tratar ações.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
+  const canTreatActions = role.canTreatActions && canWrite;
+  const { isInspetor } = role;
   const [newAction, setNewAction] = useState(null);
   // Edição de ação existente (descrição, responsável, prazo) — admin/editor.
   const [editing, setEditing] = useState(null);
   // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
   const [treatingId, setTreatingId] = useState(null);
 
-  const { data: nc, isLoading } = useQuery({ queryKey: ["nc", id], queryFn: () => getNonconformity(id) });
-  const { data: actions = [] } = useQuery({ queryKey: ["nc-actions", id], queryFn: () => listActionsForNC(id) });
+  // getNonconformity valida a unidade do quadro da NC (link direto).
+  const { data: nc, isLoading, error: ncError } = useQuery({ queryKey: ["nc", id], queryFn: () => getNonconformity(id) });
+  const { data: actions = [] } = useQuery({ queryKey: ["nc-actions", id], queryFn: () => listActionsForNC(id), enabled: !!nc });
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
   const { data: users = [] } = useQuery({ queryKey: ["assignable-users"], queryFn: listAssignableUsers, enabled: canEdit });
   const panel = panels.find((p) => p.id === nc?.panel_id);
@@ -139,6 +147,7 @@ export default function NonconformityDetail() {
   });
 
   if (isLoading) return <div className="p-8 max-w-3xl mx-auto"><Skeleton className="h-8 w-64 mb-4" /><Skeleton className="h-64 w-full" /></div>;
+  if (isUnitMismatchError(ncError)) return <UnitMismatchNotice error={ncError} backTo="/nao-conformidades" backLabel="Voltar às NCs" />;
   if (!nc) {
     return (
       <div className="p-8 text-center">

@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge, PhaseLabel } from "@/components/panels/StatusBadge";
 import QRCodeGenerator, { getQRCodeDataUrl } from "@/components/panels/QRCodeGenerator";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
+import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import {
@@ -66,14 +68,21 @@ export default function PanelDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit, canDelete } = useUserRole();
+  const role = useUserRole();
+  // Unidade somente leitura (EFC nesta etapa): sem editar/excluir.
+  const { canWrite } = useUnitScope();
+  const canEdit = role.canEdit && canWrite;
+  const canDelete = role.canDelete && canWrite;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [diagramOpen, setDiagramOpen] = useState(false);
 
-  const { data: panels, isLoading } = useQuery({
+  // filter({ id }) valida a unidade do quadro (UnitMismatchError se for de
+  // outra unidade); as consultas abaixo só rodam depois dessa validação.
+  const { data: panels, isLoading, error: panelError } = useQuery({
     queryKey: ["panel", id],
     queryFn: () => ElectricalPanel.filter({ id }),
   });
+  const panelOk = !!panels?.length;
 
   const { data: hierarchy } = useQuery({
     queryKey: ["hierarchy"],
@@ -83,25 +92,30 @@ export default function PanelDetail() {
   const { data: flags = [] } = useQuery({
     queryKey: ["panel-flags", id],
     queryFn: () => getPanelFlags(id),
+    enabled: panelOk,
   });
 
   const { data: ncSummary } = useQuery({
     queryKey: ["panel-nc-summary", id],
     queryFn: () => ncSummaryForPanel(id),
+    enabled: panelOk,
   });
 
   const { data: locHistory = [] } = useQuery({
     queryKey: ["panel-loc-history", id],
     queryFn: () => panelLocationHistory(id),
+    enabled: panelOk,
   });
   const { data: condHistory = [] } = useQuery({
     queryKey: ["panel-cond-history", id],
     queryFn: () => panelConditionHistory(id),
+    enabled: panelOk,
   });
 
   const { data: adherenceData } = useQuery({
     queryKey: ["panel-adherence", id],
     queryFn: () => getPanelAdherence(id),
+    enabled: panelOk,
   });
 
   const panel = panels?.[0];
@@ -135,6 +149,10 @@ export default function PanelDetail() {
         </div>
       </div>
     );
+  }
+
+  if (isUnitMismatchError(panelError)) {
+    return <UnitMismatchNotice error={panelError} backTo="/inventario" backLabel="Voltar ao inventário" />;
   }
 
   if (!panel) {

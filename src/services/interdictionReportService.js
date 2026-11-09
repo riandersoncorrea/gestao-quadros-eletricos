@@ -3,6 +3,8 @@ import * as ncRepository from "@/repositories/ncRepository";
 import * as actionRepository from "@/repositories/actionRepository";
 import * as panelRepository from "@/repositories/panelRepository";
 import { buildInterdictionReport, localDate, INTERDICTION_RISK_CODES } from "@/domain/interdictionReport";
+import { filterByMembership } from "@/domain/unitScope";
+import { membershipForScopedPanels } from "@/services/unitScopeService";
 
 /**
  * Relatório "Evolução das corretivas nos quadros com risco de interdição":
@@ -16,16 +18,21 @@ export async function fetchInterdictionReport() {
   const codigoByItemId = new Map(items.map((i) => [i.id, i.codigo]));
   const itemIds = items.map((i) => i.id);
 
-  const ncRows = await ncRepository.listByTemplateItems(itemIds);
-  const ncs = ncRows.map((nc) => ({ ...nc, codigo: codigoByItemId.get(nc.template_item_id) || null }));
+  // Quadros da unidade ativa primeiro: só as NCs deles entram no relatório
+  // (e, a partir delas, inspeções, respostas e ações).
+  const [ncRows, panels, hierarchy] = await Promise.all([
+    ncRepository.listByTemplateItems(itemIds),
+    panelRepository.listForDashboard(),
+    panelRepository.fetchHierarchy(),
+  ]);
+  const ncs = filterByMembership(ncRows, membershipForScopedPanels(panels))
+    .map((nc) => ({ ...nc, codigo: codigoByItemId.get(nc.template_item_id) || null }));
   const inspectionIds = ncs.map((nc) => nc.inspection_id).filter(Boolean);
 
-  const [inspections, responses, actions, panels, hierarchy] = await Promise.all([
+  const [inspections, responses, actions] = await Promise.all([
     inspectionRepository.listDatesAndStatusByIds(inspectionIds),
     inspectionRepository.listResponsesForItems(inspectionIds, itemIds),
     actionRepository.listForNCs(ncs.map((nc) => nc.id)),
-    panelRepository.listForDashboard(),
-    panelRepository.fetchHierarchy(),
   ]);
 
   const responsesByInspection = new Map();

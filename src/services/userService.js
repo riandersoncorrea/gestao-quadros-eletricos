@@ -1,4 +1,5 @@
 import * as userRepository from "@/repositories/userRepository";
+import * as unitAccessRepository from "@/repositories/unitAccessRepository";
 import { uploadFile } from "@/storage/storageService";
 
 export async function listProfiles() {
@@ -30,6 +31,21 @@ export async function updateUserApproval(id, approved) {
 /** Contagem de usuários pendentes de aprovação (badge do menu, admin only). */
 export async function countPendingUsers() {
   return userRepository.countPending();
+}
+
+/** Acesso de todos os usuários às unidades (0029), ou null antes dela. */
+export async function listUsersUnitAccess() {
+  return unitAccessRepository.listAllAccess();
+}
+
+/** Unidades autorizadas de um usuário — só administrador geral (o banco garante). */
+export async function updateUserUnits(profileId, unidadeIds) {
+  return unitAccessRepository.setUserUnits(profileId, unidadeIds);
+}
+
+/** Acesso a todas as unidades — só administrador geral (o banco garante). */
+export async function updateUserGlobalAccess(profileId, todas) {
+  return unitAccessRepository.setGlobalAccess(profileId, todas);
 }
 
 /** Administradores e inspetores aprovados disponíveis para serem responsáveis por uma ação. */

@@ -10,6 +10,8 @@
 import ExcelJS from "exceljs";
 import { format } from "date-fns";
 import { PHOTO_HEADER } from "@/domain/safetyFormExport";
+import { getActiveUnit } from "@/lib/unitScope";
+import { unitFileName } from "@/domain/unitScope";
 
 // Mesma cor --primary do tema (hsl(173 72% 33%) = #189183), já usada nos
 // relatórios em PDF (ver PRIMARY em inspectedPanelsPdfService.js /
@@ -65,7 +67,8 @@ export async function exportSafetyFormExcel(rows) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `base-form-seguranca_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+  // Unidade no nome do arquivo; as colunas seguem o layout do Form Segurança.
+  a.download = unitFileName("base-form-seguranca", getActiveUnit(), format(new Date(), "yyyy-MM-dd"), "xlsx");
   document.body.appendChild(a);
   a.click();
   a.remove();

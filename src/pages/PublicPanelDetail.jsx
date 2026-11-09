@@ -121,6 +121,8 @@ export default function PublicPanelDetail() {
                   <InfoRow icon={FileText} label="Nomenclatura Oficial" value={panel.nomenclatura_oficial} />
                   <InfoRow icon={Zap} label="Tipo" value={TYPE_LABEL[panel.panel_type] || panel.panel_type_custom || panel.panel_type} />
                   <InfoRow icon={ShieldCheck} label="Criticidade" value={CRITICALITY_LABEL[panel.criticality] || panel.criticality} />
+                  {/* unidade_nome vem de get_public_panel (0030); antes dela é null e a linha não aparece. */}
+                  <InfoRow icon={Building2} label="Unidade" value={panel.unidade_nome || null} />
                   <InfoRow icon={Building2} label="Site" value={panel.site ? panel.site[0].toUpperCase() + panel.site.slice(1) : null} />
                   <InfoRow icon={MapPin} label="Hierarquia" value={hierarchyPath} />
                   <InfoRow icon={MapPin} label="Detalhe do local" value={detalheLocal} />

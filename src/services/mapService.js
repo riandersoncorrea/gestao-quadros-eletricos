@@ -2,10 +2,16 @@ import { listForMap, updateCoordinates } from "@/repositories/panelRepository";
 import { listStatusSeverityForMap } from "@/repositories/ncRepository";
 import { listAllUnresolvedFlags } from "@/repositories/healthIndexRepository";
 import { isOpenNonconformity } from "@/domain/nonconformityRules";
+import { assertPanelWritable } from "@/services/unitScopeService";
 
 /**
  * Dados para o mapa: quadros + contagem de NCs abertas e flags de análise
  * por quadro. Uma consulta por tabela (domínio); agregação no cliente.
+ */
+/**
+ * Quadros da unidade ativa (listForMap já recorta). NCs e flags só entram
+ * na contagem dos quadros listados (join por panel_id), então nada de outra
+ * unidade aparece no mapa.
  */
 export async function fetchSpatialData() {
   const [panels, ncs, flags] = await Promise.all([
@@ -42,5 +48,6 @@ export async function fetchSpatialData() {
 }
 
 export async function setPanelCoordinates(panelId, latitude, longitude) {
+  await assertPanelWritable(panelId);
   return updateCoordinates(panelId, latitude, longitude);
 }

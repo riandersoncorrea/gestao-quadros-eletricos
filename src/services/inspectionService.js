@@ -7,6 +7,7 @@ import { computeOverall, buildAutoNonconformities, buildAutoActions, findVigenci
 import { responsiblesForSite } from "@/domain/siteResponsibles";
 import { isOpenAction } from "@/domain/actionRules";
 import { SAFETY_FORM_CODES } from "@/domain/safetyFormExport";
+import { assertRecordInActiveUnit, assertPanelWritable } from "@/services/unitScopeService";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
@@ -45,8 +46,11 @@ export async function ordersForPanel(panelId) {
   return inspectionRepository.getSapOrdersForPanel(panelId);
 }
 
+/** Inspeção completa por id — só se o quadro for da unidade ativa (senão UnitMismatchError, nada é exibido). */
 export async function getInspectionFull(id) {
-  return inspectionRepository.getInspectionAggregate(id);
+  const full = await inspectionRepository.getInspectionAggregate(id);
+  await assertRecordInActiveUnit(full.inspection);
+  return full;
 }
 
 export { computeOverall };
@@ -62,6 +66,9 @@ export async function getSafetyFormResponses(inspectionIds) {
  * (Supabase JS não tem transação — inserts são sequenciais.)
  */
 export async function createInspection({ header, responses, measurements, thermography, template, items, forceDuplicate = false }) {
+  // Checklist só em quadro de unidade que aceita gravação (a EFC é somente
+  // leitura nesta etapa: o checklist atual é o de São Luís).
+  await assertPanelWritable(header.panel_id);
   // Segunda validação (a primeira é feita pela UI ao selecionar o quadro):
   // reconsulta a inspeção mais recente do quadro imediatamente antes de
   // gravar, para pegar uma inspeção vigente criada por outro usuário nesse
