@@ -55,3 +55,25 @@ individualmente) antes disso.
 4. Conforme o escopo: bloqueio de cadastro/edição só para a EFC **ou** TAG por sigla da cidade
    (`next_panel_tag` por sigla, sem alterar a regra PRT/OFC/PEL) + formulário com "Cidade".
 5. Ensaio completo no banco local → liberar `permite_escrita` → atribuir usuários → piloto acompanhado.
+
+## Decisões (2026-11-09) e implementação (branch `feature/efc-operacao-levantamento`)
+
+| Decisão | Implementação |
+|---|---|
+| 1ª liberação = inspeção + NCs/ações; quadros novos por planilha | `canCreatePanelsInUnit` (unidade com site): botões "Cadastrar/Novo Quadro" desabilitados na EFC com o motivo; `/inventario/novo` mostra aviso; `ElectricalPanel.create` recusa (`PanelCreationUnavailableError`). **Edição** liberada (necessária para coordenadas): sem o campo Site, com a Cidade do prédio; prédio só trocável dentro da mesma cidade (a TAG leva a sigla). Coordenadas também pelo Mapa. |
+| Mesmo checklist | Nada a mudar. Histórico de checklists da EFC (com links de fotos) = importação à parte (aguarda o arquivo). |
+| Responsável manual | Ação automática já nasce "pendente de atribuição". **0033** + `listAssignableUsers(unidade ativa)`: a lista de responsáveis só traz admin/inspetor com acesso à unidade (antes trazia todas as unidades — uma ação da EFC podia ir para quem não a enxerga). Fallback para a consulta antiga sem a 0033. |
+| Administradores locais da EFC | Perfil admin + EFC em `profile_unidades` (só o admin geral atribui). Ver ponto aberto abaixo. |
+| Coordenadas depois, pela edição | Coberto pela edição liberada e pelo Mapa. |
+| — (B5) | **0032**: Storage só para aprovados. |
+| — (C1/C2) | KPIs da Análise Inteligente por unidade (`localidadesEmDestaque`; São Luís idêntico); rótulo "Cidade" no checklist e na localização do quadro. |
+
+**Administrador local x contas de outras unidades — resolvido pela 0034** (decisão de 09/11/2026): o administrador
+local só altera (aprova, reprova, troca o perfil) contas **novas** (ainda sem unidade) ou que tenham ao menos uma
+unidade a que ele também tem acesso. Atribuir unidades, conceder acesso global e promover a administrador continuam
+exclusivos do administrador geral. A tela Usuários mostra o motivo quando o banco recusa.
+
+**Sequência de produção (com aprovação):** 0032 → teste → 0033 → teste → 0034 → teste → deploy do frontend (funciona antes e depois
+da 0033) → `update public.unidades_operacionais set permite_escrita = true where codigo = 'EFC';` → contas da EFC
+criadas pelos próprios usuários → admin geral aprova e atribui a EFC (tela Usuários → "Unidades…").
+

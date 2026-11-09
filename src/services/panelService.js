@@ -1,12 +1,11 @@
 import * as panelRepository from "@/repositories/panelRepository";
-import { assertUnitIsActive, getActiveUnitId } from "@/lib/unitScope";
+import { assertUnitIsActive, getActiveUnitId, assertActiveUnitCreatesPanels } from "@/lib/unitScope";
 import { panelIdOf } from "@/domain/unitScope";
 import {
   scopeRowsToActiveUnit,
   assertRecordInActiveUnit,
   assertRecordWritable,
   assertPanelWritable,
-  assertActiveUnitWritable,
 } from "@/services/unitScopeService";
 
 export {
@@ -34,7 +33,8 @@ export const ElectricalPanel = {
     return rows;
   },
   async create(values) {
-    assertActiveUnitWritable();
+    // TAG gerada pelo banco só por site: unidade sem site cadastra por planilha.
+    assertActiveUnitCreatesPanels();
     // Unidade explícita (a ativa), sem depender do default SLZ do banco.
     return panelRepository.ElectricalPanel.create({ unidade_operacional_id: getActiveUnitId(), ...values });
   },

@@ -117,3 +117,20 @@ test("0029: registro com unidade própria — vale ela; NULL não pertence a nen
   ];
   assert.deepEqual(filterByMembership(rows, slz).map((r) => r.id), [1, 3, 4]);
 });
+
+test("EFC em operação: cadastro de quadro novo só em unidade com site; edição segue permite_escrita", async () => {
+  const { canCreatePanelsInUnit, unitUsesSite, localidadeLabel, isWritableUnit } = await import("./unitScope.js");
+  const slz = { codigo: "SLZ", permite_escrita: true, usa_site: true, ativo: true };
+  const efcLeitura = { codigo: "EFC", permite_escrita: false, usa_site: false, ativo: true };
+  const efcOperando = { codigo: "EFC", permite_escrita: true, usa_site: false, ativo: true };
+  assert.equal(canCreatePanelsInUnit(slz), true);
+  assert.equal(canCreatePanelsInUnit(efcLeitura), false);
+  assert.equal(canCreatePanelsInUnit(efcOperando), false); // TAG por planilha
+  assert.equal(isWritableUnit(efcOperando), true); // mas edita
+  // antes da 0028 (sem usa_site): só a unidade padrão usa site
+  assert.equal(unitUsesSite({ codigo: "SLZ" }), true);
+  assert.equal(unitUsesSite({ codigo: "EFC" }), false);
+  assert.equal(localidadeLabel(slz), "Site");
+  assert.equal(localidadeLabel(efcOperando), "Cidade");
+  assert.equal(localidadeLabel(null), "Cidade");
+});

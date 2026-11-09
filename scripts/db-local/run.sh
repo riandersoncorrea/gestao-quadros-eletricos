@@ -101,4 +101,17 @@ echo "   backfill (termina em rollback, como no arquivo):"
 apply supabase/backfill/0027_nc_status_segue_acoes_backfill.sql
 echo "   segurança por unidade continua valendo com a 0027:"
 for t in supabase/tests/0029_*.test.sql supabase/tests/0030_*.test.sql; do apply "$t"; done
+echo "== 0032 (Storage: só aprovados enviam/alteram/apagam)"
+apply supabase/migrations/0032_storage_upload_so_aprovados.sql
+apply supabase/tests/0032_storage_upload_so_aprovados.test.sql
+apply supabase/migrations/0032_storage_upload_so_aprovados.sql
+echo "== 0033 (responsáveis atribuíveis por unidade)"
+apply supabase/migrations/0033_responsaveis_por_unidade.sql
+apply supabase/tests/0033_responsaveis_por_unidade.test.sql
+apply supabase/migrations/0033_responsaveis_por_unidade.sql
+echo "== 0034 (administrador local: contas novas ou da própria unidade)"
+apply supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql
+apply supabase/tests/0034_admin_local_gerencia_propria_unidade.test.sql
+apply supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql
+for t in supabase/tests/0029_*.test.sql supabase/tests/0033_*.test.sql; do apply "$t"; done
 echo "== TUDO OK"

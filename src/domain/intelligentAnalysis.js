@@ -95,6 +95,31 @@ function emLocalidade(nome) {
   return LOCALIDADE_PREPOSICAO[nome] || `em ${nome}`;
 }
 
+const LOCALIDADES_DESTAQUE_SLZ = ["Porto", "Oficina"];
+
+/**
+ * As 2 localidades em destaque nos KPIs da Visão Executiva (tela e PDF).
+ *  - Unidade com Porto e Oficina (São Luís): exatamente esses dois, como
+ *    sempre foi ("Inspeções no Porto" / "Inspeções na Oficina").
+ *  - Outra unidade (EFC: cidades): as 2 com mais inspeções no recorte
+ *    (empate: ordem alfabética), em vez de dois KPIs zerados de São Luís.
+ * `localidadeNomes`: localidades da unidade ativa (hierarquia já recortada).
+ */
+export function localidadesEmDestaque(inspecoesPorLocalidade, localidadeNomes) {
+  const counts = new Map((inspecoesPorLocalidade || []).map((l) => [l.localidade, l.inspecoes]));
+  const nomes = [...new Set(localidadeNomes?.length ? localidadeNomes : counts.keys())];
+  if (LOCALIDADES_DESTAQUE_SLZ.every((n) => nomes.includes(n))) {
+    return LOCALIDADES_DESTAQUE_SLZ.map((n) => ({
+      nome: n, inspecoes: counts.get(n) ?? 0, label: `Inspeções ${emLocalidade(n)}`, sub: `localidade ${n}`,
+    }));
+  }
+  return nomes
+    .map((n) => ({ nome: n, inspecoes: counts.get(n) ?? 0 }))
+    .sort((a, b) => b.inspecoes - a.inspecoes || a.nome.localeCompare(b.nome, "pt-BR"))
+    .slice(0, 2)
+    .map((x) => ({ ...x, label: `Inspeções ${emLocalidade(x.nome)}`, sub: `cidade ${x.nome}` }));
+}
+
 /**
  * "CÓDIGO: descrição do requisito", sempre que ambos estiverem disponíveis
  * (a descrição vem do catálogo ativo, já resolvida em `titulo` por

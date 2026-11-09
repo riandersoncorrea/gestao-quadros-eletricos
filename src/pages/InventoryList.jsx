@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUnitScope } from "@/hooks/useUnitScope";
-import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
+import { ReadOnlyActionButton, panelCreationMessage } from "@/components/unit/UnitScopeNotices";
 import { unitFileName } from "@/domain/unitScope";
 import { format, parseISO } from "date-fns";
 import {
@@ -57,8 +57,10 @@ function healthStyle(hi) {
 export default function InventoryList() {
   const role = useUserRole();
   // Unidade somente leitura (EFC nesta etapa): sem cadastrar/editar/excluir.
-  const { canWrite, activeUnit } = useUnitScope();
+  const { canWrite, canCreatePanels, activeUnit } = useUnitScope();
   const canEdit = role.canEdit && canWrite;
+  // Quadro novo pela tela só em unidade com site; a EFC cadastra por planilha.
+  const canCreate = role.canEdit && canCreatePanels;
   const canDelete = role.canDelete && canWrite;
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -188,7 +190,7 @@ export default function InventoryList() {
           <Button size="sm" variant="outline" className="gap-2" onClick={() => setNoChecklistOpen(true)}>
             <ClipboardX className="h-4 w-4" />Quadros sem checklist
           </Button>
-          {canEdit && (
+          {canCreate && (
             <Link to="/inventario/novo">
               <Button size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />Cadastrar Quadro
@@ -196,6 +198,9 @@ export default function InventoryList() {
             </Link>
           )}
           {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Cadastrar Quadro</ReadOnlyActionButton>}
+          {role.canEdit && canWrite && !canCreatePanels && (
+            <ReadOnlyActionButton icon={Plus} message={panelCreationMessage(activeUnit)}>Cadastrar Quadro</ReadOnlyActionButton>
+          )}
         </div>
       </div>
 
@@ -249,7 +254,7 @@ export default function InventoryList() {
             <p className="text-muted-foreground text-sm">
               {search || statusFilter !== "all" || localidadeFilter !== "all" || healthFilter !== "all" || critFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhum quadro no inventário"}
             </p>
-            {canEdit && !search && statusFilter === "all" && localidadeFilter === "all" && healthFilter === "all" && critFilter === "all" && (
+            {canCreate && !search && statusFilter === "all" && localidadeFilter === "all" && healthFilter === "all" && critFilter === "all" && (
               <Link to="/inventario/novo"><Button size="sm" className="gap-2 mt-1"><Plus className="h-4 w-4" />Cadastrar primeiro quadro</Button></Link>
             )}
           </CardContent>

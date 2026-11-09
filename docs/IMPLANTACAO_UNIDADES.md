@@ -17,6 +17,10 @@ fica em `supabase/private/` (ignorado pelo git), com cópia guardada pelo respon
 `scripts/inventory-import/generate-inventory-sql.mjs` com a planilha de origem. O `scripts/db-local/run.sh` pula a
 importação quando o arquivo não existe.
 
+| 0032 | `supabase/migrations/0032_storage_upload_so_aprovados.sql` | Storage (`uploads`): INSERT/UPDATE/DELETE só para perfil aprovado (`current_role()` não nulo) | 0006/0018 |
+| 0033 | `supabase/migrations/0033_responsaveis_por_unidade.sql` | `responsaveis_atribuiveis(unidade)`: admin/inspetor aprovados com acesso à unidade (atribuição manual de ações) | 0029 |
+| 0034 | `supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql` | Administrador local só altera contas novas (sem unidade) ou de unidade a que tem acesso | 0029 |
+
 Rollback: `supabase/rollback/0029_*.rollback.sql`, `supabase/rollback/0030_*.rollback.sql` (testados no banco local).
 A 0027 (status da NC segue as ações) entra em produção **depois** da 0030/0031, apesar do número menor.
 Ela é independente das migrations de unidade; o teste dela pressupõe a 0029 (usuários de teste com unidade) e confere
@@ -53,7 +57,7 @@ union all select 'sap_orders', id, ordem from public.sap_orders where unidade_op
 
 - **Administrador geral** = `role = 'admin'` + `acesso_todas_unidades = true`. Único que atribui unidades,
   concede acesso global, promove/rebaixa administradores e altera a configuração das unidades.
-- **Administrador local** = `role = 'admin'` com unidades em `profile_unidades`.
+- **Administrador local** = `role = 'admin'` com unidades em `profile_unidades`. Aprova e troca o perfil só de contas novas (sem unidade) ou da(s) própria(s) unidade(s) (0034).
 - **Demais perfis** = unidades em `profile_unidades`; o perfil (editor/viewer/inspetor) continua definindo o que podem fazer.
 - **Conta pendente** = nenhum dado, nem pela API. Aprovar **e** atribuir a unidade (tela Usuários → "Unidades…").
 - Unidade somente leitura: `unidades_operacionais.permite_escrita = false` (EFC nesta etapa). Para liberar a EFC numa

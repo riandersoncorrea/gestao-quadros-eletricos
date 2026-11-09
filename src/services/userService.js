@@ -1,6 +1,7 @@
 import * as userRepository from "@/repositories/userRepository";
 import * as unitAccessRepository from "@/repositories/unitAccessRepository";
 import { uploadFile } from "@/storage/storageService";
+import { getActiveUnitId } from "@/lib/unitScope";
 
 export async function listProfiles() {
   return userRepository.list();
@@ -48,7 +49,11 @@ export async function updateUserGlobalAccess(profileId, todas) {
   return unitAccessRepository.setGlobalAccess(profileId, todas);
 }
 
-/** Administradores e inspetores aprovados disponíveis para serem responsáveis por uma ação. */
+/**
+ * Administradores e inspetores aprovados disponíveis para serem responsáveis
+ * por uma ação — só quem tem acesso à unidade ativa (a da ação), para a ação
+ * nunca ser atribuída a quem não consegue vê-la.
+ */
 export async function listAssignableUsers() {
-  return userRepository.listApprovedAssignable();
+  return userRepository.listApprovedAssignable(getActiveUnitId());
 }

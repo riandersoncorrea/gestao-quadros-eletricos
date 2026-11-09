@@ -27,7 +27,7 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUnitScope } from "@/hooks/useUnitScope";
-import { ReadOnlyUnitNotice, UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
+import { ReadOnlyUnitNotice, UnitMismatchNotice, PanelCreationUnavailableNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -129,7 +129,7 @@ export default function InventoryForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit, isAdmin } = useUserRole();
-  const { canWrite } = useUnitScope();
+  const { canWrite, canCreatePanels, usesSite, localidadeLabel } = useUnitScope();
   const isEditing = !!id;
   const criticidadeLocked = !isEditing && !isAdmin;
   const [form, setForm] = useState(EMPTY_FORM);
@@ -166,10 +166,15 @@ export default function InventoryForm() {
     }
   }, [panels]);
 
+  // Unidade sem site (EFC): a TAG leva a sigla da cidade (ACD_QD_…), então na
+  // edição o prédio só pode ser trocado por outro da MESMA cidade.
+  const lockedLocalidadeId = !usesSite && isEditing ? panels?.[0]?.localidade_id || null : null;
   const localOptions = useMemo(
     () =>
-      (hierarchy?.locais || []).map((l) => ({ value: l.id, label: l.nome })),
-    [hierarchy],
+      (hierarchy?.locais || [])
+        .filter((l) => !lockedLocalidadeId || l.localidade_id === lockedLocalidadeId)
+        .map((l) => ({ value: l.id, label: l.nome })),
+    [hierarchy, lockedLocalidadeId],
   );
   const sublocalOptions = useMemo(
     () =>
@@ -178,6 +183,12 @@ export default function InventoryForm() {
         .map((s) => ({ value: s.id, label: s.nome })),
     [hierarchy, form.local_id],
   );
+
+  // Unidade sem site (EFC): o 1º nível é a cidade do prédio escolhido (só exibição).
+  const cidadeName = useMemo(() => {
+    const local = (hierarchy?.locais || []).find((l) => l.id === form.local_id);
+    return (hierarchy?.localidades || []).find((x) => x.id === local?.localidade_id)?.nome || "";
+  }, [hierarchy, form.local_id]);
 
   const localName = useMemo(
     () =>
@@ -387,11 +398,14 @@ export default function InventoryForm() {
     return null;
   }
 
-  // Formulário e regras de cadastro são os de São Luís (site, TAG PRT/OFC):
-  // unidade somente leitura (EFC nesta etapa) não cadastra nem edita.
+  // Unidade somente leitura não cadastra nem edita. Quadro NOVO pela tela só
+  // em unidade com site (a TAG PRT/OFC/PEL é gerada pelo banco); unidade sem
+  // site (EFC) cadastra por planilha, mas edita os quadros existentes aqui —
+  // sem o campo Site, com a cidade do prédio.
   if (!canWrite) {
     return <ReadOnlyUnitNotice what={isEditing ? "A edição de quadros" : "O cadastro de quadros"} backTo="/inventario" backLabel="Voltar ao inventário" />;
   }
+  if (!isEditing && !canCreatePanels) return <PanelCreationUnavailableNotice />;
   if (isUnitMismatchError(panelError)) {
     return <UnitMismatchNotice error={panelError} backTo="/inventario" backLabel="Voltar ao inventário" />;
   }
@@ -612,19 +626,26 @@ export default function InventoryForm() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Site{isEditing ? "" : " *"}</Label>
-              <Select value={form.site} onValueChange={(v) => f("site", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="porto">Porto</SelectItem>
-                  <SelectItem value="oficina">Oficina</SelectItem>
-                  <SelectItem value="pelotizacao">Pelotização</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {usesSite ? (
+              <div className="space-y-2">
+                <Label>Site{isEditing ? "" : " *"}</Label>
+                <Select value={form.site} onValueChange={(v) => f("site", v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="porto">Porto</SelectItem>
+                    <SelectItem value="oficina">Oficina</SelectItem>
+                    <SelectItem value="pelotizacao">Pelotização</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>{localidadeLabel}</Label>
+                <Input value={cidadeName} readOnly disabled placeholder="Definida pelo prédio" data-testid="panel-cidade" />
+              </div>
+            )}
             <div className="hidden sm:block" />
             <div className="space-y-2">
               <Label>Local (Prédio){isEditing ? "" : " *"}</Label>

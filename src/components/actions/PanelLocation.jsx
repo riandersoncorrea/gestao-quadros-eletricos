@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { MapPin, ExternalLink } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnitScope } from "@/hooks/useUnitScope";
 import { cn } from "@/lib/utils";
 
 const Row = ({ label, value, mono }) => (
@@ -22,6 +23,8 @@ const Row = ({ label, value, mono }) => (
  * Code) para o Inspetor — sem abrir novo acesso.
  */
 export default function PanelLocation({ location, className, singleColumn = false }) {
+  // "Site" em São Luís; "Cidade" na unidade sem site (EFC).
+  const { localidadeLabel } = useUnitScope();
   const { isInspetor } = useUserRole();
   return (
     <section className={cn("rounded-lg border border-border bg-muted/30 p-3 text-xs", className)}>
@@ -45,7 +48,7 @@ export default function PanelLocation({ location, className, singleColumn = fals
       ) : (
         <dl className={cn("grid gap-x-6 gap-y-1", !singleColumn && "sm:grid-cols-2")}>
           <Row label="Localidade" value={location.unidade} />
-          <Row label="Site" value={location.site} />
+          <Row label={localidadeLabel} value={location.site} />
           <Row label="Local (Prédio)" value={location.predio} />
           <Row label="Sublocal" value={location.sublocal} />
           <Row label="Quadro" value={location.tag} mono />

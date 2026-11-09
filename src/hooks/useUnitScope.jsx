@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { listUnidadesOperacionais } from "@/services/panelService";
 import { configureUnitScope } from "@/lib/unitScope";
-import { DEFAULT_UNIT_CODE, getAllowedUnits, resolveActiveUnit, isWritableUnit, isGlobalAdmin } from "@/domain/unitScope";
+import { DEFAULT_UNIT_CODE, getAllowedUnits, resolveActiveUnit, isWritableUnit, isGlobalAdmin, canCreatePanelsInUnit, unitUsesSite, localidadeLabel } from "@/domain/unitScope";
 import { getMyAccess } from "@/repositories/unitAccessRepository";
 import PageLoadingFallback from "@/components/PageLoadingFallback";
 import { Button } from "@/components/ui/button";
@@ -104,6 +104,10 @@ export function UnitScopeProvider({ children }) {
       defaultUnit,
       isDefaultUnit: activeUnit.id === defaultUnit?.id,
       canWrite: isWritableUnit(activeUnit),
+      // Quadro NOVO pela tela só em unidade com site (TAG gerada pelo banco).
+      canCreatePanels: canCreatePanelsInUnit(activeUnit),
+      usesSite: unitUsesSite(activeUnit),
+      localidadeLabel: localidadeLabel(activeUnit),
       canSwitch: allowedUnits.length > 1,
       switchUnit,
       // Modelo de acesso por unidade do banco (0029) disponível?
@@ -135,7 +139,8 @@ export function UnitScopeProvider({ children }) {
 
 /**
  * { units, allowedUnits, activeUnit, defaultUnit, isDefaultUnit, canWrite,
- *   canSwitch, switchUnit, accessModel, isGlobalAdmin }. `canWrite` = a
+ *   canCreatePanels, usesSite, localidadeLabel, canSwitch, switchUnit,
+ *   accessModel, isGlobalAdmin }. `canWrite` = a
  * unidade ativa aceita cadastro e edição (permite_escrita da unidade; nesta
  * etapa a EFC é somente leitura).
  */

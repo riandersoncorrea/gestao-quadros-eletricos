@@ -19,6 +19,8 @@ import { exportInspectedPanelsPdf } from "@/services/inspectedPanelsPdfService";
 import { exportSafetyFormExcel } from "@/services/safetyFormExportService";
 import { pdfLog, resetPdfLog } from "./fakeJsPdf.js";
 import { getPublicPanelInfo } from "@/services/panelService";
+import { listAssignableUsers } from "@/services/userService";
+import { localidadesEmDestaque } from "@/domain/intelligentAnalysis";
 
 const SLZ = { id: "u-slz", codigo: "SLZ", nome: "São Luís", ativo: true };
 const EFC = { id: "u-efc", codigo: "EFC", nome: "EFC", ativo: true };
@@ -415,4 +417,59 @@ test("QR público: usa get_public_panel; antes da 0030 cai na view", async () =>
   resetDb(db, { rpc: { get_public_panel: ({ p_id }) => ({ id: p_id, tag: "PRT_QD_0001", unidade_nome: "São Luís" }) } });
   const viaRpc = await getPublicPanelInfo("p-s1");
   assert.equal(viaRpc.unidade_nome, "São Luís");
+});
+
+// --- EFC em operação (permite_escrita = true, sem site) ----------------------------
+
+test("EFC em operação: cadastro de quadro novo recusado (planilha); edição e coordenada gravam", async () => {
+  loadPost0029();
+  const units = [
+    { ...SLZ, permite_escrita: true, usa_site: true },
+    { ...EFC, permite_escrita: true, usa_site: false },
+  ];
+  configureUnitScope({ units, activeUnit: units[1], defaultUnit: units[0] });
+  await assert.rejects(() => ElectricalPanel.create({ name: "novo EFC" }), { name: "PanelCreationUnavailableError" });
+  assert.equal(writes.filter((w) => w.op === "insert" && w.table === "electrical_panels").length, 0);
+  await ElectricalPanel.update("p-e1", { notes: "editado" });
+  await setPanelCoordinates("p-e1", -4.95, -47.5);
+  assert.equal(writes.filter((w) => w.op === "update" && w.table === "electrical_panels").length, 2);
+  // São Luís continua cadastrando
+  configureUnitScope({ units, activeUnit: units[0], defaultUnit: units[0] });
+  await ElectricalPanel.create({ name: "novo SLZ", site: "porto" });
+  assert.equal(writes.filter((w) => w.op === "insert" && w.table === "electrical_panels").length, 1);
+});
+
+test("Responsáveis atribuíveis: pede a lista da unidade ativa (0033); antes da 0033, consulta anterior", async () => {
+  const db = fixture();
+  db.profiles = [
+    { id: "pf-slz", email: "a@x", full_name: "Insp SLZ", role: "inspetor", approved: true },
+    { id: "pf-efc", email: "b@x", full_name: "Insp EFC", role: "inspetor", approved: true },
+  ];
+  const chamadas = [];
+  resetDb(db, { rpc: { responsaveis_atribuiveis: ({ p_unidade }) => { chamadas.push(p_unidade); return p_unidade === EFC.id ? [db.profiles[1]] : [db.profiles[0]]; } } });
+  configureUnitScope({ units: [SLZ, EFC], activeUnit: EFC, defaultUnit: SLZ });
+  assert.deepEqual((await listAssignableUsers()).map((p) => p.id), ["pf-efc"]);
+  assert.deepEqual(chamadas, [EFC.id]);
+  resetDb(db); // sem a função (PGRST202): cai na consulta antiga
+  configureUnitScope({ units: [SLZ, EFC], activeUnit: SLZ, defaultUnit: SLZ });
+  assert.deepEqual((await listAssignableUsers()).map((p) => p.id).sort(), ["pf-efc", "pf-slz"]);
+});
+
+test("Análise Inteligente — destaque: São Luís mantém Porto e Oficina (mesmo sem inspeções)", () => {
+  const d = localidadesEmDestaque([{ localidade: "Oficina", inspecoes: 7 }, { localidade: "Pelotização", inspecoes: 30 }],
+    ["Porto", "Oficina", "Pelotização"]);
+  assert.deepEqual(d.map((x) => [x.label, x.inspecoes, x.sub]), [
+    ["Inspeções no Porto", 0, "localidade Porto"],
+    ["Inspeções na Oficina", 7, "localidade Oficina"],
+  ]);
+});
+
+test("Análise Inteligente — destaque: EFC mostra as 2 cidades com mais inspeções (empate: alfabética)", () => {
+  const nomes = ["MARABÁ", "AÇAILÂNDIA", "ARARI", "SANTA INÊS"];
+  assert.deepEqual(
+    localidadesEmDestaque([{ localidade: "SANTA INÊS", inspecoes: 3 }, { localidade: "MARABÁ", inspecoes: 5 }], nomes)
+      .map((x) => [x.label, x.inspecoes, x.sub]),
+    [["Inspeções em MARABÁ", 5, "cidade MARABÁ"], ["Inspeções em SANTA INÊS", 3, "cidade SANTA INÊS"]],
+  );
+  assert.deepEqual(localidadesEmDestaque([], nomes).map((x) => x.nome), ["AÇAILÂNDIA", "ARARI"]);
 });

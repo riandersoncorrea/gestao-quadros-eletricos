@@ -144,7 +144,7 @@ export default function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
       toast.success("Perfil atualizado");
     },
-    onError: () => toast.error("Não foi possível atualizar o perfil"),
+    onError: (e) => toast.error(e?.message || "Não foi possível atualizar o perfil"),
   });
 
   // Unidades autorizadas (0029). Antes da 0029 accessMap é null e a seção não aparece.
@@ -173,7 +173,7 @@ export default function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ["pending-users-count"] });
       toast.success(approved ? "Acesso aprovado" : "Acesso revogado");
     },
-    onError: () => toast.error("Não foi possível atualizar a aprovação"),
+    onError: (e) => toast.error(e?.message || "Não foi possível atualizar a aprovação"),
   });
 
   if (!isAdmin) {

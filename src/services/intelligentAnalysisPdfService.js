@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import logoSistema from "@/assets/logo-sistema.png";
+import { localidadesEmDestaque } from "@/domain/intelligentAnalysis";
 import { ANALYSIS_PERIOD_OPTIONS, LOCALIDADE_ALL } from "@/domain/intelligentAnalysisFilters";
 import { getActiveUnit } from "@/lib/unitScope";
 import { unitReportLabel, unitFileName } from "@/domain/unitScope";
@@ -273,11 +274,10 @@ export async function exportIntelligentAnalysisPdf({ analysis, filters, localida
   // 1. Resumo executivo
   pdf.sectionTitle("1. Resumo Executivo");
   const k = analysis.kpis;
-  const locMap = new Map(k.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
+  const destaque = localidadesEmDestaque(k.inspecoesPorLocalidade, (localidades || []).map((l) => l.nome));
   pdf.kpiRow([
     { label: "Inspeções realizadas", value: k.inspecoesRealizadas },
-    { label: "Inspeções no Porto", value: locMap.get("Porto") ?? 0 },
-    { label: "Inspeções na Oficina", value: locMap.get("Oficina") ?? 0 },
+    ...destaque.map((d) => ({ label: d.label, value: d.inspecoes })),
     { label: "Taxa de conformidade", value: pct(k.taxaConformidade) },
   ]);
   pdf.kpiRow([

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { isSchemaMissing } from "@/repositories/unitAccessRepository";
 
 export async function list() {
   const { data, error } = await supabase
@@ -49,7 +50,18 @@ export async function updateApproval(id, approved) {
  * (policy "Admins can view all profiles"); para os demais perfis a lista
  * traz no máximo o próprio usuário — sem mudança de RLS.
  */
-export async function listApprovedAssignable() {
+/**
+ * Admin/inspetor aprovados COM ACESSO à unidade (função
+ * responsaveis_atribuiveis, migration 0033 — profile_unidades de outros
+ * usuários não é legível pelo app). Antes da 0033: consulta anterior, sem
+ * recorte por unidade.
+ */
+export async function listApprovedAssignable(unitId) {
+  if (unitId) {
+    const rpc = await supabase.rpc("responsaveis_atribuiveis", { p_unidade: unitId });
+    if (!rpc.error) return rpc.data || [];
+    if (!isSchemaMissing(rpc.error)) throw rpc.error;
+  }
   const { data, error } = await supabase
     .from("profiles")
     .select("id, email, full_name, role")

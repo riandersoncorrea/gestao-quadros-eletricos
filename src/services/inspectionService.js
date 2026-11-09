@@ -67,7 +67,7 @@ export async function getSafetyFormResponses(inspectionIds) {
  */
 export async function createInspection({ header, responses, measurements, thermography, template, items, forceDuplicate = false }) {
   // Checklist só em quadro de unidade que aceita gravação (a EFC é somente
-  // leitura nesta etapa: o checklist atual é o de São Luís).
+  // leitura; o checklist é o mesmo para todas as unidades).
   await assertPanelWritable(header.panel_id);
   // Segunda validação (a primeira é feita pela UI ao selecionar o quadro):
   // reconsulta a inspeção mais recente do quadro imediatamente antes de

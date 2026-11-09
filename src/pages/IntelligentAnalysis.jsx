@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { localidadesEmDestaque } from "@/domain/intelligentAnalysis";
 import { fetchIntelligentAnalysisRaw, computeIntelligentAnalysis, getPanelSnapshotFromAnalysis } from "@/services/intelligentAnalysisService";
 import {
   ANALYSIS_PERIOD_OPTIONS, STATUS_OPTIONS, LOCALIDADE_ALL,
@@ -349,7 +350,7 @@ export default function IntelligentAnalysis() {
         <Card><CardContent className="p-0"><EmptyState text="Sem dados suficientes para análise com os filtros selecionados." /></CardContent></Card>
       ) : (
         <div ref={reportRef} className="space-y-6">
-          <ExecutiveVision kpis={analysis.kpis} risk={analysis.interdictionRisk} />
+          <ExecutiveVision kpis={analysis.kpis} risk={analysis.interdictionRisk} localidades={localidades} />
           <DescriptiveSection descriptive={analysis.descriptive} />
           <DimensionChart dimensions={analysis.dimensions} reading={analysis.chartDescriptions.dimensions} />
           <ParetoSection pareto={analysis.pareto} reading={analysis.chartDescriptions.pareto} />
@@ -378,14 +379,14 @@ export default function IntelligentAnalysis() {
 // Seções
 // ============================================================================
 
-function ExecutiveVision({ kpis, risk }) {
-  const porLocalidade = new Map(kpis.inspecoesPorLocalidade.map((l) => [l.localidade, l.inspecoes]));
+function ExecutiveVision({ kpis, risk, localidades }) {
+  // Porto/Oficina em São Luís; nas demais unidades, as 2 cidades com mais inspeções.
+  const destaque = localidadesEmDestaque(kpis.inspecoesPorLocalidade, localidades.map((l) => l.nome));
   return (
     <Section id="visao-executiva" title="Visão Executiva">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={ClipboardCheck} label="Inspeções realizadas" value={kpis.inspecoesRealizadas} />
-        <Kpi icon={MapPin} label="Inspeções no Porto" value={porLocalidade.get("Porto") ?? 0} sub="localidade Porto" />
-        <Kpi icon={MapPin} label="Inspeções na Oficina" value={porLocalidade.get("Oficina") ?? 0} sub="localidade Oficina" />
+        {destaque.map((d) => <Kpi key={d.nome} icon={MapPin} label={d.label} value={d.inspecoes} sub={d.sub} />)}
         <Kpi
           icon={Target} label="Taxa de conformidade" value={pct(kpis.taxaConformidade)}
           sub={`${kpis.conforme} de ${kpis.aplicaveis} aplicáveis`}

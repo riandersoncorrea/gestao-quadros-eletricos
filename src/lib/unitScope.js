@@ -6,7 +6,7 @@
 //
 // Regras (padrão, permissões, escrita) ficam em src/domain/unitScope.js.
 
-import { isWritableUnit } from "@/domain/unitScope";
+import { isWritableUnit, canCreatePanelsInUnit } from "@/domain/unitScope";
 
 let scope = null; // { units, activeUnit, defaultUnit }
 
@@ -92,4 +92,20 @@ export function assertUnitWritable(recordUnitId) {
   const unit = getUnitById(recordUnitId ?? s.activeUnit.id) || s.activeUnit;
   if (!isWritableUnit(unit)) throw new ReadOnlyUnitError(unit);
   if (unit.id !== s.activeUnit.id) throw new UnitMismatchError(unit, s.activeUnit);
+}
+
+export class PanelCreationUnavailableError extends Error {
+  constructor(unit) {
+    super(`O cadastro de quadros novos da unidade ${unit?.nome ?? ""} é feito por planilha (importação). A edição dos quadros existentes continua disponível.`.replace(/\s+\(/, " ("));
+    this.name = "PanelCreationUnavailableError";
+    this.isUnitScopeError = true;
+    this.unit = unit;
+  }
+}
+
+/** Garante que a unidade ativa cadastra quadros novos pela tela (ver canCreatePanelsInUnit). */
+export function assertActiveUnitCreatesPanels() {
+  const s = requireScope();
+  if (!isWritableUnit(s.activeUnit)) throw new ReadOnlyUnitError(s.activeUnit);
+  if (!canCreatePanelsInUnit(s.activeUnit)) throw new PanelCreationUnavailableError(s.activeUnit);
 }

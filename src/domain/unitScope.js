@@ -120,6 +120,32 @@ export function isWritableUnit(unit) {
 }
 
 /**
+ * A unidade usa o nível "site" (electrical_panels.site — Porto/Oficina/
+ * Pelotização, só São Luís): unidades_operacionais.usa_site (migration 0028);
+ * antes da 0028, só a unidade padrão.
+ */
+export function unitUsesSite(unit) {
+  if (!unit) return false;
+  if (Object.prototype.hasOwnProperty.call(unit, "usa_site")) return !!unit.usa_site;
+  return unit.codigo === DEFAULT_UNIT_CODE;
+}
+
+/**
+ * Cadastro de quadro NOVO pela tela: a TAG é gerada pelo banco
+ * (next_panel_tag), que só sabe gerar por site (PRT/OFC/PEL). Unidade sem
+ * site (EFC) cadastra quadros por planilha (importação); a EDIÇÃO dos
+ * quadros dela segue isWritableUnit.
+ */
+export function canCreatePanelsInUnit(unit) {
+  return isWritableUnit(unit) && unitUsesSite(unit);
+}
+
+/** Nome do 1º nível da localização na unidade: "Site" (São Luís) ou "Cidade". */
+export function localidadeLabel(unit) {
+  return unitUsesSite(unit) ? "Site" : "Cidade";
+}
+
+/**
  * Identificação da unidade em relatórios, PDFs e planilhas (cabeçalho), para
  * um arquivo gerado numa unidade não ser confundido com o de outra.
  */

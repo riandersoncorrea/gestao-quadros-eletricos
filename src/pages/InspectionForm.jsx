@@ -81,7 +81,7 @@ export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit } = useUserRole();
-  const { canWrite } = useUnitScope();
+  const { canWrite, usesSite, localidadeLabel } = useUnitScope();
   const { user } = useAuth();
 
   const [header, setHeader] = useState({
@@ -294,9 +294,8 @@ export default function InspectionForm() {
   });
 
   if (!canEdit) { navigate("/inspecoes"); return null; }
-  // O checklist atual é o de São Luís: unidade somente leitura (EFC nesta
-  // etapa) não registra inspeção. A lista de quadros acima já é só da
-  // unidade ativa.
+  // Unidade somente leitura não registra inspeção (o checklist é o mesmo para
+  // todas as unidades). A lista de quadros acima já é só da unidade ativa.
   if (!canWrite) return <ReadOnlyUnitNotice what="O registro de checklists" backTo="/inspecoes" backLabel="Voltar aos checklists" />;
 
   const h = (k, v) => setHeader((s) => ({ ...s, [k]: v }));
@@ -451,14 +450,14 @@ export default function InspectionForm() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2 grid gap-4 sm:grid-cols-3 rounded-lg border border-border/60 bg-muted/30 p-3">
                 <div className="space-y-2">
-                  <Label>Site (Localidade)</Label>
+                  <Label>{usesSite ? "Site (Localidade)" : localidadeLabel}</Label>
                   <Combobox options={localidadeOptions} value={locFilter.localidade_id} onChange={setLocalidadeFilter}
                     placeholder="Todas" searchPlaceholder="Buscar localidade..." />
                 </div>
                 <div className="space-y-2">
                   <Label>Local (Prédio)</Label>
                   <Combobox options={localOptions} value={locFilter.local_id} onChange={setLocalFilter}
-                    placeholder={locFilter.localidade_id ? "Todos" : "Selecione o site primeiro"}
+                    placeholder={locFilter.localidade_id ? "Todos" : usesSite ? "Selecione o site primeiro" : "Selecione a cidade primeiro"}
                     searchPlaceholder="Buscar prédio..." disabled={!locFilter.localidade_id} />
                 </div>
                 <div className="space-y-2">

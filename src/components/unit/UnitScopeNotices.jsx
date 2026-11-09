@@ -11,6 +11,11 @@ export function readOnlyMessage(unit) {
 export const isUnitMismatchError = (err) => err?.name === "UnitMismatchError";
 export const isReadOnlyUnitError = (err) => err?.name === "ReadOnlyUnitError";
 
+/** Unidade que edita quadros, mas cadastra os novos por planilha (sem site — EFC). */
+export function panelCreationMessage(unit) {
+  return `O cadastro de quadros novos da unidade ${unit?.nome ?? ""} é feito por planilha (importação).`.replace(/\s+\(/, " (");
+}
+
 /**
  * Registro aberto por ID (link direto) que pertence a outra unidade: os
  * dados não são exibidos. Admin pode alternar para a unidade do registro
@@ -68,9 +73,9 @@ export function ReadOnlyUnitNotice({ backTo = "/", backLabel = "Voltar", what = 
  * indicação de que a funcionalidade virá numa próxima etapa (title no
  * wrapper: botão desabilitado não recebe eventos de mouse).
  */
-export function ReadOnlyActionButton({ children, icon: Icon, size = "sm", variant }) {
+export function ReadOnlyActionButton({ children, icon: Icon, size = "sm", variant, message }) {
   const { activeUnit } = useUnitScope();
-  const msg = readOnlyMessage(activeUnit);
+  const msg = message || readOnlyMessage(activeUnit);
   return (
     <span title={msg} className="inline-flex" data-testid="read-only-action">
       <Button size={size} variant={variant} disabled className="gap-2" aria-label={`${typeof children === "string" ? children : ""} — ${msg}`}>
@@ -78,5 +83,24 @@ export function ReadOnlyActionButton({ children, icon: Icon, size = "sm", varian
         {children}
       </Button>
     </span>
+  );
+}
+
+/** Tela de cadastro de quadro aberta numa unidade que cadastra por planilha. */
+export function PanelCreationUnavailableNotice({ backTo = "/inventario", backLabel = "Voltar ao inventário" }) {
+  const { activeUnit } = useUnitScope();
+  return (
+    <div className="p-6 lg:p-8 max-w-xl" data-testid="panel-creation-unavailable-notice">
+      <div className="rounded-lg border border-border bg-card p-5 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Building2 className="h-4 w-4 text-primary" />
+          Cadastro de quadros por planilha
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {panelCreationMessage(activeUnit)} Para editar um quadro existente (por exemplo, incluir a coordenada), abra-o no inventário.
+        </p>
+        <Link to={backTo}><Button size="sm" variant="outline">{backLabel}</Button></Link>
+      </div>
+    </div>
   );
 }
