@@ -31,3 +31,5 @@ dist-ssr
 .env
 .vite
 base44/.app.jsonc
+# Dados reais de importação (inventário) — fora do repositório público
+supabase/private/

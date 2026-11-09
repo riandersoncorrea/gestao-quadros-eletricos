@@ -170,3 +170,39 @@ Me diga se quer que eu prepare e valide (com `begin;...rollback;`, como sempre) 
 ## 9. Próximos passos
 
 Este documento cobre exclusivamente o **Sprint 7**. Nenhum código, schema, RLS, Storage ou Auth foi alterado. Sprints 8–10 (portabilidade/deploy, remoção do SAP, documentação de migração corporativa) aguardam autorização explícita, um de cada vez.
+
+---
+
+## 10. Unidades operacionais (São Luís / EFC) — limitação de segurança (2026-11-08)
+
+Branch `feature/efc-inventario`. O isolamento por unidade implementado nesta etapa é **de interface**, não de segurança:
+
+- **RLS não separa unidades.** As policies atuais (`for select to authenticated using (true)` em `electrical_panels`, `inspections`, `nonconformities`, `actions`, `localidades`…) deixam qualquer usuário autenticado ler os registros de **todas** as unidades. Quem chamar a API REST do Supabase diretamente (chave anon pública + sessão válida) vê São Luís e EFC.
+- **Escrita** continua protegida só pelas policies por papel já existentes. O bloqueio "EFC somente leitura" está no frontend (serviços: `assertPanelWritable`, `assertActiveUnitWritable` em `src/services/unitScopeService.js`), não no banco.
+- **GRANTs**: `anon` e `authenticated` têm todos os privilégios de tabela em `unidades_operacionais` (padrão do Supabase). O controle efetivo é a RLS (policies só para `authenticated`; leitura para todos os autenticados, escrita só admin).
+- **QR Code público** (`/quadro-publico/:id`, sem login): exceção documentada. Sem sessão não há unidade ativa. A página consulta a view `panel_public_info` filtrando pelo id do QR, mas **a view em si não tem filtro**:
+  - é `security_invoker = false` (roda com os privilégios do dono e ignora a RLS de `electrical_panels`), não tem `WHERE` e tem `grant select to anon, authenticated` (migrations 0010/0011);
+  - portanto **qualquer pessoa com a chave anon** (pública, embutida no bundle do site) pode **listar todos os quadros, de todas as unidades, sem login**, por exemplo `GET /rest/v1/panel_public_info?select=*` — com TAG, nome, localização, coordenadas, engenheiro responsável e números SAP (toda a whitelist da view). O uuid só deixa de ser "adivinhável" na tela; pela API a enumeração é direta;
+  - **correção da versão anterior deste item**, que dizia "uuid, não enumerável pela tela" e podia ser lida como se a view não fosse enumerável — ela é;
+  - risco **pré-existente** (desde a 0010, vale para São Luís hoje); a importação da EFC acrescenta os 202 quadros ao mesmo alcance;
+  - **correção recomendada (não aplicada — exige migration e aprovação):** substituir a view por uma função `public.get_public_panel(p_id uuid)` `SECURITY DEFINER`, `stable`, `search_path` fixo, que devolve no máximo uma linha com as mesmas colunas; `revoke select on public.panel_public_info from anon` (e `authenticated`, se não houver outro uso); ajustar `getPublicPanelInfo` (src/repositories/panelRepository.js) para `supabase.rpc("get_public_panel", { p_id })`. Até lá, a decisão de importar a EFC deve considerar explicitamente essa exposição.
+  - A view não expõe a unidade — mostrar a unidade na página pública exige alterar a view/função (decisão de banco, fora desta etapa). Quadros da EFC aparecem com a cidade em "localidade" e "Site" vazio.
+
+**Proposta para uma etapa específica (não implementada):** vínculo usuário → unidade (ex.: `profiles.unidade_operacional_id` ou tabela `profile_unidades`), função `current_unidades()` SECURITY DEFINER e policies de SELECT/escrita usando `electrical_panels.unidade_operacional_id` (e, nas tabelas filhas, a unidade do quadro). No frontend, o ponto único a ajustar é `getAllowedUnits` (`src/domain/unitScope.js`).
+
+### 10.1 Proposta implementada em arquivos (2026-11-08) — NÃO aplicada no Supabase
+
+- `0029_seguranca_por_unidade.sql`: policies **restritivas** (AND com as de perfil, que não mudam) em todas as tabelas
+  de dados — unidade autorizada para ler, unidade autorizada **e** gravável para escrever; aprovação obrigatória
+  também na leitura (corrige A2); `profile_unidades` + `acesso_todas_unidades` (administrador geral/local); EFC
+  somente leitura no banco via `permite_escrita` (corrige A3); unidade herdada nos registros filhos (registro sem
+  quadro fica NULL, visível só ao admin geral — nunca São Luís por padrão); auditoria só para admin geral;
+  trigger impede autoatribuição de unidade/acesso global/perfil admin.
+- `0030_qr_publico_consulta_individual.sql`: `get_public_panel(uuid)` (SECURITY DEFINER, `search_path = ''`) devolve
+  um quadro por id; view `panel_public_info` fechada para anon/authenticated; anon sem privilégios de tabela
+  (corrige A1).
+- Funções SECURITY DEFINER: só leitura do acesso do próprio usuário e a cascata de unidade; EXECUTE revogado de PUBLIC/anon.
+- Testado num Postgres local descartável (inclui testes de mutação). **Aplicado e validado no Supabase em 2026-11-08**
+  (0028–0030); a importação (0031) se recusa a rodar sem 0029/0030 e foi aplicada em 2026-11-09. O arquivo da 0031
+  (inventário real) fica fora do repositório público. Roteiro: `docs/IMPLANTACAO_UNIDADES.md`.
+- Fora do escopo: Storage (`uploads` público por URL), e-mails visíveis a administradores locais na tela Usuários.
