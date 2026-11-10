@@ -111,6 +111,7 @@ const EMPTY_FORM = {
   has_grounding: false,
   diagram_status: "inexistente",
   photo_url: "",
+  photo_interna_url: "",
   installation_date: "",
   last_inspection_date: "",
   next_inspection_date: "",
@@ -261,6 +262,11 @@ export default function InventoryForm() {
       Object.keys(clean).forEach((k) => {
         if (clean[k] === undefined) delete clean[k];
       });
+      // Antes da 0035 a coluna não existe (não vem no quadro carregado):
+      // não enviá-la, senão a gravação inteira falha.
+      if (isEditing && !Object.prototype.hasOwnProperty.call(panels?.[0] || {}, "photo_interna_url")) {
+        delete clean.photo_interna_url;
+      }
 
       // A Tag é gerada automaticamente pelo banco (trigger) com base no Site.
       // O Nome Descritivo depende da Tag, então para um cadastro novo só dá
@@ -298,10 +304,12 @@ export default function InventoryForm() {
     onError: () => toast.error("Erro ao salvar o quadro"),
   });
 
-  const handlePhotoUpload = async (e) => {
+  // field: photo_url (externa, obrigatória no cadastro) ou photo_interna_url
+  // (parte interna, opcional — migration 0035).
+  const handlePhotoUpload = async (e, field = "photo_url") => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadingPhoto(true);
+    setUploadingPhoto(field);
     try {
       // Reduz fotos de câmera grandes antes do upload (mesma otimização já
       // usada na Termografia — ver src/utils/imageProcessing.js).
@@ -309,7 +317,7 @@ export default function InventoryForm() {
       // próprio arquivo original.
       const optimized = await resizeImageIfNeeded(file);
       const { file_url } = await uploadFile({ file: optimized });
-      setForm((prev) => ({ ...prev, photo_url: file_url }));
+      setForm((prev) => ({ ...prev, [field]: file_url }));
       toast.success("Arquivo enviado!");
     } catch (err) {
       toast.error(err.message || "Erro ao enviar a foto");
@@ -457,6 +465,51 @@ export default function InventoryForm() {
       return false;
     }
     return true;
+  };
+
+  const renderPhotoPicker = (field, label) => {
+    const uploading = uploadingPhoto === field;
+    const busy = !!uploadingPhoto;
+    const pickerClass =
+      "flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit";
+    return (
+      <div className="space-y-2">
+        <Label>{label}</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className={pickerClass}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Tirar foto"}</span>
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              capture="environment"
+              disabled={busy}
+              onChange={(e) => handlePhotoUpload(e, field)}
+            />
+          </label>
+          <label className={pickerClass}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Escolher arquivo"}</span>
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              disabled={busy}
+              onChange={(e) => handlePhotoUpload(e, field)}
+            />
+          </label>
+        </div>
+        {form[field] && (
+          <p className="text-xs text-secondary font-medium">
+            ✓ Foto enviada{" "}
+            <a href={form[field]} target="_blank" rel="noopener noreferrer" className="underline">
+              (ver)
+            </a>
+          </p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -1086,49 +1139,8 @@ export default function InventoryForm() {
                 />
               </label>
             </div>
-            <div className="space-y-2">
-              <Label>Foto do Quadro{isEditing ? "" : " *"}</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
-                  {uploadingPhoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  )}
-                  <span className="text-sm text-muted-foreground">
-                    {uploadingPhoto ? "Enviando..." : "Tirar foto"}
-                  </span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handlePhotoUpload}
-                  />
-                </label>
-                <label className="flex items-center gap-2 px-4 py-2.5 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors w-fit">
-                  {uploadingPhoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  <span className="text-sm text-muted-foreground">
-                    {uploadingPhoto ? "Enviando..." : "Escolher arquivo"}
-                  </span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                  />
-                </label>
-              </div>
-              {form.photo_url && (
-                <p className="text-xs text-secondary font-medium">
-                  ✓ Foto enviada
-                </p>
-              )}
-            </div>
+            {renderPhotoPicker("photo_url", `Foto do Quadro (externa)${isEditing ? "" : " *"}`)}
+            {renderPhotoPicker("photo_interna_url", "Foto interna do Quadro")}
             <div className="space-y-2">
               <Label>Observações</Label>
               <Textarea

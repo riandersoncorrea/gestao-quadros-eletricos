@@ -8,7 +8,7 @@
     "build": "vite build",
     "postbuild": "cp -f dist/index.html dist/404.html",
     "lint": "eslint . --quiet",
-    "test": "node --test src/domain/unitScope.test.mjs scripts/inventory-import/ && node scripts/unit-scope-tests/run.mjs",
+    "test": "node --test src/domain/unitScope.test.mjs scripts/inventory-import/ && node scripts/unit-scope-tests/run.mjs && CHECKLIST_IMPORT_ENTRY=scripts/checklist-import/checklistRules.test.js node scripts/checklist-import/generate-checklist-sql.mjs",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"

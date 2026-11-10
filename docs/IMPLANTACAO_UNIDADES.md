@@ -20,6 +20,7 @@ importação quando o arquivo não existe.
 | 0032 | `supabase/migrations/0032_storage_upload_so_aprovados.sql` | Storage (`uploads`): INSERT/UPDATE/DELETE só para perfil aprovado (`current_role()` não nulo) | 0006/0018 |
 | 0033 | `supabase/migrations/0033_responsaveis_por_unidade.sql` | `responsaveis_atribuiveis(unidade)`: admin/inspetor aprovados com acesso à unidade (atribuição manual de ações) | 0029 |
 | 0034 | `supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql` | Administrador local só altera contas novas (sem unidade) ou de unidade a que tem acesso | 0029 |
+| 0035 | `supabase/migrations/0035_quadro_foto_interna.sql` | Segunda foto do quadro (`photo_interna_url`, parte interna); fora do QR público | — |
 
 Rollback: `supabase/rollback/0029_*.rollback.sql`, `supabase/rollback/0030_*.rollback.sql` (testados no banco local).
 A 0027 (status da NC segue as ações) entra em produção **depois** da 0030/0031, apesar do número menor.

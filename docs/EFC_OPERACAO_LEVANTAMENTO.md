@@ -73,7 +73,27 @@ local só altera (aprova, reprova, troca o perfil) contas **novas** (ainda sem u
 unidade a que ele também tem acesso. Atribuir unidades, conceder acesso global e promover a administrador continuam
 exclusivos do administrador geral. A tela Usuários mostra o motivo quando o banco recusa.
 
-**Sequência de produção (com aprovação):** 0032 → teste → 0033 → teste → 0034 → teste → deploy do frontend (funciona antes e depois
+**Sequência de produção (com aprovação):** 0032 → teste → 0033 → teste → 0034 → teste → 0035 → teste → deploy do frontend (funciona antes e depois
 da 0033) → `update public.unidades_operacionais set permite_escrita = true where codigo = 'EFC';` → contas da EFC
 criadas pelos próprios usuários → admin geral aprova e atribui a EFC (tela Usuários → "Unidades…").
 
+
+## Checklists históricos da EFC (ValeForms) — importados em 10/11/2026
+
+Fonte: exportação do ValeForms "Checklist - Quadros Elétricos EFC" (aba `Forms`), 202 checklists (1 por quadro,
+01–29/10/2026). As 47 perguntas são as do "Checklist Padrão BT" (casadas pelo **texto**; a coluna do BAR-05 está fora de
+ordem na planilha).
+
+| Tema | Regra |
+|---|---|
+| NCs/ações | Uma NC aberta por "Não conforme" + ação automática sem responsável (atribuição manual); severidade, descrição e prazo pelas regras do app; prazo contado da data da importação (10/11/2026). |
+| Itens em branco | "Não verificado", motivo "Item em branco no checklist do ValeForms (importação)". |
+| CAB-07 | Sem opção Conforme/Não conforme no ValeForms (só comentário): resposta inferida quando o comentário é inequívoco, com nota; senão "Não verificado". |
+| Fotos | Links do ValeForms expiravam em 22/11/2026: baixadas, reduzidas e enviadas ao bucket `uploads/efc-checklists-2026-10/`. Externa → evidência ID-02 e foto do quadro; interna → evidência ID-01 e `photo_interna_url` (0035); diagrama → evidência DOC-01 e anexo "diagrama unifilar". |
+| Inspetor | Sem CPF; grafias de um mesmo nome unificadas quando inequívocas; valor que não é nome → "Não informado". |
+| OM preventiva, serviços, observação | Nas observações da inspeção, com o número do registro no ValeForms. |
+
+Ferramenta: `scripts/checklist-import/` (regras + testes no `npm test`). O SQL gerado tem dados reais e fica em
+`supabase/private/` (fora do Git); `--split-by-city` gera um arquivo por cidade (limite de tamanho do SQL Editor).
+Ensaio: `scripts/db-local/run.sh` (aborta sem fotos, recusa reexecução). Conferência em produção:
+`supabase/tests/efc_checklists_valeforms.check.sql` → `OK | 202 | 1930`.

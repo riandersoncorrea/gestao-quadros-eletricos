@@ -445,17 +445,31 @@ export default function PanelDetail() {
         )}
 
         {/* Photo */}
-        {panel.photo_url && (
-          <Card className={panel.diagram_url ? "" : "md:col-span-2"}>
+        {(panel.photo_url || panel.photo_interna_url) && (
+          <Card className={panel.diagram_url && !(panel.photo_url && panel.photo_interna_url) ? "" : "md:col-span-2"}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Image className="h-4 w-4 text-primary" />
-                Foto do Quadro
+                {panel.photo_url && panel.photo_interna_url ? "Fotos do Quadro" : "Foto do Quadro"}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border border-border overflow-hidden bg-white">
-                <img src={panel.photo_url} alt="Foto do quadro" className="w-full max-h-[300px] object-contain" />
+              <div className={panel.photo_url && panel.photo_interna_url ? "grid gap-3 sm:grid-cols-2" : ""}>
+                {[
+                  [panel.photo_url, "Externa", "Foto do quadro"],
+                  [panel.photo_interna_url, "Interna", "Foto interna do quadro"],
+                ]
+                  .filter(([url]) => url)
+                  .map(([url, label, alt]) => (
+                    <div key={label} className="space-y-1">
+                      {panel.photo_url && panel.photo_interna_url && (
+                        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                      )}
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg border border-border overflow-hidden bg-white">
+                        <img src={url} alt={alt} className="w-full max-h-[300px] object-contain" />
+                      </a>
+                    </div>
+                  ))}
               </div>
             </CardContent>
           </Card>

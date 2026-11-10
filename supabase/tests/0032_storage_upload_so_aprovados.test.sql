@@ -54,12 +54,22 @@ declare n int;
 begin
   insert into storage.objects (bucket_id, name, owner_id)
   values ('uploads', 't32/aprovado.txt', '00000000-0000-4000-a000-0000003200a1');
-  delete from storage.objects where bucket_id = 'uploads' and name = 't32/aprovado.txt';
-  get diagnostics n = row_count;
-  if n <> 1 then raise exception 'FALHA 3: aprovado não apagou o próprio arquivo'; end if;
+  select count(*) into n from storage.objects where bucket_id = 'uploads' and name = 't32/aprovado.txt';
+  if n <> 1 then raise exception 'FALHA 3: aprovado não enxerga o próprio arquivo'; end if;
+  -- No Supabase, storage.protect_delete() barra QUALQUER delete direto em
+  -- storage.objects (só a API do Storage apaga) — independente das policies.
+  -- Lá o DELETE fica coberto pela conferência do texto da policy (passo 1);
+  -- no banco local (sem essa proteção) o delete é exercitado de fato.
+  begin
+    delete from storage.objects where bucket_id = 'uploads' and name = 't32/aprovado.txt';
+    get diagnostics n = row_count;
+    if n <> 1 then raise exception 'FALHA 3b: aprovado não apagou o próprio arquivo'; end if;
+  exception when insufficient_privilege then
+    if sqlerrm not like 'Direct deletion from storage tables is not allowed%' then raise; end if;
+  end;
 end $$;
 reset role;
 
-select 'OK' as resultado;
-
 rollback;
+
+select 'OK' as resultado;

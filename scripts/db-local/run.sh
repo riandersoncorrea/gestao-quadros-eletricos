@@ -114,4 +114,38 @@ apply supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql
 apply supabase/tests/0034_admin_local_gerencia_propria_unidade.test.sql
 apply supabase/migrations/0034_admin_local_gerencia_propria_unidade.sql
 for t in supabase/tests/0029_*.test.sql supabase/tests/0033_*.test.sql; do apply "$t"; done
+echo "== 0035 (foto interna do quadro)"
+apply supabase/migrations/0035_quadro_foto_interna.sql
+apply supabase/tests/0035_quadro_foto_interna.test.sql
+apply supabase/migrations/0035_quadro_foto_interna.sql
+
+# Checklists históricos da EFC (ValeForms): SQL gerado por
+# scripts/checklist-import/generate-checklist-sql.mjs, com dados reais — fica
+# fora do repositório. As fotos não existem no Storage local: o ensaio cria as
+# linhas de storage.objects que o SQL confere.
+# Arquivo único ou um por cidade (--split-by-city: efc_checklists_valeforms_<SIGLA>.sql).
+IMPORT_CHECKLISTS="${IMPORT_CHECKLISTS:-supabase/private/efc_checklists_valeforms}"
+PARTS=()
+for f in "$IMPORT_CHECKLISTS"_*.sql "$IMPORT_CHECKLISTS".sql; do [ -f "$f" ] && PARTS+=("$f"); done
+if [ ${#PARTS[@]} -gt 0 ] && [ -f "$IMPORT_0031" ]; then
+  echo "== Checklists históricos da EFC (${#PARTS[@]} arquivo(s))"
+  echo "   sem as fotos no Storage (deve abortar sem gravar):"
+  if psql_db -f "${PARTS[0]}" >/dev/null 2>&1; then echo "  FALHA importação aceitou sem fotos"; exit 1; fi
+  [ "$(psql_db -tAc "select count(*) from public.inspections where observacoes like 'Checklist importado do ValeForms%'")" = "0" ] \
+    || { echo "  FALHA gravou algo sem fotos"; exit 1; }
+  echo "  ok   abortou sem gravar"
+  for f in "${PARTS[@]}"; do
+    psql_db -c "insert into storage.objects (bucket_id, name) select distinct 'uploads', m[1] from regexp_matches(pg_read_file('$(pwd)/$f'), '\(''(efc-checklists-[^'']+)''\)', 'g') as m on conflict do nothing;" >/dev/null
+  done
+  for f in "${PARTS[@]}"; do apply "$f"; done
+  apply supabase/tests/efc_checklists_valeforms.check.sql
+  echo "   reexecução (deve ser recusada):"
+  if psql_db -f "${PARTS[0]}" >/dev/null 2>&1; then echo "  FALHA reexecução aceita"; exit 1; fi
+  echo "  ok   reexecução recusada"
+  apply supabase/tests/efc_checklists_valeforms.check.sql
+  echo "   segurança por unidade com os checklists importados:"
+  for t in supabase/tests/0029_*.test.sql supabase/tests/0030_*.test.sql; do apply "$t"; done
+else
+  echo "== Checklists históricos da EFC: arquivo ausente ($IMPORT_CHECKLISTS*) — etapa pulada"
+fi
 echo "== TUDO OK"
