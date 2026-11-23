@@ -163,6 +163,37 @@ apply supabase/tests/0036_exclusoes_e_cidade_do_quadro.test.sql
 [ "$(fp_todas)" = "$FP36_ANTES" ] || { echo "  FALHA dados mudaram com rollback/reaplicação"; exit 1; }
 echo "  ok   rollback + reaplicação sem alterar dados"
 
+echo "== 0037 (área molhada registrada pelo administrador, com auditoria)"
+# Impressão digital sem as colunas novas da 0037 (o ALTER acrescenta colunas nulas).
+fp_sem_0037() {
+  psql_db -tA -c "select md5(string_agg(t || ':' || h, '|' order by t)) from (
+    select 'inspection_responses' t, md5(coalesce(string_agg((to_jsonb(x) - array['area_molhada_registrada_por','area_molhada_registrada_em','area_molhada_justificativa'])::text, '|' order by x.id), '')) h
+      from public.inspection_responses x union all
+    select 'inspections', md5(coalesce(string_agg(to_jsonb(x)::text, '|' order by x.id), '')) from public.inspections x union all
+    select 'nonconformities', md5(coalesce(string_agg(to_jsonb(x)::text, '|' order by x.id), '')) from public.nonconformities x union all
+    select 'actions', md5(coalesce(string_agg(to_jsonb(x)::text, '|' order by x.id), '')) from public.actions x) s;"
+}
+FP37_ANTES=$(fp_sem_0037)
+apply supabase/migrations/0037_area_molhada_registro_admin.sql
+[ "$(fp_sem_0037)" = "$FP37_ANTES" ] || { echo "  FALHA a 0037 alterou dados existentes"; exit 1; }
+echo "  ok   a 0037 não alterou nenhuma linha existente"
+apply supabase/tests/0037_area_molhada_registro_admin.test.sql
+apply supabase/migrations/0037_area_molhada_registro_admin.sql
+apply supabase/tests/0037_area_molhada_registro_admin.test.sql
+echo "   compatibilidade 0027–0036 com a 0037:"
+for t in supabase/tests/0027_*.test.sql supabase/tests/0029_*.test.sql supabase/tests/0033_*.test.sql \
+         supabase/tests/0035_*.test.sql supabase/tests/0036_*.test.sql; do
+  apply "$t"
+done
+echo "   rollback da 0037 e reaplicação:"
+apply supabase/rollback/0037_area_molhada_registro_admin.rollback.sql
+[ "$(psql_db -tAc "select count(*) from pg_proc where proname in ('registrar_area_molhada', 'check_area_molhada_registro')")" = "0" ] \
+  || { echo "  FALHA rollback da 0037 incompleto"; exit 1; }
+apply supabase/migrations/0037_area_molhada_registro_admin.sql
+apply supabase/tests/0037_area_molhada_registro_admin.test.sql
+[ "$(fp_sem_0037)" = "$FP37_ANTES" ] || { echo "  FALHA dados mudaram com rollback/reaplicação da 0037"; exit 1; }
+echo "  ok   rollback + reaplicação da 0037 sem alterar dados"
+
 # Checklists históricos da EFC (ValeForms): SQL gerado por
 # scripts/checklist-import/generate-checklist-sql.mjs, com dados reais — fica
 # fora do repositório. As fotos não existem no Storage local: o ensaio cria as

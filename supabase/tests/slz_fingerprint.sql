@@ -27,7 +27,7 @@ select json_build_object(
   'sublocais_md5',    (select md5(string_agg(s::text, '|' order by s.id)) from slz_sub s),
   'inspecoes',        (select count(*) from public.inspections),
   'inspecoes_md5',    (select md5(string_agg((to_jsonb(i) - 'unidade_operacional_id')::text, '|' order by i.id)) from public.inspections i),
-  'respostas_md5',    (select md5(string_agg((to_jsonb(r) - 'unidade_operacional_id')::text, '|' order by r.id)) from public.inspection_responses r),
+  'respostas_md5',    (select md5(string_agg((to_jsonb(r) - 'unidade_operacional_id' - 'area_molhada_registrada_por' - 'area_molhada_registrada_em' - 'area_molhada_justificativa')::text, '|' order by r.id)) from public.inspection_responses r),
   'ncs',              (select count(*) from public.nonconformities),
   'ncs_md5',          (select md5(string_agg((to_jsonb(n) - 'unidade_operacional_id')::text, '|' order by n.id)) from public.nonconformities n),
   'acoes',            (select count(*) from public.actions),
