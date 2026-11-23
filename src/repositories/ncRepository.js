@@ -1,13 +1,19 @@
 import { supabase } from "@/lib/supabaseClient";
 import { fetchAllPages } from "@/repositories/pagination";
 
+// Paginada (ver repositories/pagination.js): a tabela passou de 1000 linhas
+// com a importação da EFC e o recorte por unidade é feito no cliente
+// (scopeRowsToActiveUnit) — sem paginar, o administrador geral recebia só as
+// 1000 NCs mais recentes de todas as unidades antes do filtro. O desempate
+// por id mantém a ordenação estável entre as páginas.
 export async function list() {
-  const { data, error } = await supabase
-    .from("nonconformities")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("nonconformities")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+  );
 }
 
 export async function getById(id) {
@@ -72,9 +78,12 @@ export async function listStatusSeverityForDashboard() {
 }
 
 export async function listStatusSeverityForMap() {
-  const { data, error } = await supabase.from("nonconformities").select("panel_id, status, severidade");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("nonconformities")
+      .select("id, panel_id, status, severidade")
+      .order("id", { ascending: true })
+  );
 }
 
 /**

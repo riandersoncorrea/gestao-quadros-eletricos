@@ -31,10 +31,14 @@ const aliasPlugin = {
   },
 };
 
+// Cada arquivo vira um bundle próprio (estado de módulo isolado por processo).
+const entries = ["unitScope.integration.test.js", "pagination.integration.test.js"];
+
 try {
   await build({
-    entryPoints: [join(here, "unitScope.integration.test.js")],
-    outfile: join(out, "unitScope.integration.test.mjs"),
+    entryPoints: entries.map((e) => join(here, e)),
+    outdir: out,
+    outExtension: { ".js": ".mjs" },
     bundle: true,
     platform: "node",
     format: "esm",
@@ -56,7 +60,7 @@ try {
         "globalThis.localStorage ??= { getItem: () => null, setItem() {}, removeItem() {} };",
     },
   });
-  const res = spawnSync(process.execPath, ["--test", join(out, "unitScope.integration.test.mjs")], { stdio: "inherit" });
+  const res = spawnSync(process.execPath, ["--test", ...entries.map((e) => join(out, e.replace(/\.js$/, ".mjs")))], { stdio: "inherit" });
   process.exitCode = res.status ?? 1;
 } finally {
   rmSync(out, { recursive: true, force: true });
