@@ -4,6 +4,11 @@
 // select / eq / neq / in / order / range / limit / single / maybeSingle /
 // insert / update / delete. Registra cada gravação em `writes` para os
 // testes provarem que nada foi gravado quando a unidade é somente leitura.
+//
+// Para os testes de paginação: `order` ordena de verdade (várias chaves,
+// estável), `maxRows` imita o max_rows do PostgREST (corta o excedente de
+// cada leitura SEM erro, como o Supabase) e `selects` registra cada leitura
+// (tabela + range) para contar as páginas pedidas.
 
 let db = {};
 export const writes = [];
@@ -13,11 +18,16 @@ let rpcs = {};
 // Sessão simulada (getCurrentUser lê o perfil em profiles). null = sem sessão.
 let sessionUser = null;
 export const rpcCalls = [];
+// Limite de linhas por leitura (PostgREST max_rows). Infinity = sem limite.
+let maxRows = Infinity;
+export const selects = [];
 
-export function resetDb(tables, { missing = {}, rpc = {} } = {}) {
+export function resetDb(tables, { missing = {}, rpc = {}, maxRows: limite = Infinity } = {}) {
   db = structuredClone(tables);
   writes.length = 0;
   rpcCalls.length = 0;
+  selects.length = 0;
+  maxRows = limite;
   missingColumns = missing;
   rpcs = rpc;
   sessionUser = null;
@@ -53,6 +63,7 @@ class Query {
     this.columns = "*";
     this.rangeArgs = null;
     this.limitN = null;
+    this.orderKeys = [];
     this.mode = "many";
   }
   select(columns = "*") {
@@ -69,7 +80,7 @@ class Query {
     this.filters.push((r) => parts.some(([c, v]) => String(r[c.trim()]) === v));
     return this;
   }
-  order() { return this; }
+  order(col, { ascending = true } = {}) { this.orderKeys.push([col, ascending]); return this; }
   range(from, to) { this.rangeArgs = [from, to]; return this; }
   limit(n) { this.limitN = n; return this; }
   single() { this.mode = "single"; return this; }
@@ -103,8 +114,21 @@ class Query {
       data = hit;
     } else {
       data = attachEmbeds(this.name, rowsOf().map((r) => ({ ...r })), this.columns);
+      if (this.orderKeys.length) {
+        const cmp = (a, b) => {
+          for (const [col, asc] of this.orderKeys) {
+            if (a[col] === b[col]) continue;
+            const r = a[col] < b[col] ? -1 : 1;
+            return asc ? r : -r;
+          }
+          return 0;
+        };
+        data = data.sort(cmp);
+      }
       if (this.rangeArgs) data = data.slice(this.rangeArgs[0], this.rangeArgs[1] + 1);
       if (this.limitN != null) data = data.slice(0, this.limitN);
+      data = data.slice(0, maxRows);
+      selects.push({ table: this.name, range: this.rangeArgs });
     }
     if (this.mode === "single") {
       return data.length === 1 ? { data: data[0], error: null } : { data: null, error: new Error(`single: ${data.length} linhas`) };
