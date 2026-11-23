@@ -194,6 +194,15 @@ apply supabase/tests/0037_area_molhada_registro_admin.test.sql
 [ "$(fp_sem_0037)" = "$FP37_ANTES" ] || { echo "  FALHA dados mudaram com rollback/reaplicação da 0037"; exit 1; }
 echo "  ok   rollback + reaplicação da 0037 sem alterar dados"
 
+echo "== Consultas só leitura (conferência pré-produção e relatórios B1/B2)"
+for q in supabase/tests/0036_vinculos_entre_unidades.check.sql supabase/tests/efc_pendencias_b1_b2.sql \
+         supabase/tests/efc_prazos_acoes.report.sql; do
+  FPQ=$(fp_todas)
+  psql_db -tA -f "$q" > /dev/null || { echo "  FALHA $(basename "$q")"; exit 1; }
+  [ "$(fp_todas)" = "$FPQ" ] || { echo "  FALHA $(basename "$q") alterou dados"; exit 1; }
+  echo "  ok   $(basename "$q") (executa e não altera dados)"
+done
+
 # Checklists históricos da EFC (ValeForms): SQL gerado por
 # scripts/checklist-import/generate-checklist-sql.mjs, com dados reais — fica
 # fora do repositório. As fotos não existem no Storage local: o ensaio cria as

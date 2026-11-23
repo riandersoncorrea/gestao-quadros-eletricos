@@ -97,3 +97,25 @@ Ferramenta: `scripts/checklist-import/` (regras + testes no `npm test`). O SQL g
 `supabase/private/` (fora do Git); `--split-by-city` gera um arquivo por cidade (limite de tamanho do SQL Editor).
 Ensaio: `scripts/db-local/run.sh` (aborta sem fotos, recusa reexecução). Conferência em produção:
 `supabase/tests/efc_checklists_valeforms.check.sql` → `OK | 202 | 1930`.
+
+
+## Correções antes da liberação da escrita (22/11/2026 — branch `feature/efc-inventario`, não aplicadas)
+
+| Pendência | Correção | Onde |
+|---|---|---|
+| Forja de unidade nos registros filhos (auditoria 11/11) | Unidade sempre a da cadeia quadro → inspeção → NC → ação; vínculos de unidades diferentes recusados | `0036` itens 1–4 |
+| NC excluída por editor pela API | Exclusão de NC só admin | `0036` item 5 |
+| **D3** — ação excluída por editor pela API | Exclusão de ação, resposta, medição e termografia só admin (banco + tela, com confirmação que mostra a mudança de status da NC); anexo do quadro segue com o editor | `0036` item 6, `actionService.deleteAction`, `NonconformityDetail` |
+| Histórico de exclusões | `audit_log.valor_anterior` guarda o registro excluído (JSON); `panel_attachments` auditada; tela Auditoria mostra o registro | `0036` item 8, `AuditLog` |
+| **P1** — edição reescrevia o nome do quadro | Nome só recalculado quando prédio/sublocal mudam (`TAG / Prédio_Sublocal` ou `TAG / Prédio`); edição sem prédio não apaga a localidade | `src/domain/panelName.js`, `InventoryForm` |
+| **P2** — cidade do quadro EFC trocável pela API | Unidade sem site: só o admin geral troca a cidade (efetiva) de um quadro já classificado; São Luís sem mudança | `0036` item 7 |
+| **P3** — rascunho do checklist compartilhado | Chave por usuário + unidade, dono gravado no rascunho; chave antiga descartada | `src/domain/inspectionDraft.js`, `InspectionForm` |
+| **B1** — PRO-01 sem área molhada | Admin registra Sim/Não com a fonte (mín. 10 caracteres), só onde está vazio; auditado; trava impede alteração direta | `0037`, `InspectionDetail` |
+| **B2** — prazos | Datas originais mantidas; relatório só leitura por severidade/situação/cidade | `supabase/tests/efc_prazos_acoes.report.sql` |
+
+**Sequência de produção (com aprovação, SQL Editor):** `0036_vinculos_entre_unidades.check.sql` (tudo 0; linha
+`audit_trigger` = 1) → `slz_fingerprint.sql` → `0036` → `0036_unidade_pela_cadeia_de_vinculos.test.sql` →
+`0036_exclusoes_e_cidade_do_quadro.test.sql` → conferência de novo (`herdar_unidade` = 1, `audit_trigger` = 2) →
+`0037` → `0037_area_molhada_registro_admin.test.sql` → `slz_fingerprint.sql` (comparar) → deploy do frontend
+(funciona antes e depois da 0037: sem ela, o registro de área molhada avisa que não está disponível).
+Liberação da escrita da EFC só depois, com ordem expressa.
