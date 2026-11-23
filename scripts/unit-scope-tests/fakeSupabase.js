@@ -10,12 +10,22 @@ export const writes = [];
 // Simula banco sem uma migration: colunas ausentes por tabela e RPCs existentes.
 let missingColumns = {};
 let rpcs = {};
+// Sessão simulada (getCurrentUser lê o perfil em profiles). null = sem sessão.
+let sessionUser = null;
+export const rpcCalls = [];
 
 export function resetDb(tables, { missing = {}, rpc = {} } = {}) {
   db = structuredClone(tables);
   writes.length = 0;
+  rpcCalls.length = 0;
   missingColumns = missing;
   rpcs = rpc;
+  sessionUser = null;
+}
+
+/** Simula o usuário logado (o perfil precisa estar na tabela profiles). */
+export function setSessionUser(user) {
+  sessionUser = user;
 }
 
 export function table(name) {
@@ -109,12 +119,15 @@ class Query {
 
 export const supabase = {
   from: (name) => new Query(name),
-  rpc: async (name, args) => (rpcs[name]
-    ? { data: rpcs[name](args), error: null }
-    : { data: null, error: { code: "PGRST202", message: `Could not find the function public.${name}` } }),
+  rpc: async (name, args) => {
+    rpcCalls.push({ name, args });
+    return rpcs[name]
+      ? { data: rpcs[name](args), error: null }
+      : { data: null, error: { code: "PGRST202", message: `Could not find the function public.${name}` } };
+  },
   auth: {
     getUser: async () => ({ data: { user: { id: "user-teste" } } }),
-    getSession: async () => ({ data: { session: null } }),
+    getSession: async () => ({ data: { session: sessionUser ? { user: sessionUser } : null } }),
     onAuthStateChange: () => ({ data: { unsubscribe() {} } }),
   },
   storage: { from: () => ({ upload: async () => ({ error: null }), getPublicUrl: () => ({ data: { publicUrl: "" } }), remove: async () => ({ error: null }) }) },

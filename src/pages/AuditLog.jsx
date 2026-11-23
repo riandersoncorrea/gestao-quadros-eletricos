@@ -119,6 +119,11 @@ export default function AuditLog() {
                             {" → "}
                             <span className="font-medium">{trunc(r.valor_novo)}</span>
                           </span>
+                        ) : r.acao === "delete" && r.valor_anterior ? (
+                          // Desde a 0036 a exclusão guarda o registro inteiro (JSON).
+                          <span className="text-muted-foreground break-all" title={r.valor_anterior}>
+                            Registro excluído: {trunc(r.valor_anterior, 120)}
+                          </span>
                         ) : "—"}
                       </td>
                     </tr>

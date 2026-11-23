@@ -25,7 +25,10 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { addMonths, format, parseISO } from "date-fns";
 import { ArrowLeft, Loader2, Save, Plus, Trash2, Upload, Camera, ClipboardCheck, Gauge, Thermometer, ListChecks, AlertTriangle, Eraser, PenLine, ShieldAlert } from "lucide-react";
-import { saveDraft, loadDraft, clearDraft } from "@/utils/formDraft";
+import {
+  saveInspectionDraft, loadInspectionDraft, clearInspectionDraft, discardLegacyInspectionDraft,
+  browserDraftStorage, inspectionDraftKey,
+} from "@/domain/inspectionDraft";
 import { resizeImageIfNeeded } from "@/utils/imageProcessing";
 
 const RESP = [
@@ -72,23 +75,26 @@ function autoResultado(valor, min, max) {
 const emptyMeas = () => ({ categoria: "", parametro: "", valor: "", unidade: "", instrumento: "", limite_min: "", limite_max: "", resultado: "", observacao: "" });
 const emptyThermo = () => ({ equipamento: "", ponto: "", temperatura: "", temperatura_ambiente: "", instrumento: "", criticidade: "", diagnostico: "", observacao: "", imagem_url: "", imagem_termografica_url: "" });
 
-// Only one "new inspection" screen exists (no :id route) — the checklist type
-// (template id) is what distinguishes drafts that shouldn't be mixed.
-const DRAFT_KEY = "qe:inspection-draft:new";
-const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+// Rascunho local do checklist novo: um por USUÁRIO e UNIDADE (aparelho
+// compartilhado não mostra o rascunho de outra pessoa nem de outra unidade);
+// o tipo de checklist (template id) também não se mistura —
+// domain/inspectionDraft.js.
+const emptyHeader = () => ({
+  panel_id: "", panel_name: "", panel_tag: "",
+  inspection_date: new Date().toISOString().slice(0, 10),
+  inspector_name: "", frequency: "", next_inspection: "", sap_order_id: "", observacoes: "",
+});
 
 export default function InspectionForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit } = useUserRole();
-  const { canWrite, usesSite, localidadeLabel } = useUnitScope();
+  const { canWrite, usesSite, localidadeLabel, activeUnit } = useUnitScope();
   const { user } = useAuth();
+  const draftOwner = useMemo(() => ({ userId: user?.id, unitId: activeUnit?.id }), [user?.id, activeUnit?.id]);
+  const draftKey = inspectionDraftKey(draftOwner);
 
-  const [header, setHeader] = useState({
-    panel_id: "", panel_name: "", panel_tag: "",
-    inspection_date: new Date().toISOString().slice(0, 10),
-    inspector_name: "", frequency: "", next_inspection: "", sap_order_id: "", observacoes: "",
-  });
+  const [header, setHeader] = useState(emptyHeader);
   const [responses, setResponses] = useState({}); // itemId -> {resposta, justificativa, motivo, observacao, descricao, recomendacao, severidade, evidencia_url}
   const [measurements, setMeasurements] = useState([]);
   const [thermography, setThermography] = useState([]);
@@ -98,7 +104,10 @@ export default function InspectionForm() {
   const [hasSignature, setHasSignature] = useState(false);
   const sigCanvasRef = useRef(null);
   const sigDrawing = useRef(false);
-  const draftRestoredRef = useRef(false);
+  // Chave do rascunho já lido (restaurado ou inexistente). Enquanto não for
+  // a chave atual, nada é gravado — evita salvar o formulário de uma pessoa
+  // no rascunho de outra.
+  const restoredDraftKeyRef = useRef(null);
   // Aviso de inspeção vigente: mostrado tanto ao selecionar o quadro (aviso
   // "vigencia") quanto ao tentar salvar, se o back-end recusar por já
   // existir uma inspeção vigente criada nesse meio-tempo (aviso "save").
@@ -121,14 +130,22 @@ export default function InspectionForm() {
   // Restore a local draft, if any, once the active template has settled —
   // needed so we can discard a draft saved against a different checklist template.
   useEffect(() => {
-    if (draftRestoredRef.current || !tplFetched) return;
-    draftRestoredRef.current = true;
-    const draft = loadDraft(DRAFT_KEY, DRAFT_TTL_MS);
-    if (!draft) return;
-    if (draft.template_id && templateId && draft.template_id !== templateId) {
-      clearDraft(DRAFT_KEY);
-      return;
+    if (!tplFetched || !draftKey || restoredDraftKeyRef.current === draftKey) return;
+    const ownerChanged = restoredDraftKeyRef.current !== null;
+    restoredDraftKeyRef.current = draftKey;
+    const storage = browserDraftStorage();
+    discardLegacyInspectionDraft(storage);
+    if (ownerChanged) {
+      // Usuário/unidade mudou com a tela aberta: não carrega o preenchimento anterior.
+      setHeader({ ...emptyHeader(), inspector_name: user?.full_name || user?.email || "" });
+      setResponses({});
+      setMeasurements([]);
+      setThermography([]);
+      setLocFilter({ localidade_id: "", local_id: "", sublocal_id: "" });
+      setTab("dados");
     }
+    const draft = loadInspectionDraft(storage, draftOwner, { templateId });
+    if (!draft) return;
     if (draft.header) setHeader(draft.header);
     if (draft.responses) setResponses(draft.responses);
     if (draft.measurements) setMeasurements(draft.measurements);
@@ -136,21 +153,22 @@ export default function InspectionForm() {
     if (draft.locFilter) setLocFilter(draft.locFilter);
     if (draft.tab) setTab(draft.tab);
     toast.info("Rascunho da inspeção anterior restaurado");
-  }, [tplFetched, templateId]);
+    // Relê só quando muda o dono (chave) ou o checklist.
+  }, [tplFetched, templateId, draftKey]);
 
   // Autosave the in-progress draft locally so a reload doesn't lose it.
   useEffect(() => {
-    if (!draftRestoredRef.current) return; // don't save before we've had a chance to read an existing draft
+    if (!draftKey || restoredDraftKeyRef.current !== draftKey) return; // só depois de ler o rascunho deste dono
     const isDirty = !!(
       header.panel_id || (header.observacoes || "").trim() || header.sap_order_id ||
       Object.keys(responses).length > 0 || measurements.length > 0 || thermography.length > 0
     );
     if (!isDirty) return;
     const timer = setTimeout(() => {
-      saveDraft(DRAFT_KEY, { template_id: templateId, header, responses, measurements, thermography, locFilter, tab });
+      saveInspectionDraft(browserDraftStorage(), draftOwner, { template_id: templateId, header, responses, measurements, thermography, locFilter, tab });
     }, 400);
     return () => clearTimeout(timer);
-  }, [templateId, header, responses, measurements, thermography, locFilter, tab]);
+  }, [draftKey, draftOwner, templateId, header, responses, measurements, thermography, locFilter, tab]);
   const { data: sapOrders = [] } = useQuery({
     queryKey: ["orders-for-panel", header.panel_id],
     queryFn: () => ordersForPanel(header.panel_id),
@@ -265,7 +283,7 @@ export default function InspectionForm() {
       return createInspection({ header: { ...header, assinatura_url }, responses: answeredList, measurements, thermography, template: tpl?.template, items, forceDuplicate });
     },
     onSuccess: (insp) => {
-      clearDraft(DRAFT_KEY);
+      clearInspectionDraft(browserDraftStorage(), draftOwner);
       queryClient.invalidateQueries({ queryKey: ["inspections"] });
       queryClient.invalidateQueries({ queryKey: ["nonconformities"] });
       queryClient.invalidateQueries({ queryKey: ["panels"] });

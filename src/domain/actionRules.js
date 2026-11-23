@@ -68,3 +68,13 @@ export function groupInExecutionByPanel(actions) {
   }
   return byPanel;
 }
+
+/**
+ * Excluir ação: só administrador (geral ou local, na sua unidade) — decisão
+ * D3 de 22/11/2026. O banco impõe a mesma regra (policy restritiva
+ * "ação: exclusão só admin", migration 0036) e a auditoria guarda o registro
+ * excluído. Editor e Inspetor tratam/concluem; não excluem.
+ */
+export function canDeleteActions(role) {
+  return role === "admin";
+}

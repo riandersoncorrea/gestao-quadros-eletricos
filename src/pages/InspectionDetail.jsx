@@ -2,12 +2,15 @@ import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Inspection } from "@/services/panelService";
-import { getInspectionFull } from "@/services/inspectionService";
+import { getInspectionFull, registerWetArea } from "@/services/inspectionService";
+import { needsWetAreaRecord, wetAreaRecordedLater, wetAreaRecordError, WET_AREA_MIN_JUSTIFICATION } from "@/domain/wetAreaRecord";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
@@ -57,6 +60,9 @@ export default function InspectionDetail() {
   const canEdit = role.canEdit && canWrite;
   const { byPanel: inExecutionByPanel } = useInExecutionActionsByPanel();
   const [delOpen, setDelOpen] = useState(false);
+  // Registro posterior da área molhada (PRO-01) — só administrador (0037).
+  const canRecordWetArea = role.isAdmin && canWrite;
+  const [wetArea, setWetArea] = useState(null); // { response, value, justificativa } | null
 
   // getInspectionFull valida a unidade do quadro da inspeção (link direto).
   const { data, isLoading, error } = useQuery({ queryKey: ["inspection", id], queryFn: () => getInspectionFull(id) });
@@ -69,6 +75,18 @@ export default function InspectionDetail() {
       navigate("/inspecoes");
     },
   });
+
+  const recordWetArea = useMutation({
+    mutationFn: () => registerWetArea(wetArea.response.id, { value: wetArea.value, justificativa: wetArea.justificativa }),
+    onSuccess: () => {
+      // Afeta o risco de interdição (Painel, Análise, relatório): relê tudo.
+      queryClient.invalidateQueries();
+      setWetArea(null);
+      toast.success("Área molhada registrada (auditada)");
+    },
+    onError: (e) => toast.error(`Falha: ${e.message}`),
+  });
+  const wetAreaInvalid = wetArea ? wetAreaRecordError(wetArea) : null;
 
   if (isLoading) return <div className="p-8 max-w-4xl mx-auto"><Skeleton className="h-8 w-64 mb-4" /><Skeleton className="h-64 w-full" /></div>;
   if (isUnitMismatchError(error)) return <UnitMismatchNotice error={error} backTo="/inspecoes" backLabel="Voltar aos checklists" />;
@@ -213,7 +231,28 @@ export default function InspectionDetail() {
                   {r.justificativa && <p className="text-xs text-muted-foreground mt-1">Justificativa: {r.justificativa}</p>}
                   {r.motivo && <p className="text-xs text-muted-foreground mt-1">Motivo: {r.motivo}</p>}
                   {r.area_molhada != null && (
-                    <p className="text-xs text-muted-foreground mt-1">Área molhada: {r.area_molhada ? "Sim" : "Não"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Área molhada: {r.area_molhada ? "Sim" : "Não"}
+                      {wetAreaRecordedLater(r) && (
+                        <span title={r.area_molhada_justificativa || ""}>
+                          {" "}· registrada depois do checklist em {fmtDateTime(r.area_molhada_registrada_em)}
+                          {r.area_molhada_justificativa ? ` — ${r.area_molhada_justificativa}` : ""}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {needsWetAreaRecord(r) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Área molhada não informada — fora do cálculo de risco de interdição.
+                      </p>
+                      {canRecordWetArea && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={() => setWetArea({ response: r, value: null, justificativa: "" })}>
+                          Registrar área molhada
+                        </Button>
+                      )}
+                    </div>
                   )}
                   {r.observacao && <p className="text-xs text-muted-foreground mt-1">Obs.: {r.observacao}</p>}
                   {r.evidencia_url && <a href={r.evidencia_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">ver evidência</a>}
@@ -293,6 +332,45 @@ export default function InspectionDetail() {
         </Card>
       )}
 
+      <Dialog open={!!wetArea} onOpenChange={(v) => { if (!v && !recordWetArea.isPending) setWetArea(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar área molhada (PRO-01)</DialogTitle>
+            <DialogDescription>
+              O quadro alimenta pontos de utilização em área molhada? Registre só com informação confirmada.
+              Fica na auditoria (quem, quando, fonte) e não pode ser alterado depois por aqui.
+              Com "Sim", este PRO-01 passa a contar no risco de interdição.
+            </DialogDescription>
+          </DialogHeader>
+          {wetArea && (
+            <div className="space-y-3">
+              <div className="flex gap-2" role="radiogroup" aria-label="Área molhada">
+                {[[true, "Sim"], [false, "Não"]].map(([v, label]) => (
+                  <Button key={label} type="button" role="radio" aria-checked={wetArea.value === v}
+                    variant={wetArea.value === v ? "default" : "outline"} className="flex-1"
+                    onClick={() => setWetArea((w) => ({ ...w, value: v }))}>
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wet-area-just">Fonte da informação *</Label>
+                <Textarea id="wet-area-just" rows={3} value={wetArea.justificativa}
+                  placeholder="Ex.: confirmado em campo por (nome) em (data)"
+                  onChange={(e) => setWetArea((w) => ({ ...w, justificativa: e.target.value }))} />
+                <p className="text-xs text-muted-foreground">Mínimo de {WET_AREA_MIN_JUSTIFICATION} caracteres.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWetArea(null)} disabled={recordWetArea.isPending}>Cancelar</Button>
+            <Button onClick={() => recordWetArea.mutate()} disabled={!!wetAreaInvalid || recordWetArea.isPending}>
+              {recordWetArea.isPending ? "Registrando..." : "Registrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={delOpen} onOpenChange={setDelOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Excluir inspeção</DialogTitle></DialogHeader>
@@ -316,6 +394,7 @@ const MODULE_NAMES = {
   5: "Barramentos e conexões", 6: "Cabos e isolação", 7: "Aterramento", 10: "Documentação",
 };
 function moduleName(m) { return MODULE_NAMES[m] || "Outros"; }
+function fmtDateTime(v) { try { return v ? format(parseISO(v), "dd/MM/yyyy HH:mm") : "—"; } catch { return v; } }
 
 function Kpi({ icon: Icon, label, value, tone }) {
   const cls = tone === "err" ? "text-destructive" : "text-foreground";
