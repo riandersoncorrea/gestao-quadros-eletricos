@@ -8,7 +8,7 @@ import { ElectricalPanel } from "@/services/panelService";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { UnitMismatchNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { isOpenAction, actionStatusOptions, isAutomaticAction, isPendingAssignment } from "@/domain/actionRules";
-import { ncStatusFromActions } from "@/domain/nonconformityRules";
+import { ncStatusFromActions, ncStatusAfterRemovingAction } from "@/domain/nonconformityRules";
 import ActionTreatmentDialog from "@/components/actions/ActionTreatmentDialog";
 import { SEV, NC_STATUS, ORIGEM } from "@/pages/NonconformityList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -92,8 +93,12 @@ export default function NonconformityDetail() {
   const { canWrite } = useUnitScope();
   const canEdit = role.canEdit && canWrite;
   const canTreatActions = role.canTreatActions && canWrite;
+  // Excluir ação: só administrador (D3; o banco impõe o mesmo — 0036).
+  const canDeleteAction = role.canDelete && canWrite;
   const { isInspetor } = role;
   const [newAction, setNewAction] = useState(null);
+  // Ação aguardando confirmação de exclusão.
+  const [deleting, setDeleting] = useState(null);
   // Edição de ação existente (descrição, responsável, prazo) — admin/editor.
   const [editing, setEditing] = useState(null);
   // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
@@ -142,7 +147,8 @@ export default function NonconformityDetail() {
   });
   const removeAction = useMutation({
     mutationFn: (actionId) => deleteAction(actionId),
-    onSuccess: () => { invalidate(); toast.success("Ação removida"); },
+    onSuccess: () => { invalidate(); setDeleting(null); toast.success("Ação excluída (registro mantido na auditoria)"); },
+    onError: (e) => toast.error(`Falha: ${e.message}`),
   });
 
   if (isLoading) return <div className="p-8 max-w-3xl mx-auto"><Skeleton className="h-8 w-64 mb-4" /><Skeleton className="h-64 w-full" /></div>;
@@ -333,8 +339,8 @@ export default function NonconformityDetail() {
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {canEdit && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAction.mutate(a.id)}>
+                    {canDeleteAction && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Excluir ação" onClick={() => setDeleting(a)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -358,6 +364,34 @@ export default function NonconformityDetail() {
         onOpenChange={(v) => { if (!v) setTreatingId(null); }}
         onChanged={invalidate}
       />
+
+      <Dialog open={!!deleting} onOpenChange={(v) => { if (!v && !removeAction.isPending) setDeleting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir ação</DialogTitle>
+            <DialogDescription>
+              A ação deixa de existir na NC. O registro completo fica na auditoria.
+              {deleting?.status === "concluida" && " Esta ação está concluída: a evidência da correção (Nota, OM, PDF) deixa de aparecer na NC."}
+            </DialogDescription>
+          </DialogHeader>
+          {deleting && <p className="text-sm font-medium break-words">{deleting.descricao}</p>}
+          {deleting && (() => {
+            const proximo = ncStatusAfterRemovingAction(actions, deleting.id, nc.status);
+            return proximo !== nc.status ? (
+              <p className="text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900">
+                O status da NC vai mudar de <strong>{NC_STATUS[nc.status]?.label || nc.status}</strong> para{" "}
+                <strong>{NC_STATUS[proximo]?.label || proximo}</strong> (segue as ações restantes).
+              </p>
+            ) : null;
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={removeAction.isPending}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => removeAction.mutate(deleting.id)} disabled={removeAction.isPending}>
+              {removeAction.isPending ? "Excluindo..." : "Excluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,12 +3,15 @@
 //   node scripts/unit-scope-tests/run.mjs
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { resetDb, writes } from "./fakeSupabase.js";
+import { resetDb, writes, setSessionUser, rpcCalls } from "./fakeSupabase.js";
 import { configureUnitScope, clearUnitScope } from "@/lib/unitScope";
 import { ElectricalPanel, Inspection, fetchHierarchy } from "@/services/panelService";
 import { listNonconformities, getNonconformity, createNonconformity, updateNonconformity, deleteNonconformity } from "@/services/ncService";
-import { listActions, listInExecutionActions, updateAction, deleteAction, createAction } from "@/services/actionService";
-import { getInspectionFull, createInspection } from "@/services/inspectionService";
+import { listActions, listInExecutionActions, updateAction, deleteAction, createAction, ActionDeletionNotAllowedError } from "@/services/actionService";
+import { getInspectionFull, createInspection, registerWetArea, WetAreaRecordUnavailableError } from "@/services/inspectionService";
+import { canDeleteActions } from "@/domain/actionRules";
+import { ncStatusAfterRemovingAction } from "@/domain/nonconformityRules";
+import { needsWetAreaRecord, wetAreaRecordError } from "@/domain/wetAreaRecord";
 import { fetchDashboardRaw, computeDashboardData } from "@/services/dashboardService";
 import { fetchIntelligentAnalysisRaw } from "@/services/intelligentAnalysisService";
 import { fetchInterdictionReport } from "@/services/interdictionReportService";
@@ -472,4 +475,72 @@ test("Análise Inteligente — destaque: EFC mostra as 2 cidades com mais inspe�
     [["Inspeções em MARABÁ", 5, "cidade MARABÁ"], ["Inspeções em SANTA INÊS", 3, "cidade SANTA INÊS"]],
   );
   assert.deepEqual(localidadesEmDestaque([], nomes).map((x) => x.nome), ["AÇAILÂNDIA", "ARARI"]);
+});
+
+// --- D3: exclusão de ação só pelo administrador (serviço + banco 0036) -------
+
+function loadAs(role) {
+  const db = fixture();
+  db.v_actions = db.actions.map((a) => ({ ...a, atrasada: false }));
+  db.profiles = role ? [{ id: "u-sessao", role, approved: true, full_name: "Sessão de teste" }] : [];
+  resetDb(db);
+  if (role) setSessionUser({ id: "u-sessao", email: "sessao@example.invalid" });
+  asSLZ();
+}
+
+test("D3: administrador exclui ação; editor, inspetor, visualizador e sem sessão são recusados sem gravar", async () => {
+  for (const role of ["editor", "inspetor", "viewer", null]) {
+    loadAs(role);
+    await assert.rejects(() => deleteAction("a-s1"), ActionDeletionNotAllowedError, `perfil ${role} excluiu ação`);
+    assert.deepEqual(writes, [], `perfil ${role}: nada deve chegar ao banco`);
+  }
+  loadAs("admin");
+  await deleteAction("a-s1");
+  assert.deepEqual(writes.map((w) => `${w.op}:${w.table}:${w.ids}`), ["delete:actions:a-s1"]);
+});
+
+test("D3: na EFC somente leitura o aviso continua sendo o de unidade (antes do perfil)", async () => {
+  loadAs("admin");
+  asEFC();
+  await assert.rejects(() => deleteAction("a-e1"), { name: "ReadOnlyUnitError" });
+  assert.deepEqual(writes, []);
+});
+
+test("D3: regra de perfil e status previsto da NC após excluir uma ação (espelho da 0027)", () => {
+  assert.equal(canDeleteActions("admin"), true);
+  for (const r of ["editor", "inspetor", "viewer", undefined]) assert.equal(canDeleteActions(r), false);
+  const acoes = [{ id: 1, status: "aberta" }, { id: 2, status: "concluida" }];
+  assert.equal(ncStatusAfterRemovingAction(acoes, 1, "em_tratamento"), "concluida", "excluir a única aberta conclui a NC — a tela avisa");
+  assert.equal(ncStatusAfterRemovingAction([{ id: 1, status: "em_andamento" }, { id: 2, status: "aberta" }], 1, "em_tratamento"), "aberta");
+  assert.equal(ncStatusAfterRemovingAction([{ id: 1, status: "aberta" }], 1, "aberta"), "aberta", "sem ações a NC fica como está");
+  assert.equal(ncStatusAfterRemovingAction([{ id: 1, status: "em_andamento" }], 1, "em_tratamento"), "aberta");
+  assert.equal(ncStatusAfterRemovingAction(acoes, 1, "cancelada"), "cancelada");
+});
+
+// --- B1: área molhada registrada pelo administrador (0037) -------------------
+
+test("Área molhada: só PRO-01 'Não conforme' sem resposta precisa de registro", () => {
+  assert.equal(needsWetAreaRecord({ codigo: "PRO-01", resposta: "nao_conforme", area_molhada: null }), true);
+  assert.equal(needsWetAreaRecord({ codigo: "PRO-01", resposta: "nao_conforme" }), true);
+  assert.equal(needsWetAreaRecord({ codigo: "PRO-01", resposta: "nao_conforme", area_molhada: false }), false);
+  assert.equal(needsWetAreaRecord({ codigo: "PRO-01", resposta: "conforme", area_molhada: null }), false);
+  assert.equal(needsWetAreaRecord({ codigo: "ATR-01", resposta: "nao_conforme", area_molhada: null }), false);
+  assert.match(wetAreaRecordError({ value: null, justificativa: "Confirmado em campo" }), /Sim ou Não/);
+  assert.match(wetAreaRecordError({ value: true, justificativa: "   curta  " }), /mínimo/);
+  assert.equal(wetAreaRecordError({ value: false, justificativa: "Confirmado em campo" }), null);
+});
+
+test("Área molhada: serviço valida, chama a RPC da 0037 (justificativa sem espaços) e explica quando ela não existe", async () => {
+  resetDb(fixture(), { rpc: { registrar_area_molhada: (a) => ({ id: a.p_resposta_id, area_molhada: a.p_area_molhada }) } });
+  asSLZ();
+  await assert.rejects(() => registerWetArea("r-1", { value: null, justificativa: "Confirmado em campo" }), /Sim ou Não/);
+  await assert.rejects(() => registerWetArea("r-1", { value: true, justificativa: "curta" }), /mínimo/);
+  assert.equal(rpcCalls.length, 0, "validação local antes de chamar o banco");
+  const r = await registerWetArea("r-1", { value: true, justificativa: "  Confirmado em campo por J. em 20/11  " });
+  assert.deepEqual(r, { id: "r-1", area_molhada: true });
+  assert.deepEqual(rpcCalls, [{ name: "registrar_area_molhada",
+    args: { p_resposta_id: "r-1", p_area_molhada: true, p_justificativa: "Confirmado em campo por J. em 20/11" } }]);
+  assert.deepEqual(writes, [], "nenhuma gravação direta na tabela — só pela função auditada");
+  resetDb(fixture());
+  await assert.rejects(() => registerWetArea("r-1", { value: false, justificativa: "Confirmado em campo" }), WetAreaRecordUnavailableError);
 });

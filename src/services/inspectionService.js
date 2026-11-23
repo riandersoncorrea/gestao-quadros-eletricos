@@ -7,6 +7,7 @@ import { computeOverall, buildAutoNonconformities, buildAutoActions, findVigenci
 import { responsiblesForSite } from "@/domain/siteResponsibles";
 import { isOpenAction } from "@/domain/actionRules";
 import { SAFETY_FORM_CODES } from "@/domain/safetyFormExport";
+import { wetAreaRecordError } from "@/domain/wetAreaRecord";
 import { assertRecordInActiveUnit, assertPanelWritable } from "@/services/unitScopeService";
 
 const num = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
@@ -54,6 +55,30 @@ export async function getInspectionFull(id) {
 }
 
 export { computeOverall };
+
+/** Função do banco ausente: migration 0037 ainda não aplicada. */
+export class WetAreaRecordUnavailableError extends Error {
+  constructor() {
+    super("O registro de área molhada ainda não está disponível no banco (migration 0037).");
+    this.name = "WetAreaRecordUnavailableError";
+  }
+}
+
+/**
+ * Administrador registra a área molhada de um PRO-01 "Não conforme" já
+ * gravado sem essa informação (pendência B1). O banco valida perfil, unidade
+ * (com escrita liberada), item, resposta e justificativa, e audita.
+ */
+export async function registerWetArea(responseId, { value, justificativa }) {
+  const invalid = wetAreaRecordError({ value, justificativa });
+  if (invalid) throw new Error(invalid);
+  try {
+    return await inspectionRepository.registerWetArea(responseId, value, String(justificativa).trim());
+  } catch (e) {
+    if (e?.code === "PGRST202") throw new WetAreaRecordUnavailableError();
+    throw e;
+  }
+}
 
 /** Respostas dos códigos usados pela exportação do Form Segurança, para um conjunto de inspeções — ver domain/safetyFormExport.js. */
 export async function getSafetyFormResponses(inspectionIds) {

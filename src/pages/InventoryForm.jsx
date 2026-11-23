@@ -29,6 +29,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { ReadOnlyUnitNotice, UnitMismatchNotice, PanelCreationUnavailableNotice, isUnitMismatchError } from "@/components/unit/UnitScopeNotices";
 import { cn } from "@/lib/utils";
+import { panelNameForEdit, panelNameEditPreview } from "@/domain/panelName";
 import { toast } from "sonner";
 import {
   Save,
@@ -255,7 +256,11 @@ export default function InventoryForm() {
       const selectedLocal = (hierarchy?.locais || []).find(
         (l) => l.id === clean.local_id,
       );
-      clean.localidade_id = selectedLocal?.localidade_id || "";
+      // Cidade/localidade = a do prédio escolhido. Na edição sem prédio
+      // (quadro legado só com localidade), mantém a gravada — não apaga.
+      if (selectedLocal) clean.localidade_id = selectedLocal.localidade_id;
+      else if (isEditing) delete clean.localidade_id;
+      else clean.localidade_id = "";
       Object.keys(clean).forEach((k) => {
         if (clean[k] === "") clean[k] = isEditing ? null : undefined;
       });
@@ -271,12 +276,18 @@ export default function InventoryForm() {
       // A Tag é gerada automaticamente pelo banco (trigger) com base no Site.
       // O Nome Descritivo depende da Tag, então para um cadastro novo só dá
       // para calcular o nome final depois que o insert retorna a tag real.
+      // Edição: o nome descritivo só é recalculado quando o prédio ou o
+      // sublocal mudam; senão fica EXATAMENTE como está (nomes importados com
+      // grafia própria são preservados) — domain/panelName.js.
       if (isEditing) {
-        const tag = panels?.[0]?.tag;
-        return ElectricalPanel.update(id, {
-          ...clean,
-          name: `${tag} / ${nameSuffix}`,
+        const name = panelNameForEdit({
+          original: panels?.[0],
+          next: { local_id: clean.local_id, sublocal_id: clean.sublocal_id },
+          localName,
+          sublocalName,
         });
+        delete clean.name;
+        return ElectricalPanel.update(id, name === undefined ? clean : { ...clean, name });
       }
       const created = await ElectricalPanel.create(clean);
       const updated = await ElectricalPanel.update(created.id, {
@@ -421,9 +432,12 @@ export default function InventoryForm() {
   const f = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const tagPreview = form.site ? `${SITE_PREFIX[form.site]}_QD_XXXX` : "";
   const namePreview = isEditing
-    ? panels?.[0]?.tag
-      ? `${panels[0].tag} / ${nameSuffix || "…"}`
-      : "—"
+    ? panelNameEditPreview({
+        original: panels?.[0],
+        next: { local_id: form.local_id, sublocal_id: form.sublocal_id },
+        localName,
+        sublocalName,
+      })
     : tagPreview
       ? `${tagPreview} / ${nameSuffix || "…"}`
       : "Selecione o Site, o Prédio e o Sublocal";

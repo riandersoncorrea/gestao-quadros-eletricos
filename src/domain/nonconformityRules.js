@@ -40,3 +40,15 @@ export function ncStatusFromActions(actions, currentStatus) {
   if (conta("concluida")) return "concluida";
   return "aberta";
 }
+
+/**
+ * Status que a NC terá DEPOIS de excluir a ação `actionId` — mesma regra do
+ * banco (0027: NC cancelada não muda). Usado na confirmação da exclusão para
+ * avisar o administrador quando a NC vai mudar de status (ex.: excluir a
+ * única ação aberta de uma NC com outra concluída a conclui).
+ */
+export function ncStatusAfterRemovingAction(actions, actionId, currentStatus) {
+  if (currentStatus === "cancelada") return "cancelada";
+  const restantes = (actions || []).filter((a) => String(a.id) !== String(actionId));
+  return ncStatusFromActions(restantes, currentStatus);
+}

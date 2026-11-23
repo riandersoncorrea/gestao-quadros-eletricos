@@ -80,6 +80,17 @@ export async function insertResponses(rows) {
   if (error) throw error;
 }
 
+/** Registro posterior da área molhada (RPC da migration 0037). */
+export async function registerWetArea(responseId, areaMolhada, justificativa) {
+  const { data, error } = await supabase.rpc("registrar_area_molhada", {
+    p_resposta_id: responseId,
+    p_area_molhada: areaMolhada,
+    p_justificativa: justificativa,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function insertMeasurements(rows) {
   if (!rows.length) return;
   const { error } = await supabase.from("measurements").insert(rows);

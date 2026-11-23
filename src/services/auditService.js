@@ -9,6 +9,7 @@ import {
 /** Tabelas auditadas (para o filtro). Rótulo -> nome da tabela. */
 export const AUDITED_TABLES = [
   { value: "electrical_panels", label: "Quadros" },
+  { value: "panel_attachments", label: "Anexos do quadro" },
   { value: "inspections", label: "Inspeções" },
   { value: "inspection_responses", label: "Respostas de inspeção" },
   { value: "nonconformities", label: "Não conformidades" },

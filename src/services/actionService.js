@@ -8,7 +8,7 @@ import { resizeImageIfNeeded } from "@/utils/imageProcessing";
 import {
   missingCompletionRequirements, canAddCorrectivePhoto, MAX_CORRECTIVE_PHOTOS,
 } from "@/domain/actionCompletion";
-import { IN_EXECUTION_STATUS, isTreatableFromChecklist } from "@/domain/actionRules";
+import { IN_EXECUTION_STATUS, isTreatableFromChecklist, canDeleteActions } from "@/domain/actionRules";
 import { scopeRowsToActiveUnit, assertPanelWritable, assertRecordWritable } from "@/services/unitScopeService";
 
 // Unidade de uma ação = a do seu quadro (actions.panel_id ou, na falta, o da NC).
@@ -73,8 +73,18 @@ export async function updateAction(id, values) {
   return actionRepository.update(id, { ...values, updated_at: new Date().toISOString() });
 }
 
+/** Exclusão de ação por quem não é administrador (decisão D3; banco: 0036). */
+export class ActionDeletionNotAllowedError extends Error {
+  constructor() {
+    super("Somente administradores excluem ações. Para encerrar uma ação, trate e conclua, ou peça o cancelamento a um administrador.");
+    this.name = "ActionDeletionNotAllowedError";
+  }
+}
+
 export async function deleteAction(id) {
   await assertActionWritable(id);
+  const user = await getCurrentUser();
+  if (!canDeleteActions(user?.role)) throw new ActionDeletionNotAllowedError();
   return actionRepository.remove(id);
 }
 
