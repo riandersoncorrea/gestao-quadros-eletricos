@@ -128,7 +128,7 @@ export default function Dashboard() {
       {/* KPIs — linhas de 4 cards */}
       <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Índice de Saúde médio" value={d.isMedio ?? "—"} sub={`${d.totalQuadros} quadros`} color={d.isMedio == null ? undefined : scoreColor(d.isMedio)} />
-        <KpiCard label="Quadros críticos" value={d.healthBands.critico} sub="Índice de Saúde < 50" to="/inventario?health=critico" tone={zeroIsGood(d.healthBands.critico)} />
+        <KpiCard label="Quadros críticos" value={d.healthBands.critico} sub="Índice de Saúde < 50" to="/inventario?health=critico&status=operacionais" tone={zeroIsGood(d.healthBands.critico)} />
         <KpiCard label="NCs abertas" value={d.ncAbertas} sub={`${d.ncCriticas} crítica(s)`} to="/nao-conformidades" tone={zeroIsGood(d.ncAbertas)} />
         <KpiCard label="Ações atrasadas" value={d.acoesAtrasadas} sub={`${d.acoesPendentes} pendentes`} to="/acoes?f=atrasadas" tone={zeroIsGood(d.acoesAtrasadas)} />
         <KpiCard label="Inspeções vencidas" value={d.inspecoesVencidas} sub="próxima data no passado" to="/inventario" tone={zeroIsGood(d.inspecoesVencidas)} />

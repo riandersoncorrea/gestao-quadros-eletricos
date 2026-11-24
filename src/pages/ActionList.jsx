@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listActions, updateAction } from "@/services/actionService";
+import { listActions, listMyActionsOfInactivePanels, updateAction } from "@/services/actionService";
 import { ElectricalPanel } from "@/services/panelService";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { listAssignableUsers } from "@/services/userService";
@@ -53,7 +53,18 @@ export default function ActionList() {
   // Ação em tratamento/conclusão (Nota, OM, fotos → PDF de evidência).
   const [treatingId, setTreatingId] = useState(null);
 
-  const { data: actions = [], isLoading } = useQuery({ queryKey: ["actions"], queryFn: listActions });
+  // Listagem operacional (quadros ativos/em manutenção) e, à parte, as ações
+  // do próprio usuário em quadros inativos (?quadros=inativos): não se
+  // misturam nem entram nos contadores da listagem.
+  const inativosView = searchParams.get("quadros") === "inativos";
+  const { data: operacionais = [], isLoading: loadingOperacionais } = useQuery({ queryKey: ["actions"], queryFn: listActions });
+  const { data: minhasInativas = [], isLoading: loadingInativas } = useQuery({
+    queryKey: ["actions", "minhas-quadros-inativos", user?.id],
+    queryFn: listMyActionsOfInactivePanels,
+    enabled: !!user?.id,
+  });
+  const actions = inativosView ? minhasInativas : operacionais;
+  const isLoading = inativosView ? loadingInativas : loadingOperacionais;
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
   const panelName = useMemo(() => new Map(panels.map((p) => [p.id, p.tag || p.name])), [panels]);
   const locationOf = usePanelLocations();
@@ -110,7 +121,7 @@ export default function ActionList() {
       a.status === filter;
     const responsavelId = responsavelFilter === "me" ? user?.id : responsavelFilter;
     const matchResponsavel =
-      responsavelFilter === "all" ||
+      inativosView || responsavelFilter === "all" ||
       (responsavelFilter === "sem_responsavel" ? isPendingAssignment(a) :
         a.responsavel_id === responsavelId ||
         (!a.responsavel_id && !!a.responsavel && a.responsavel === adminDisplayById.get(responsavelId)));
@@ -123,7 +134,7 @@ export default function ActionList() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageStart = page * PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
-  useEffect(() => { setPage(0); }, [search, filter, responsavelFilter, dateRange]);
+  useEffect(() => { setPage(0); }, [search, filter, responsavelFilter, dateRange, inativosView]);
 
   function handlePeriodChange(value) {
     setPeriod(value);
@@ -151,6 +162,18 @@ export default function ActionList() {
         </p>
       </div>
 
+      {inativosView ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <span>Suas ações em quadros inativos — não entram na lista geral nem nos indicadores.</span>
+          <Link to="/acoes" onClick={() => setFilter("pendentes")} className="text-primary hover:underline">Voltar à lista geral</Link>
+        </div>
+      ) : minhasInativas.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <span>Você é responsável por {minhasInativas.length} ação(ões) em quadros inativos, fora desta lista.</span>
+          <Link to="/acoes?quadros=inativos&f=all" onClick={() => setFilter("all")} className="text-primary hover:underline">Ver minhas ações em quadros inativos</Link>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -167,7 +190,7 @@ export default function ActionList() {
             <SelectItem value="cancelada">Canceladas</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={responsavelFilter} onValueChange={setResponsavelFilter}>
+        {!inativosView && <Select value={responsavelFilter} onValueChange={setResponsavelFilter}>
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Responsável" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os responsáveis</SelectItem>
@@ -177,7 +200,7 @@ export default function ActionList() {
               <SelectItem key={a.id} value={a.id}>{a.full_name || a.email}</SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select>}
         <Select value={period} onValueChange={handlePeriodChange}>
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Período" /></SelectTrigger>
           <SelectContent>

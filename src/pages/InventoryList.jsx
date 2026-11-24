@@ -13,6 +13,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { ReadOnlyActionButton, panelCreationMessage } from "@/components/unit/UnitScopeNotices";
 import { unitFileName } from "@/domain/unitScope";
+import { OPERATIONAL_FILTER, matchesPanelStatusFilter } from "@/domain/panelStatus";
 import { format, parseISO } from "date-fns";
 import {
   Plus, Search, Zap, MapPin, Calendar, Eye, Pencil, Trash2, QrCode, FileSpreadsheet, ClipboardX
@@ -65,7 +66,11 @@ export default function InventoryList() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // ?status=operacionais (card "Quadros críticos" do Dashboard): só ativos e
+  // em manutenção, para a lista bater com o card. Padrão: todos os status.
+  const [statusFilter, setStatusFilter] = useState(
+    searchParams.get("status") === OPERATIONAL_FILTER ? OPERATIONAL_FILTER : "all"
+  );
   const [localidadeFilter, setLocalidadeFilter] = useState("all");
   const [qrPanel, setQrPanel] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
@@ -116,7 +121,7 @@ export default function InventoryList() {
       locName.get(p.localidade_id), locaName.get(p.local_id), subName.get(p.sublocal_id),
     ].filter(Boolean).join(" ").toLowerCase();
     const matchSearch = !s || hay.includes(s);
-    const matchStatus = statusFilter === "all" || p.status === statusFilter;
+    const matchStatus = matchesPanelStatusFilter(p, statusFilter);
     const matchLocalidade = localidadeFilter === "all" || p.localidade_id === localidadeFilter;
     const matchHealth = healthFilter === "all" || bandOf(p.health_index) === healthFilter;
     const matchCrit = critFilter === "all" || p.criticality === critFilter;
@@ -222,6 +227,7 @@ export default function InventoryList() {
           <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos Status</SelectItem>
+            <SelectItem value={OPERATIONAL_FILTER}>Ativos + manutenção</SelectItem>
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="manutencao">Manutenção</SelectItem>
             <SelectItem value="inativo">Inativo</SelectItem>

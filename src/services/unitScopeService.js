@@ -11,11 +11,12 @@
 // Estas checagens são a camada de INTERFACE; as permissões efetivas são as
 // do banco (RLS).
 
-import { listPanelIdsForActiveUnit, getPanelUnitId } from "@/repositories/panelRepository";
+import { listPanelIdsForActiveUnit, listPanelStatusForActiveUnit, getPanelUnitId } from "@/repositories/panelRepository";
 import {
   isActiveDefaultUnit, getActiveUnitId, assertUnitIsActive, assertUnitWritable, assertOwnUnitIsActive,
 } from "@/lib/unitScope";
 import { makeUnitMembership, membershipFromPanels, filterByMembership, panelIdOf } from "@/domain/unitScope";
+import { nonOperationalPanelIds, excludeRowsOfPanels, onlyRowsOfPanels } from "@/domain/panelStatus";
 
 /** Pertinência à unidade ativa a partir de TODOS os quadros dela (1 consulta leve). */
 export async function getActiveUnitMembership() {
@@ -31,6 +32,26 @@ export function membershipForScopedPanels(panels) {
 export async function scopeRowsToActiveUnit(rows, getPanelId = panelIdOf) {
   const membership = await getActiveUnitMembership();
   return filterByMembership(rows, membership, getPanelId);
+}
+
+/**
+ * Listagens OPERACIONAIS: recorte da unidade ativa (igual a
+ * scopeRowsToActiveUnit) e, dele, só linhas de quadros elegíveis
+ * (ativo/manutenção — domain/panelStatus.js), numa só consulta de quadros.
+ * `getEligibilityPanelId`: quadro usado só na elegibilidade, quando difere
+ * do usado no recorte por unidade (ação sem quadro → quadro da NC).
+ */
+export async function scopeRowsToOperationalPanels(rows, getPanelId = panelIdOf, getEligibilityPanelId = getPanelId) {
+  const panels = await listPanelStatusForActiveUnit();
+  const inUnit = filterByMembership(rows, membershipForScopedPanels(panels), getPanelId);
+  return excludeRowsOfPanels(inUnit, nonOperationalPanelIds(panels), getEligibilityPanelId);
+}
+
+/** O complemento: linhas da unidade ativa ligadas a quadros fora da operação (inativos). */
+export async function scopeRowsToInactivePanels(rows, getPanelId = panelIdOf, getEligibilityPanelId = getPanelId) {
+  const panels = await listPanelStatusForActiveUnit();
+  const inUnit = filterByMembership(rows, membershipForScopedPanels(panels), getPanelId);
+  return onlyRowsOfPanels(inUnit, nonOperationalPanelIds(panels), getEligibilityPanelId);
 }
 
 /**

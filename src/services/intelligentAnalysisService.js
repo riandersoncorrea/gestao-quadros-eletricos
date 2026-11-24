@@ -30,6 +30,7 @@ import {
 } from "@/domain/intelligentAnalysisPredictive";
 import { filterByMembership } from "@/domain/unitScope";
 import { membershipForScopedPanels } from "@/services/unitScopeService";
+import { nonOperationalPanelIds, excludeRowsOfPanels } from "@/domain/panelStatus";
 
 /**
  * Busca os dados brutos da Análise Inteligente dos Dados uma única vez
@@ -50,6 +51,9 @@ export async function fetchIntelligentAnalysisRaw() {
   ]);
   // Recorte pela unidade ativa: quadros/hierarquia já vêm recortados;
   // inspeções e NCs pelos quadros, respostas pelas inspeções restantes.
+  // NCs: só de quadros ativos ou em manutenção (mesmo conjunto do Dashboard e
+  // da listagem). `panels`, inspeções e respostas ficam completos: são o
+  // histórico de conformidade, que não muda quando um quadro é inativado.
   const unit = membershipForScopedPanels(panels);
   const scopedInspections = filterByMembership(inspections, unit);
   const inspectionIds = new Set(scopedInspections.map((i) => i.id));
@@ -59,7 +63,7 @@ export async function fetchIntelligentAnalysisRaw() {
     inspections: scopedInspections,
     responses: responses.filter((r) => inspectionIds.has(r.inspection_id)),
     templateItems: tpl.items,
-    nonconformities: filterByMembership(nonconformities, unit),
+    nonconformities: excludeRowsOfPanels(filterByMembership(nonconformities, unit), nonOperationalPanelIds(panels)),
   };
 }
 

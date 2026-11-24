@@ -15,6 +15,7 @@ import { unitFileName } from "@/domain/unitScope";
 import {
   FILTER_ALL, PANEL_STATUS_LABEL, buildPanelsWithoutChecklistReport, toExportRow,
 } from "@/domain/panelsWithoutChecklistReport";
+import { OPERATIONAL_PANEL_STATUSES } from "@/domain/panelStatus";
 
 /**
  * Relatório "Quadros sem checklist" do Inventário. Lê o banco a cada
@@ -31,7 +32,9 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
   useEffect(() => {
     if (!open) return;
     setLocalidadeId(initialFilters?.localidadeId ?? FILTER_ALL);
-    setStatus(initialFilters?.status ?? FILTER_ALL);
+    // O relatório só tem quadros ativos ou em manutenção: com o Inventário
+    // filtrado por "Inativo", abre em "Todos Status" (e não vazio).
+    setStatus(OPERATIONAL_PANEL_STATUSES.includes(initialFilters?.status) ? initialFilters.status : FILTER_ALL);
   }, [open, initialFilters?.localidadeId, initialFilters?.status]);
 
   const { data, isFetching, isError, refetch } = useQuery({
@@ -73,7 +76,7 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
         <DialogHeader>
           <DialogTitle>Quadros sem checklist</DialogTitle>
           <DialogDescription>
-            Quadros cadastrados no Inventário que ainda não possuem nenhum checklist realizado.
+            Quadros ativos ou em manutenção do Inventário que ainda não possuem nenhum checklist realizado.
           </DialogDescription>
         </DialogHeader>
 
@@ -89,7 +92,7 @@ export default function PanelsWithoutChecklistDialog({ open, onOpenChange, hiera
             <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={FILTER_ALL}>Todos Status</SelectItem>
-              {Object.entries(PANEL_STATUS_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+              {OPERATIONAL_PANEL_STATUSES.map((v) => <SelectItem key={v} value={v}>{PANEL_STATUS_LABEL[v]}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

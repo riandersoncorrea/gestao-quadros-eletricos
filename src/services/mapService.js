@@ -9,7 +9,7 @@ import { assertPanelWritable } from "@/services/unitScopeService";
  * por quadro. Uma consulta por tabela (domínio); agregação no cliente.
  */
 /**
- * Quadros da unidade ativa (listForMap já recorta). NCs e flags só entram
+ * Quadros da unidade ativa, só ativos ou em manutenção (listForMap já recorta). NCs e flags só entram
  * na contagem dos quadros listados (join por panel_id), então nada de outra
  * unidade aparece no mapa.
  */

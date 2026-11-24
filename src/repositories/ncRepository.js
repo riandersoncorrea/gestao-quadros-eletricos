@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { fetchAllPages } from "@/repositories/pagination";
+import { fetchAllPages, fetchAllPagesByIds } from "@/repositories/pagination";
 
 // Paginada (ver repositories/pagination.js): a tabela passou de 1000 linhas
 // com a importação da EFC e o recorte por unidade é feito no cliente
@@ -12,6 +12,29 @@ export async function list() {
       .from("nonconformities")
       .select("*")
       .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+  );
+}
+
+/** Todas as NCs de um quadro (histórico do quadro, qualquer status), na ordem de list(). */
+export async function listForPanel(panelId) {
+  return fetchAllPages(() =>
+    supabase
+      .from("nonconformities")
+      .select("*")
+      .eq("panel_id", panelId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+  );
+}
+
+/** Quadro das NCs informadas (para ações sem quadro próprio). */
+export async function listPanelIdsByIds(ncIds) {
+  return fetchAllPagesByIds(ncIds, (ids) =>
+    supabase
+      .from("nonconformities")
+      .select("id, panel_id")
+      .in("id", ids)
       .order("id", { ascending: true })
   );
 }

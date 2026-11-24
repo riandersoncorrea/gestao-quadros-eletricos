@@ -42,7 +42,6 @@ export function legendFor(mode, panels) {
       return [
         { color: GREEN, label: "Ativo", n: count((p) => p.status === "ativo") },
         { color: AMBER, label: "Manutenção", n: count((p) => p.status === "manutencao") },
-        { color: GRAY, label: "Inativo", n: count((p) => p.status === "inativo") },
       ];
     case "criticality":
       return [

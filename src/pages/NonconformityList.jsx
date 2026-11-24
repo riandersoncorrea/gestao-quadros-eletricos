@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listNonconformities, createNonconformity, deleteNonconformity } from "@/services/ncService";
+import { listNonconformities, listNonconformitiesForPanel, createNonconformity, deleteNonconformity } from "@/services/ncService";
 import { ElectricalPanel } from "@/services/panelService";
 import { useUnitScope } from "@/hooks/useUnitScope";
 import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
 import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
+import { isOperationalPanel } from "@/domain/panelStatus";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
 } from "@/domain/dashboardFilters";
@@ -65,12 +66,19 @@ export default function NonconformityList() {
   const [form, setForm] = useState(EMPTY);
   const [deleteId, setDeleteId] = useState(null);
 
-  const { data: ncs = [], isLoading } = useQuery({ queryKey: ["nonconformities"], queryFn: listNonconformities });
+  // Listagem operacional (quadros ativos/em manutenção) ou, vindo da página de
+  // um quadro (?panel=), o histórico dele — inclusive de quadro inativo.
+  const { data: ncs = [], isLoading } = useQuery(
+    panelParam
+      ? { queryKey: ["nonconformities", "quadro", panelParam], queryFn: () => listNonconformitiesForPanel(panelParam) }
+      : { queryKey: ["nonconformities"], queryFn: listNonconformities }
+  );
   const { data: panels = [] } = useQuery({ queryKey: ["panels"], queryFn: () => ElectricalPanel.list("tag") });
 
   const panelName = useMemo(() => new Map(panels.map((p) => [p.id, p.tag || p.name])), [panels]);
+  // NC nova só em quadro ativo ou em manutenção (o serviço também confere).
   const panelOptions = useMemo(
-    () => panels.map((p) => ({ value: p.id, label: p.tag ? `${p.tag} — ${p.name}` : p.name })),
+    () => panels.filter(isOperationalPanel).map((p) => ({ value: p.id, label: p.tag ? `${p.tag} — ${p.name}` : p.name })),
     [panels]
   );
 
@@ -85,7 +93,14 @@ export default function NonconformityList() {
       setForm(EMPTY);
       toast.success("Não-conformidade registrada");
     },
-    onError: (e) => toast.error(`Falha: ${e.message}`),
+    onError: (e) => {
+      toast.error(`Falha: ${e.message}`);
+      // Quadro inativado depois que a tela carregou: atualiza as opções.
+      if (e.name === "InactivePanelError") {
+        setForm((s) => ({ ...s, panel_id: "" }));
+        queryClient.invalidateQueries({ queryKey: ["panels"] });
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -288,6 +303,7 @@ export default function NonconformityList() {
               <Combobox options={panelOptions} value={form.panel_id}
                 onChange={(v) => setForm((s) => ({ ...s, panel_id: v }))}
                 placeholder="Selecione o quadro" searchPlaceholder="Buscar..." />
+              <p className="text-[11px] text-muted-foreground">Somente quadros ativos ou em manutenção.</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Descrição *</Label>
