@@ -11,6 +11,7 @@ import { LOCALIDADE_ALL, isWithinRange, matchesLocalidade } from "@/domain/dashb
 import { format, subMonths, startOfMonth } from "date-fns";
 import { filterByMembership } from "@/domain/unitScope";
 import { membershipForScopedPanels } from "@/services/unitScopeService";
+import { isOperationalPanel, nonOperationalPanelIds, excludeRowsOfPanels, actionPanelIdWithNc } from "@/domain/panelStatus";
 
 // sap_orders é legado (Importação SAP) e não tem repository próprio —
 // mantido como leitura direta aqui e em getPanelAdherence, como já estava.
@@ -37,10 +38,17 @@ export async function fetchDashboardRaw() {
   // Quadros e hierarquia já vêm da unidade ativa; NCs, ações, inspeções e
   // ordens SAP são recortadas pelos quadros dela (sem nova consulta).
   const unit = membershipForScopedPanels(P);
+  // Elegibilidade operacional (domain/panelStatus.js): quadros, NCs e ações
+  // só de quadros ativos ou em manutenção — o mesmo conjunto das listagens.
+  // Inspeções são histórico: continuam as de todos os quadros da unidade
+  // (`allPanels` resolve a localidade delas).
+  const excluded = nonOperationalPanelIds(P);
+  const panelIdByNc = new Map(N.map((n) => [n.id, n.panel_id]));
   return {
-    P,
-    N: filterByMembership(N, unit),
-    A: filterByMembership(A, unit),
+    P: P.filter(isOperationalPanel),
+    allPanels: P,
+    N: excludeRowsOfPanels(filterByMembership(N, unit), excluded),
+    A: excludeRowsOfPanels(filterByMembership(A, unit), excluded, (a) => actionPanelIdWithNc(a, panelIdByNc)),
     I: filterByMembership(I, unit),
     sapOrders: filterByMembership(sapOrders, unit),
     hierarchy,
@@ -53,11 +61,11 @@ export async function fetchDashboardRaw() {
  * ({ start, end } ou null para "todo o período").
  */
 export function computeDashboardData(raw, filters = {}) {
-  const { P: P_all, N: N_all, A: A_all, I: I_all, sapOrders, hierarchy } = raw;
+  const { P: P_all, allPanels = P_all, N: N_all, A: A_all, I: I_all, sapOrders, hierarchy } = raw;
   const { localidadeId = LOCALIDADE_ALL, dateRange = null } = filters;
 
   const locName = new Map((hierarchy.localidades || []).map((l) => [l.id, l.nome]));
-  const panelLocMap = new Map(P_all.map((p) => [p.id, p.localidade_id]));
+  const panelLocMap = new Map(allPanels.map((p) => [p.id, p.localidade_id]));
 
   // --- Recorte por localidade (dimensão presente em todos os domínios via panel_id) ---
   const P = localidadeId === LOCALIDADE_ALL ? P_all : P_all.filter((p) => p.localidade_id === localidadeId);

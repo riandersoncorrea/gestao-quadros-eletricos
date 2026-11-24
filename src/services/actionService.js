@@ -9,7 +9,10 @@ import {
   missingCompletionRequirements, canAddCorrectivePhoto, MAX_CORRECTIVE_PHOTOS,
 } from "@/domain/actionCompletion";
 import { IN_EXECUTION_STATUS, isTreatableFromChecklist, canDeleteActions } from "@/domain/actionRules";
-import { scopeRowsToActiveUnit, assertPanelWritable, assertRecordWritable } from "@/services/unitScopeService";
+import { actionPanelIdWithNc } from "@/domain/panelStatus";
+import {
+  scopeRowsToActiveUnit, scopeRowsToOperationalPanels, scopeRowsToInactivePanels, assertPanelWritable, assertRecordWritable,
+} from "@/services/unitScopeService";
 
 // Unidade de uma ação = a do seu quadro (actions.panel_id ou, na falta, o da NC).
 const actionPanelId = (a) => a?.panel_id || a?.nonconformity?.panel_id || null;
@@ -28,8 +31,43 @@ export async function listActionsForNC(ncId) {
   return actionRepository.listForNC(ncId);
 }
 
+/**
+ * Quadro que decide a elegibilidade de cada ação: o dela ou, na falta, o da
+ * NC (a v_actions não traz a NC embutida; só as NCs necessárias são lidas).
+ */
+async function eligibilityPanelIdOf(actions) {
+  const semQuadro = actions.filter((a) => !a.panel_id && a.nonconformity_id);
+  const ncs = semQuadro.length
+    ? await ncRepository.listPanelIdsByIds(semQuadro.map((a) => a.nonconformity_id))
+    : [];
+  const panelIdByNc = new Map(ncs.map((n) => [n.id, n.panel_id]));
+  return (a) => actionPanelIdWithNc(a, panelIdByNc);
+}
+
+/**
+ * Listagem operacional de ações: da unidade ativa, só de quadros ativos ou
+ * em manutenção. As ações de quadros inativos continuam na tela da NC
+ * (listActionsForNC) e, para o responsável, em listMyActionsOfInactivePanels.
+ */
 export async function listActions() {
-  return scopeRowsToActiveUnit(await actionRepository.listAll(), actionPanelId);
+  const actions = await actionRepository.listAll();
+  return scopeRowsToOperationalPanels(actions, actionPanelId, await eligibilityPanelIdOf(actions));
+}
+
+/**
+ * Ações do PRÓPRIO usuário logado em quadros inativos da unidade ativa — o
+ * caminho do responsável (ex.: Inspetor, que não acessa a página do quadro)
+ * até o que saiu da listagem operacional. O usuário vem da sessão, não da
+ * tela, e a consulta já pede só as ações dele (actions.responsavel_id): não
+ * há como listar as de outra pessoa por aqui. Vínculo só pelo id do perfil
+ * (o texto `responsavel` não identifica a pessoa com segurança).
+ */
+export async function listMyActionsOfInactivePanels() {
+  const uid = await getCurrentUserId();
+  if (!uid) return [];
+  const actions = await actionRepository.listByResponsible(uid);
+  if (!actions.length) return [];
+  return scopeRowsToInactivePanels(actions, actionPanelId, await eligibilityPanelIdOf(actions));
 }
 
 /** Ações "Em execução" de todos os quadros (filtro/botão da página Checklists). */

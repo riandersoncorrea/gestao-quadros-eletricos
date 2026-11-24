@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { fetchAllPages } from "@/repositories/pagination";
 import { getActiveUnitId, getDefaultUnitId } from "@/lib/unitScope";
 import { scopeHierarchy } from "@/domain/unitScope";
+import { OPERATIONAL_PANEL_STATUSES } from "@/domain/panelStatus";
 
 // Coluna de unidade operacional dos quadros (migration 0016). Toda leitura
 // de LISTA de quadros é recortada pela unidade ativa (src/lib/unitScope.js);
@@ -24,15 +25,21 @@ function parseOrder(orderBy) {
 /**
  * Fábrica de acesso genérico a uma tabela (list/filter/create/update/delete).
  * `unitColumn`: se informado, list() só traz linhas da unidade ativa.
+ * `paginated`: list() lê todas as páginas (tabela que pode passar de 1000
+ * linhas — ver repositories/pagination.js), com desempate por id.
  */
-function makeEntity(table, { unitColumn } = {}) {
+function makeEntity(table, { unitColumn, paginated = false } = {}) {
   return {
     async list(orderBy) {
-      let query = supabase.from(table).select("*");
-      if (unitColumn) query = query.eq(unitColumn, getActiveUnitId());
-      const order = parseOrder(orderBy);
-      if (order) query = query.order(order.column, { ascending: order.ascending });
-      const { data, error } = await query;
+      const build = () => {
+        let query = supabase.from(table).select("*");
+        if (unitColumn) query = query.eq(unitColumn, getActiveUnitId());
+        const order = parseOrder(orderBy);
+        if (order) query = query.order(order.column, { ascending: order.ascending });
+        return query;
+      };
+      if (paginated) return fetchAllPages(() => build().order("id", { ascending: true }));
+      const { data, error } = await build();
       if (error) throw error;
       return data;
     },
@@ -64,7 +71,7 @@ function makeEntity(table, { unitColumn } = {}) {
 }
 
 export const ElectricalPanel = makeEntity("electrical_panels", { unitColumn: UNIT_COLUMN });
-export const Inspection = makeEntity("inspections");
+export const Inspection = makeEntity("inspections", { paginated: true });
 export const Localidade = makeEntity("localidades");
 export const Local = makeEntity("locais");
 export const Sublocal = makeEntity("sublocais");
@@ -102,6 +109,27 @@ export async function listPanelIdsForActiveUnit() {
     supabase.from("electrical_panels").select("id").eq(UNIT_COLUMN, getActiveUnitId()).order("id", { ascending: true })
   );
   return rows.map((r) => r.id);
+}
+
+/**
+ * Id e status de todos os quadros da unidade ativa: recorte por unidade e
+ * por elegibilidade operacional (domain/panelStatus.js) numa só consulta.
+ */
+export async function listPanelStatusForActiveUnit() {
+  return fetchAllPages(() =>
+    supabase.from("electrical_panels").select("id, status").eq(UNIT_COLUMN, getActiveUnitId()).order("id", { ascending: true })
+  );
+}
+
+/** Status de um quadro, lido na hora (undefined se o quadro não existir). */
+export async function getPanelStatus(panelId) {
+  const { data, error } = await supabase
+    .from("electrical_panels")
+    .select("status")
+    .eq("id", panelId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.status;
 }
 
 /** Unidade de um quadro (undefined se o quadro não existir). */
@@ -202,21 +230,25 @@ export async function listForDashboard() {
   return data;
 }
 
+/** Quadros do Mapa: só os elegíveis (ativo/manutenção — domain/panelStatus.js). */
 export async function listForMap() {
-  const { data, error } = await supabase
-    .from("electrical_panels")
-    .select(
-      "id, tag, name, nomenclatura_oficial, status, criticality, health_index, health_index_updated_at, " +
-      "latitude, longitude, unidade_operacional_id, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
-    )
-    .eq(UNIT_COLUMN, getActiveUnitId());
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("electrical_panels")
+      .select(
+        "id, tag, name, nomenclatura_oficial, status, criticality, health_index, health_index_updated_at, " +
+        "latitude, longitude, unidade_operacional_id, localidade_id, local_id, sublocal_id, last_inspection_date, next_inspection_date"
+      )
+      .eq(UNIT_COLUMN, getActiveUnitId())
+      .in("status", OPERATIONAL_PANEL_STATUSES)
+      .order("id", { ascending: true })
+  );
 }
 
 /**
  * Quadros do Inventário com os campos de identificação/localização usados
- * pelo relatório "Quadros sem checklist". Paginada: a base passa a crescer
+ * pelo relatório "Quadros sem checklist" — só os elegíveis (ativo/manutenção,
+ * domain/panelStatus.js). Paginada: a base passa a crescer
  * com as cargas de outras unidades (EFC) e o PostgREST corta em 1000 linhas.
  */
 export async function listForChecklistCoverage() {
@@ -228,6 +260,7 @@ export async function listForChecklistCoverage() {
         "unidade_operacional_id, localidade_id, local_id, sublocal_id, sap_functional_location, sap_equipment_number"
       )
       .eq(UNIT_COLUMN, getActiveUnitId())
+      .in("status", OPERATIONAL_PANEL_STATUSES)
       .order("id", { ascending: true })
   );
 }

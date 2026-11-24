@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ElectricalPanel, fetchHierarchy } from "@/services/panelService";
 import { getPanelFlags } from "@/services/healthIndexService";
 import { ncSummaryForPanel } from "@/services/ncService";
+import { isOperationalPanel } from "@/domain/panelStatus";
 import { panelLocationHistory, panelConditionHistory } from "@/services/auditService";
 import { getPanelAdherence } from "@/services/dashboardService";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -119,6 +120,10 @@ export default function PanelDetail() {
   });
 
   const panel = panels?.[0];
+  // Quadro fora da operação (inativo): as NCs dele não estão na listagem
+  // geral, então o histórico — mesmo sem NC aberta — é acessado por aqui.
+  const foraDaOperacao = !!panel && !isOperationalPanel(panel);
+  const showNcs = ncSummary?.abertas > 0 || (foraDaOperacao && ncSummary?.total > 0);
 
   const deleteMutation = useMutation({
     mutationFn: () => ElectricalPanel.delete(id),
@@ -221,7 +226,7 @@ export default function PanelDetail() {
       </div>
 
       {/* Índice de Saúde + Aderência */}
-      {(panel.health_index != null || adherenceData?.due > 0 || ncSummary?.abertas > 0) && (
+      {(panel.health_index != null || adherenceData?.due > 0 || showNcs) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {panel.health_index != null && (
             <Card>
@@ -252,8 +257,8 @@ export default function PanelDetail() {
               </CardContent>
             </Card>
           )}
-          {ncSummary?.abertas > 0 && (
-            <Link to={`/nao-conformidades?panel=${id}`}>
+          {showNcs && (
+            <Link to={`/nao-conformidades?panel=${id}${foraDaOperacao ? "&status=all" : ""}`}>
               <Card className="hover:border-primary/30 transition-colors">
                 <CardContent className="p-4 flex items-center gap-3">
                   <FileWarning className="h-8 w-8 text-destructive/70 shrink-0" />

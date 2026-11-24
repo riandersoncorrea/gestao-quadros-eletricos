@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { localidadesEmDestaque } from "@/domain/intelligentAnalysis";
+import { isOperationalPanel } from "@/domain/panelStatus";
 import { fetchIntelligentAnalysisRaw, computeIntelligentAnalysis, getPanelSnapshotFromAnalysis } from "@/services/intelligentAnalysisService";
 import {
   ANALYSIS_PERIOD_OPTIONS, STATUS_OPTIONS, LOCALIDADE_ALL,
@@ -245,7 +246,7 @@ export default function IntelligentAnalysis() {
 
   const localidades = raw?.hierarchy?.localidades || [];
   const panelOptions = useMemo(
-    () => (raw?.panels || []).map((p) => ({ value: p.id, label: `${p.tag}: ${p.name}` })),
+    () => (raw?.panels || []).filter(isOperationalPanel).map((p) => ({ value: p.id, label: `${p.tag}: ${p.name}` })),
     [raw]
   );
 

@@ -133,21 +133,26 @@ export async function setHealthIndexResult(inspectionId, index) {
   if (error) throw error;
 }
 
+// Paginadas (ver repositories/pagination.js): leem as inspeções de todas as
+// unidades visíveis ao usuário e o recorte é feito no cliente — sem paginar,
+// acima de 1000 linhas o excedente sumiria das contagens sem erro.
 export async function listForDashboard() {
-  const { data, error } = await supabase
-    .from("inspections")
-    .select("id, inspection_date, overall_result, status, panel_ref_id, panel_id");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("inspections")
+      .select("id, inspection_date, overall_result, status, panel_ref_id, panel_id")
+      .order("id", { ascending: true })
+  );
 }
 
 /** Inspeções para a Análise Inteligente dos Dados: inclui o Índice de Saúde por inspeção (não usado no Dashboard). */
 export async function listForAnalysis() {
-  const { data, error } = await supabase
-    .from("inspections")
-    .select("id, inspection_date, overall_result, status, panel_ref_id, panel_id, health_index_resultado");
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("inspections")
+      .select("id, inspection_date, overall_result, status, panel_ref_id, panel_id, health_index_resultado")
+      .order("id", { ascending: true })
+  );
 }
 
 /**

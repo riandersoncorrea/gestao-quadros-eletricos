@@ -204,7 +204,7 @@ export default function MapPage() {
             </Select>
           </div>
           {/* Unidade: definida pelo seletor global (cabeçalho); o mapa só
-              traz quadros da unidade ativa. */}
+              traz quadros da unidade ativa — e só ativos ou em manutenção. */}
           <Select value={localidadeFilter} onValueChange={setLocalidadeFilter}>
             <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Localidade" /></SelectTrigger>
             <SelectContent>
@@ -225,7 +225,6 @@ export default function MapPage() {
               <SelectItem value={ALL}>Todo status</SelectItem>
               <SelectItem value="ativo">Ativo</SelectItem>
               <SelectItem value="manutencao">Manutenção</SelectItem>
-              <SelectItem value="inativo">Inativo</SelectItem>
             </SelectContent>
           </Select>
           <label className="flex items-center gap-1.5 text-xs">

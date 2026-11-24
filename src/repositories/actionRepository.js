@@ -31,6 +31,18 @@ export async function listAll() {
   );
 }
 
+/** Todas as ações de um responsável (só as dele, pelo id do perfil). */
+export async function listByResponsible(profileId) {
+  return fetchAllPages(() =>
+    supabase
+      .from("v_actions")
+      .select("*")
+      .eq("responsavel_id", profileId)
+      .order("prazo", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+  );
+}
+
 export async function create(values) {
   const { data, error } = await supabase.from("actions").insert(values).select().single();
   if (error) throw error;
@@ -82,7 +94,7 @@ export async function listAllForDashboard() {
   return fetchAllPages(() =>
     supabase
       .from("v_actions")
-      .select("id, panel_id, status, atrasada, prazo")
+      .select("id, panel_id, nonconformity_id, status, atrasada, prazo")
       .order("id", { ascending: true })
   );
 }

@@ -2,14 +2,28 @@ import { getCurrentUserId } from "@/auth/authService";
 import * as ncRepository from "@/repositories/ncRepository";
 import { isOpenNonconformity } from "@/domain/nonconformityRules";
 import {
-  scopeRowsToActiveUnit, assertRecordInActiveUnit, assertRecordWritable, assertPanelWritable, assertActiveUnitWritable,
+  scopeRowsToActiveUnit, scopeRowsToOperationalPanels, assertRecordInActiveUnit, assertRecordWritable, assertPanelWritable, assertActiveUnitWritable,
 } from "@/services/unitScopeService";
 import { getActiveUnitId } from "@/lib/unitScope";
+import { getPanelStatus } from "@/repositories/panelRepository";
+import { isOperationalPanel, InactivePanelError } from "@/domain/panelStatus";
 import { isSchemaMissing } from "@/repositories/unitAccessRepository";
 
-/** NCs da unidade ativa (pela unidade do quadro de cada NC). */
+/**
+ * Listagem operacional: NCs da unidade ativa (pela unidade do quadro de cada
+ * NC), só de quadros ativos ou em manutenção.
+ */
 export async function listNonconformities() {
-  return scopeRowsToActiveUnit(await ncRepository.list());
+  return scopeRowsToOperationalPanels(await ncRepository.list());
+}
+
+/**
+ * Histórico de NCs de UM quadro (link da página do quadro), seja qual for o
+ * status do quadro — as NCs de um quadro inativo continuam acessíveis aqui.
+ * O recorte por unidade é o mesmo da listagem.
+ */
+export async function listNonconformitiesForPanel(panelId) {
+  return scopeRowsToActiveUnit(await ncRepository.listForPanel(panelId));
 }
 
 /** NC por id — só se for da unidade ativa (link direto de outra unidade -> UnitMismatchError). */
@@ -24,8 +38,13 @@ async function assertNcWritable(id) {
 }
 
 export async function createNonconformity(values) {
-  if (values.panel_id) await assertPanelWritable(values.panel_id);
-  else assertActiveUnitWritable();
+  if (values.panel_id) {
+    await assertPanelWritable(values.panel_id);
+    // NC nova só em quadro elegível (a tela já não oferece os inativos): o
+    // status é relido na hora, para valer mesmo com a lista desatualizada.
+    const status = await getPanelStatus(values.panel_id);
+    if (status !== undefined && !isOperationalPanel({ status })) throw new InactivePanelError();
+  } else assertActiveUnitWritable();
   const uid = await getCurrentUserId();
   const clean = { ...values };
   for (const k of Object.keys(clean)) if (clean[k] === "") clean[k] = null;
