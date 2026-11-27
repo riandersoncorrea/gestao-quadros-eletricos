@@ -269,6 +269,17 @@ export async function listTemplateItemsByCodes(codigos) {
   return data;
 }
 
+/** Itens do catálogo pelos ids (todas as versões de template): categoria e texto. */
+export async function listTemplateItemsByIds(itemIds) {
+  return fetchAllPagesByIds(itemIds, (ids) =>
+    supabase
+      .from("inspection_template_items")
+      .select("id, codigo, titulo, modulo, modulo_nome")
+      .in("id", ids)
+      .order("id", { ascending: true })
+  );
+}
+
 /** Data e status das inspeções informadas (relatório de risco de interdição). */
 export async function listDatesAndStatusByIds(inspectionIds) {
   return fetchAllPagesByIds(inspectionIds, (ids) =>
