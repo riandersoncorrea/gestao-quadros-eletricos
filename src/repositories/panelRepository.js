@@ -246,6 +246,21 @@ export async function listForMap() {
 }
 
 /**
+ * Quadros elegíveis (ativo/manutenção) da unidade ativa com os campos da
+ * base RAC (identificação, localização e próxima inspeção). Paginada.
+ */
+export async function listForRacExport() {
+  return fetchAllPages(() =>
+    supabase
+      .from("electrical_panels")
+      .select("id, tag, status, site, unidade_operacional_id, localidade_id, local_id, sublocal_id, next_inspection_date")
+      .eq(UNIT_COLUMN, getActiveUnitId())
+      .in("status", OPERATIONAL_PANEL_STATUSES)
+      .order("id", { ascending: true })
+  );
+}
+
+/**
  * Quadros do Inventário com os campos de identificação/localização usados
  * pelo relatório "Quadros sem checklist" — só os elegíveis (ativo/manutenção,
  * domain/panelStatus.js). Paginada: a base passa a crescer

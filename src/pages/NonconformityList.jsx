@@ -7,6 +7,7 @@ import { useUnitScope } from "@/hooks/useUnitScope";
 import { ReadOnlyActionButton } from "@/components/unit/UnitScopeNotices";
 import { isOpenNonconformity, isCorrectedNonconformity } from "@/domain/nonconformityRules";
 import { isOperationalPanel } from "@/domain/panelStatus";
+import { canExportRac } from "@/domain/racExport";
 import {
   PERIOD_OPTIONS, resolvePeriodRange, validateCustomRange, isWithinRange,
 } from "@/domain/dashboardFilters";
@@ -23,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { Plus, Search, FileWarning, Calendar, Zap, Trash2 } from "lucide-react";
+import { Plus, Search, FileWarning, Calendar, Zap, Trash2, FileSpreadsheet } from "lucide-react";
 
 export const SEV = {
   baixa: { label: "Baixa", cls: "bg-muted text-muted-foreground border-border" },
@@ -65,6 +66,7 @@ export default function NonconformityList() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [deleteId, setDeleteId] = useState(null);
+  const [exportingRac, setExportingRac] = useState(false);
 
   // Listagem operacional (quadros ativos/em manutenção) ou, vindo da página de
   // um quadro (?panel=), o histórico dele — inclusive de quadro inativo.
@@ -140,6 +142,30 @@ export default function NonconformityList() {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
   useEffect(() => { setPage(0); }, [search, statusFilter, sevFilter, dateRange]);
 
+  // Base RAC (Excel): todas as NCs dos quadros ativos/em manutenção da
+  // unidade ativa, independente dos filtros e da paginação desta tela. Só
+  // leitura; exceljs e a consulta carregados sob demanda, no clique.
+  async function handleExportRac() {
+    setExportingRac(true);
+    try {
+      const [{ fetchRacRows }, { exportRacExcel }] = await Promise.all([
+        import("@/services/racExportService"),
+        import("@/services/racExcelService"),
+      ]);
+      const rows = await fetchRacRows();
+      if (!rows.length) {
+        toast.error("Nenhuma NC para exportar nos quadros ativos ou em manutenção desta unidade.");
+        return;
+      }
+      await exportRacExcel(rows);
+      toast.success(`Base RAC exportada: ${rows.length} NC(s).`);
+    } catch (e) {
+      toast.error(`Não foi possível exportar a base RAC: ${e?.message || "erro desconhecido"}`);
+    } finally {
+      setExportingRac(false);
+    }
+  }
+
   function handlePeriodChange(value) {
     setPeriod(value);
     setCustomError(null);
@@ -167,12 +193,19 @@ export default function NonconformityList() {
               : <>{ncs.filter((n) => isOpenNonconformity(n.status)).length} aberta(s) · {ncs.filter((n) => isCorrectedNonconformity(n.status)).length} corrigida(s) de {ncs.length} no total</>}
           </p>
         </div>
-        {canEdit && (
-          <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" />Nova NC
-          </Button>
-        )}
-        {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Nova NC</ReadOnlyActionButton>}
+        <div className="flex flex-wrap gap-2">
+          {canExportRac(role.role) && (
+            <Button size="sm" variant="outline" className="gap-2" onClick={handleExportRac} disabled={exportingRac}>
+              <FileSpreadsheet className="h-4 w-4" />{exportingRac ? "Gerando..." : "Exportar base RAC (Excel)"}
+            </Button>
+          )}
+          {canEdit && (
+            <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" />Nova NC
+            </Button>
+          )}
+          {role.canEdit && !canWrite && <ReadOnlyActionButton icon={Plus}>Nova NC</ReadOnlyActionButton>}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">

@@ -32,7 +32,7 @@ const aliasPlugin = {
 };
 
 // Cada arquivo vira um bundle próprio (estado de módulo isolado por processo).
-const entries = ["unitScope.integration.test.js", "pagination.integration.test.js", "panelStatus.integration.test.js"];
+const entries = ["unitScope.integration.test.js", "pagination.integration.test.js", "panelStatus.integration.test.js", "racExport.integration.test.js"];
 
 try {
   await build({

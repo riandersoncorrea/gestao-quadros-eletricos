@@ -28,6 +28,17 @@ export async function listForPanel(panelId) {
   );
 }
 
+/** NCs dos quadros informados, com os campos da base RAC (qualquer status). */
+export async function listForRacExport(panelIds) {
+  return fetchAllPagesByIds(panelIds, (ids) =>
+    supabase
+      .from("nonconformities")
+      .select("id, panel_id, template_item_id, categoria, descricao, status")
+      .in("panel_id", ids)
+      .order("id", { ascending: true })
+  );
+}
+
 /** Quadro das NCs informadas (para ações sem quadro próprio). */
 export async function listPanelIdsByIds(ncIds) {
   return fetchAllPagesByIds(ncIds, (ids) =>
